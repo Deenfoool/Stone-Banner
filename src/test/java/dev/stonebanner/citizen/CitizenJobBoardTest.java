@@ -46,4 +46,15 @@ class CitizenJobBoardTest {
         assertFalse(board.job(jobId).isPresent());
         assertEquals(0, board.size());
     }
+
+    @Test
+    void cancellingTargetRemovesAllJobsAtThatBlock() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        BlockPos target = new BlockPos(2, 64, 2);
+        board.publish(WorkType.FORESTRY, target, 0L);
+        board.publish(WorkType.MINING, target, CitizenSkill.MINING, 0, 1L);
+
+        assertEquals(2, board.removeAt(target));
+        assertEquals(0, board.size());
+    }
 }
