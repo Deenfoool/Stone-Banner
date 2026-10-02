@@ -7,8 +7,8 @@ import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.client.control.WorldCursor;
+import dev.stonebanner.client.hud.StoneBannerHudRenderer;
 import dev.stonebanner.designation.DesignationType;
-import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -48,53 +48,14 @@ public final class TacticalControlScreen extends Screen {
                     .ifPresent(hit -> DesignationController.update(hit.getBlockPos()));
         }
 
+        StoneBannerHudRenderer.render(graphics, minecraft, width, height);
+
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
         graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
         graphics.hLine(mouseX + 3, mouseX + 8, mouseY, color);
         graphics.vLine(mouseX, mouseY - 8, mouseY - 3, color);
         graphics.vLine(mouseX, mouseY + 3, mouseY + 8, color);
-
-        Component hint;
-        int hintColor;
-        DesignationType designationType = DesignationController.activeType().orElse(null);
-        HumanNpcEntity selectedNpc = CitizenSelectionController.selected().orElse(null);
-        if (designationType != null) {
-            hint = Component.translatable(
-                    "hud.stonebanner.designation.active",
-                    Component.translatable("designation.stonebanner." + designationType.serializedName()),
-                    DesignationController.previewVolume()
-            );
-            hintColor = DesignationController.previewAllowed() ? designationColor(designationType) : 0xFFFF6868;
-        } else if (selectedNpc != null) {
-            hint = Component.translatable(
-                    "hud.stonebanner.tactical.npc_selected",
-                    selectedNpc.getDisplayName(),
-                    selectedNpc.brainState().serializedName()
-            );
-            hintColor = 0xFF8CE673;
-        } else if (PlayerCommandController.status() == PlayerCommandController.CommandStatus.UNREACHABLE) {
-            hint = Component.translatable("hud.stonebanner.tactical.unreachable");
-            hintColor = 0xFFFF6868;
-        } else if (PlayerCommandController.hasMoveTarget()) {
-            hint = Component.translatable(
-                    "hud.stonebanner.tactical.moving",
-                    PlayerCommandController.pathSnapshot().size()
-            );
-            hintColor = 0xFFE7C46A;
-        } else if (PlayerCommandController.status() == PlayerCommandController.CommandStatus.TARGET_SELECTED) {
-            hint = PlayerCommandController.selectedEntity()
-                    .map(entity -> Component.translatable(
-                            "hud.stonebanner.tactical.selected",
-                            entity.getDisplayName()
-                    ))
-                    .orElse(Component.translatable("hud.stonebanner.tactical.hint"));
-            hintColor = 0xFF69DDE7;
-        } else {
-            hint = Component.translatable("hud.stonebanner.tactical.hint");
-            hintColor = 0xFFE7C46A;
-        }
-        graphics.drawCenteredString(font, hint, width / 2, height - 24, hintColor);
 
         hoveredTarget.ifPresent(hit -> {
             Component targetLabel = hit instanceof EntityHitResult entityHit
@@ -105,7 +66,7 @@ public final class TacticalControlScreen extends Screen {
                             ((BlockHitResult) hit).getBlockPos().getY(),
                             ((BlockHitResult) hit).getBlockPos().getZ()
                     );
-            graphics.drawString(font, targetLabel, 8, 8, 0xFFFFFFFF);
+            graphics.drawString(font, targetLabel, 8, 40, 0xFFD8D2C8);
         });
     }
 
