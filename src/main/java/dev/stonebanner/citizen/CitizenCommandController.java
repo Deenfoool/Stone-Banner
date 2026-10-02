@@ -4,9 +4,17 @@ import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.common.util.FakePlayerFactory;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -18,8 +26,8 @@ public final class CitizenCommandController {
     private static final double WAYPOINT_ARRIVAL_DISTANCE_SQR = 0.55D * 0.55D;
     private static final int MOVE_REFRESH_TICKS = 10;
     private static final int FOLLOW_REPATH_TICKS = 20;
-    private static final int MAX_DYNAMIC_REPATH_ATTEMPTS = 3;
-    private static final int DYNAMIC_REPATH_COOLDOWN_TICKS = 8;
+    private static final int MAX_MOVE_REPLAN_ATTEMPTS = 3;
+    private static final int MOVE_REPLAN_BACKOFF_TICKS = 8;
     private static final double MOVE_SPEED = 1.0D;
 
     private final HumanNpcEntity owner;
@@ -28,10 +36,12 @@ public final class CitizenCommandController {
     private ActorCommand activeCommand;
     private CitizenBrainState movementState = CitizenBrainState.IDLE;
     private CommandStatus status = CommandStatus.IDLE;
+    private BlockPos moveDestination;
+    private BlockPos attemptedDoor;
     private int navigationRefreshCooldown;
     private int followRepathCooldown;
-    private int dynamicRepathCooldown;
-    private int dynamicRepathAttempts;
+    private int moveReplanAttempts;
+    private int moveReplanCooldown;
 
     public CitizenCommandController(HumanNpcEntity owner) {
         this.owner = owner;
@@ -59,12 +69,12 @@ public final class CitizenCommandController {
                 return false;
             }
             activeCommand = command;
+            moveDestination = null;
             movementState = CitizenBrainState.FOLLOW;
             path.clear();
             navigationRefreshCooldown = 0;
             followRepathCooldown = 0;
-            dynamicRepathCooldown = 0;
-            dynamicRepathAttempts = 0;
+            resetMoveRecovery();
             status = CommandStatus.FOLLOWING;
             owner.setBrainState(CitizenBrainState.FOLLOW);
             return true;
@@ -80,20 +90,22 @@ public final class CitizenCommandController {
     }
 
     private boolean issueMove(BlockPos target, CitizenBrainState state) {
-        activeCommand = new ActorCommand.MoveTo(target);
+        BlockPos immutableTarget = target.immutable();
+        activeCommand = new ActorCommand.MoveTo(immutableTarget);
+        moveDestination = immutableTarget;
         movementState = state;
         followRepathCooldown = 0;
-        dynamicRepathCooldown = 0;
-        dynamicRepathAttempts = 0;
-        return rebuildPath(target, state, CommandStatus.MOVING, false);
+        resetMoveRecovery();
+        if (!rebuildPath(immutableTarget, state, CommandStatus.MOVING)) {
+            failMove();
+            return false;
+        }
+        return true;
     }
 
     public void tick() {
         if (owner.level().isClientSide || activeCommand == null) {
             return;
-        }
-        if (dynamicRepathCooldown > 0) {
-            dynamicRepathCooldown--;
         }
 
         if (activeCommand instanceof ActorCommand.MoveTo) {
@@ -121,12 +133,11 @@ public final class CitizenCommandController {
             owner.setBrainState(CitizenBrainState.FOLLOW);
             navigationRefreshCooldown = 0;
             followRepathCooldown = Math.max(0, followRepathCooldown - 1);
-            dynamicRepathAttempts = 0;
             return;
         }
 
         if (followRepathCooldown <= 0 || path.isEmpty()) {
-            if (!rebuildPath(BlockPos.containing(target.position()), CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING, false)) {
+            if (!rebuildPath(BlockPos.containing(target.position()), CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING)) {
                 status = CommandStatus.UNREACHABLE;
                 movementState = CitizenBrainState.FOLLOW;
                 owner.setBrainState(CitizenBrainState.FOLLOW);
@@ -157,14 +168,12 @@ public final class CitizenCommandController {
             return true;
         }
 
-        if (!BlockPathfinder.isWalkable(owner.level(), next)) {
-            return tryDynamicRepath(state, movingStatus);
-        }
-
         Vec3 waypoint = BlockPathfinder.waypoint(owner.level(), next);
         if (owner.distanceToSqr(waypoint.x, waypoint.y, waypoint.z) <= WAYPOINT_ARRIVAL_DISTANCE_SQR) {
             path.removeFirst();
-            dynamicRepathAttempts = 0;
+            moveReplanAttempts = 0;
+            moveReplanCooldown = 0;
+            attemptedDoor = null;
             next = path.peekFirst();
             if (next == null) {
                 if (state == CitizenBrainState.FOLLOW) {
@@ -175,18 +184,36 @@ public final class CitizenCommandController {
                 completeMove();
                 return true;
             }
-            if (!BlockPathfinder.isWalkable(owner.level(), next)) {
-                return tryDynamicRepath(state, movingStatus);
-            }
             waypoint = BlockPathfinder.waypoint(owner.level(), next);
+        }
+
+        if (BlockPathfinder.isClosedIronDoor(owner.level(), next)) {
+            if (!handleControlledIronDoor(next, state, movingStatus)) {
+                return false;
+            }
+            if (BlockPathfinder.isClosedIronDoor(owner.level(), next)) {
+                owner.getNavigation().stop();
+                status = movingStatus;
+                movementState = state;
+                owner.setBrainState(state);
+                return true;
+            }
+        } else {
+            attemptedDoor = null;
+        }
+
+        if (!BlockPathfinder.isWalkable(owner.level(), next)) {
+            return recoverMove(state, movingStatus);
         }
 
         if (navigationRefreshCooldown <= 0 || owner.getNavigation().isDone()) {
             double injuryAdjustedSpeed = MOVE_SPEED * owner.citizenData().health().movementMultiplier();
+            // The custom route is made of adjacent blocks. Vanilla's coordinate overload uses accuracy 1,
+            // which treats the next adjacent block as already reached and leaves the mob standing still.
             Path segment = owner.getNavigation().createPath(next, 0);
             if (segment == null || !segment.canReach()
                     || !owner.getNavigation().moveTo(segment, injuryAdjustedSpeed)) {
-                return tryDynamicRepath(state, movingStatus);
+                return recoverMove(state, movingStatus);
             }
             navigationRefreshCooldown = MOVE_REFRESH_TICKS;
         } else {
@@ -199,55 +226,98 @@ public final class CitizenCommandController {
         return true;
     }
 
-    private boolean tryDynamicRepath(CitizenBrainState state, CommandStatus movingStatus) {
-        if (dynamicRepathCooldown > 0) {
-            owner.getNavigation().stop();
-            status = movingStatus;
+    private boolean handleControlledIronDoor(BlockPos doorPos, CitizenBrainState state, CommandStatus movingStatus) {
+        Optional<BlockPos> control = BlockPathfinder.findNearbyDoorControl(owner.level(), doorPos);
+        if (control.isEmpty()) {
+            return recoverMove(state, movingStatus);
+        }
+
+        if (doorPos.equals(attemptedDoor)) {
+            return recoverMove(state, movingStatus);
+        }
+
+        attemptedDoor = doorPos.immutable();
+        if (!activateDoorControl(control.get())) {
+            return recoverMove(state, movingStatus);
+        }
+        navigationRefreshCooldown = 0;
+        return true;
+    }
+
+    private boolean activateDoorControl(BlockPos controlPos) {
+        if (!(owner.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        BlockState controlState = serverLevel.getBlockState(controlPos);
+        if (!BlockPathfinder.isDoorControl(controlState)) {
+            return false;
+        }
+
+        FakePlayer fakePlayer = FakePlayerFactory.getMinecraft(serverLevel);
+        fakePlayer.setPos(owner.getX(), owner.getY(), owner.getZ());
+        BlockHitResult hit = new BlockHitResult(
+                Vec3.atCenterOf(controlPos),
+                Direction.UP,
+                controlPos,
+                false
+        );
+        InteractionResult result = controlState.use(serverLevel, fakePlayer, InteractionHand.MAIN_HAND, hit);
+        return result.consumesAction();
+    }
+
+    private boolean recoverMove(CitizenBrainState state, CommandStatus movingStatus) {
+        owner.getNavigation().stop();
+        navigationRefreshCooldown = 0;
+
+        if (state == CitizenBrainState.FOLLOW) {
+            path.clear();
+            status = CommandStatus.UNREACHABLE;
+            return false;
+        }
+        if (moveDestination == null) {
+            failMove();
+            return false;
+        }
+        if (moveReplanCooldown > 0) {
+            moveReplanCooldown--;
+            status = CommandStatus.REPATHING;
             movementState = state;
             owner.setBrainState(state);
             return true;
         }
-        if (dynamicRepathAttempts >= MAX_DYNAMIC_REPATH_ATTEMPTS) {
+        if (moveReplanAttempts >= MAX_MOVE_REPLAN_ATTEMPTS) {
             failMove();
             return false;
         }
 
-        BlockPos target = currentTarget();
-        if (target == null) {
-            failMove();
-            return false;
-        }
-
-        dynamicRepathAttempts++;
-        dynamicRepathCooldown = DYNAMIC_REPATH_COOLDOWN_TICKS;
-        if (rebuildPath(target, state, movingStatus, true)) {
+        moveReplanAttempts++;
+        Optional<List<BlockPos>> result = BlockPathfinder.findPath(
+                owner.level(),
+                BlockPos.containing(owner.position()),
+                moveDestination
+        );
+        path.clear();
+        if (result.isEmpty()) {
+            moveReplanCooldown = MOVE_REPLAN_BACKOFF_TICKS;
+            status = CommandStatus.REPATHING;
+            movementState = state;
+            owner.setBrainState(state);
             return true;
         }
 
-        if (dynamicRepathAttempts >= MAX_DYNAMIC_REPATH_ATTEMPTS) {
-            failMove();
-            return false;
+        path.addAll(result.get());
+        attemptedDoor = null;
+        moveReplanCooldown = 0;
+        status = path.isEmpty() ? CommandStatus.IDLE : movingStatus;
+        movementState = path.isEmpty() ? CitizenBrainState.IDLE : state;
+        owner.setBrainState(movementState);
+        if (path.isEmpty()) {
+            completeMove();
         }
-
-        status = movingStatus;
-        movementState = state;
-        owner.setBrainState(state);
         return true;
     }
 
-    private BlockPos currentTarget() {
-        if (activeCommand instanceof ActorCommand.MoveTo moveTo) {
-            return moveTo.target();
-        }
-        if (activeCommand instanceof ActorCommand.FollowEntity follow) {
-            Entity target = owner.level().getEntity(follow.entityId());
-            return isUsableTarget(target) ? BlockPos.containing(target.position()) : null;
-        }
-        return null;
-    }
-
-    private boolean rebuildPath(BlockPos target, CitizenBrainState state, CommandStatus movingStatus,
-                                boolean preserveCommandOnFailure) {
+    private boolean rebuildPath(BlockPos target, CitizenBrainState state, CommandStatus movingStatus) {
         Optional<List<BlockPos>> result = BlockPathfinder.findPath(
                 owner.level(),
                 BlockPos.containing(owner.position()),
@@ -256,33 +326,32 @@ public final class CitizenCommandController {
 
         path.clear();
         owner.getNavigation().stop();
-        navigationRefreshCooldown = 0;
         if (result.isEmpty()) {
             status = CommandStatus.UNREACHABLE;
-            if (!preserveCommandOnFailure) {
-                movementState = CitizenBrainState.IDLE;
-                owner.setBrainState(CitizenBrainState.IDLE);
-            }
+            movementState = CitizenBrainState.IDLE;
+            owner.setBrainState(CitizenBrainState.IDLE);
             return false;
         }
 
         path.addAll(result.get());
+        navigationRefreshCooldown = 0;
         status = path.isEmpty() ? CommandStatus.IDLE : movingStatus;
         movementState = path.isEmpty() ? CitizenBrainState.IDLE : state;
         owner.setBrainState(movementState);
         if (path.isEmpty() && state != CitizenBrainState.FOLLOW) {
             activeCommand = null;
+            moveDestination = null;
         }
         return true;
     }
 
     public void stop() {
         activeCommand = null;
+        moveDestination = null;
         path.clear();
         navigationRefreshCooldown = 0;
         followRepathCooldown = 0;
-        dynamicRepathCooldown = 0;
-        dynamicRepathAttempts = 0;
+        resetMoveRecovery();
         movementState = CitizenBrainState.IDLE;
         owner.getNavigation().stop();
         status = CommandStatus.IDLE;
@@ -291,12 +360,12 @@ public final class CitizenCommandController {
 
     private void completeMove() {
         activeCommand = null;
+        moveDestination = null;
         path.clear();
         owner.getNavigation().stop();
         navigationRefreshCooldown = 0;
         followRepathCooldown = 0;
-        dynamicRepathCooldown = 0;
-        dynamicRepathAttempts = 0;
+        resetMoveRecovery();
         movementState = CitizenBrainState.IDLE;
         status = CommandStatus.IDLE;
         owner.setBrainState(CitizenBrainState.IDLE);
@@ -304,15 +373,21 @@ public final class CitizenCommandController {
 
     private void failMove() {
         activeCommand = null;
+        moveDestination = null;
         path.clear();
         owner.getNavigation().stop();
         navigationRefreshCooldown = 0;
         followRepathCooldown = 0;
-        dynamicRepathCooldown = 0;
-        dynamicRepathAttempts = 0;
+        resetMoveRecovery();
         movementState = CitizenBrainState.IDLE;
         status = CommandStatus.UNREACHABLE;
         owner.setBrainState(CitizenBrainState.IDLE);
+    }
+
+    private void resetMoveRecovery() {
+        attemptedDoor = null;
+        moveReplanAttempts = 0;
+        moveReplanCooldown = 0;
     }
 
     private boolean isUsableTarget(Entity target) {
@@ -339,6 +414,7 @@ public final class CitizenCommandController {
         IDLE,
         MOVING,
         FOLLOWING,
+        REPATHING,
         UNREACHABLE
     }
 }
