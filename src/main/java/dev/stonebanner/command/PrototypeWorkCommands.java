@@ -3,6 +3,7 @@ package dev.stonebanner.command;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.citizen.CitizenJobBoard;
 import dev.stonebanner.citizen.CitizenSkill;
+import dev.stonebanner.citizen.WorkTargetRules;
 import dev.stonebanner.citizen.WorkType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -10,13 +11,11 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/** Temporary commands for smoke-testing the job system before the Designation UI exists. */
+/** Temporary commands for smoke-testing the job system before the Designation UI is fully mature. */
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID)
 public final class PrototypeWorkCommands {
     private PrototypeWorkCommands() {
@@ -63,7 +62,7 @@ public final class PrototypeWorkCommands {
     }
 
     private static int publishForestry(ServerLevel level, BlockPos target, CommandSourceStack source) {
-        if (!level.getBlockState(target).is(BlockTags.LOGS)) {
+        if (!WorkTargetRules.isForestryTarget(level, target)) {
             source.sendFailure(Component.literal("Target block is not a log"));
             return 0;
         }
@@ -78,11 +77,7 @@ public final class PrototypeWorkCommands {
     }
 
     private static int publishMining(ServerLevel level, BlockPos target, CommandSourceStack source) {
-        BlockState state = level.getBlockState(target);
-        if (state.isAir()
-                || state.is(BlockTags.LOGS)
-                || state.getCollisionShape(level, target).isEmpty()
-                || state.getDestroySpeed(level, target) < 0.0F) {
+        if (!WorkTargetRules.isMiningTarget(level, target)) {
             source.sendFailure(Component.literal("Target block is not a valid mining target"));
             return 0;
         }
