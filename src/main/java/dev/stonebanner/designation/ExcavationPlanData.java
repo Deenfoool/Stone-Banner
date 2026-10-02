@@ -10,6 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.ArrayList;
@@ -138,10 +139,25 @@ public final class ExcavationPlanData extends SavedData {
         return plans.size();
     }
 
+    public int hazardPausedPlanCount(ServerLevel level) {
+        int paused = 0;
+        for (Plan plan : plans.values()) {
+            if (plan.currentSliceInsideBounds() && sliceHasHazard(level, plan)) {
+                paused++;
+            }
+        }
+        return paused;
+    }
+
     private void reconcile(ServerLevel level, Plan plan) {
         if (!plan.currentSliceInsideBounds()) {
             plans.remove(plan.id);
             setDirty();
+            return;
+        }
+
+        if (sliceHasHazard(level, plan)) {
+            removeCurrentSliceJobs(level, plan);
             return;
         }
 
@@ -158,6 +174,10 @@ public final class ExcavationPlanData extends SavedData {
 
     private void exposeCurrentOrNextSlice(ServerLevel level, Plan plan) {
         while (plan.currentSliceInsideBounds()) {
+            if (sliceHasHazard(level, plan)) {
+                removeCurrentSliceJobs(level, plan);
+                return;
+            }
             if (sliceHasTargets(level, plan)) {
                 publishCurrentSlice(level, plan);
                 return;
@@ -178,6 +198,15 @@ public final class ExcavationPlanData extends SavedData {
         });
     }
 
+    private static void removeCurrentSliceJobs(ServerLevel level, Plan plan) {
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        for (CitizenJob job : List.copyOf(board.snapshot())) {
+            if (job.workType() == WorkType.MINING && plan.isInCurrentSlice(job.target())) {
+                board.remove(job.id());
+            }
+        }
+    }
+
     private static int countTargets(ServerLevel level, Plan plan) {
         int count = 0;
         for (int x = plan.minX; x <= plan.maxX; x++) {
@@ -196,6 +225,20 @@ public final class ExcavationPlanData extends SavedData {
         final boolean[] found = {false};
         forEachPositionInCurrentSlice(plan, pos -> {
             if (!found[0] && isExcavationTarget(level, plan, pos)) {
+                found[0] = true;
+            }
+        });
+        return found[0];
+    }
+
+    private static boolean sliceHasHazard(ServerLevel level, Plan plan) {
+        final boolean[] found = {false};
+        forEachPositionInCurrentSlice(plan, pos -> {
+            if (found[0] || !level.hasChunkAt(pos)) {
+                return;
+            }
+            if (level.getFluidState(pos).is(FluidTags.WATER)
+                    || level.getFluidState(pos).is(FluidTags.LAVA)) {
                 found[0] = true;
             }
         });
@@ -385,6 +428,17 @@ public final class ExcavationPlanData extends SavedData {
                 case VERTICAL -> currentSlice >= minY && currentSlice <= maxY;
                 case TUNNEL_X -> currentSlice >= minX && currentSlice <= maxX;
                 case TUNNEL_Z -> currentSlice >= minZ && currentSlice <= maxZ;
+            };
+        }
+
+        private boolean isInCurrentSlice(BlockPos pos) {
+            if (!contains(pos)) {
+                return false;
+            }
+            return switch (mode) {
+                case VERTICAL -> pos.getY() == currentSlice;
+                case TUNNEL_X -> pos.getX() == currentSlice;
+                case TUNNEL_Z -> pos.getZ() == currentSlice;
             };
         }
 
