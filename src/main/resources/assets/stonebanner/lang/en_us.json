@@ -8,6 +8,7 @@
   "message.stonebanner.control_mode": "Control mode: %s",
   "message.stonebanner.designation.too_large": "Designation is too large: max %s blocks and %s blocks per axis",
   "message.stonebanner.designation.applied": "Designation applied: %s job(s)",
+  "message.stonebanner.designation.excavation_planned": "Excavation planned: %s blocks, mining will proceed top-down by layer",
   "message.stonebanner.designation.no_targets": "No valid blocks in the selected area",
   "message.stonebanner.designation.too_large_server": "Designation rejected: selected area is too large",
   "message.stonebanner.designation.rejected": "Designation rejected by the server",
@@ -134,6 +135,7 @@
 
   "designation.stonebanner.chop": "Chop",
   "designation.stonebanner.mine": "Mine",
+  "designation.stonebanner.excavate": "Volume excavation",
   "designation.stonebanner.clear": "Clear",
   "designation.stonebanner.cancel": "Cancel",
   "entity.stonebanner.human_npc": "Human"
