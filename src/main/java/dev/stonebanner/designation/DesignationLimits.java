@@ -11,29 +11,44 @@ public final class DesignationLimits {
     }
 
     public static long volume(BlockPos first, BlockPos second) {
+        return dimensions(first, second).volume();
+    }
+
+    public static Dimensions dimensions(BlockPos first, BlockPos second) {
         if (first == null || second == null) {
-            return 0L;
+            return Dimensions.EMPTY;
         }
-        long sizeX = axisLength(first.getX(), second.getX());
-        long sizeY = axisLength(first.getY(), second.getY());
-        long sizeZ = axisLength(first.getZ(), second.getZ());
-        return sizeX * sizeY * sizeZ;
+        return new Dimensions(
+                axisLength(first.getX(), second.getX()),
+                axisLength(first.getY(), second.getY()),
+                axisLength(first.getZ(), second.getZ())
+        );
     }
 
     public static boolean isAllowed(BlockPos first, BlockPos second) {
         if (first == null || second == null) {
             return false;
         }
-        long sizeX = axisLength(first.getX(), second.getX());
-        long sizeY = axisLength(first.getY(), second.getY());
-        long sizeZ = axisLength(first.getZ(), second.getZ());
-        return sizeX <= MAX_AXIS_LENGTH
-                && sizeY <= MAX_AXIS_LENGTH
-                && sizeZ <= MAX_AXIS_LENGTH
-                && sizeX * sizeY * sizeZ <= MAX_BLOCKS_PER_REQUEST;
+        Dimensions dimensions = dimensions(first, second);
+        return dimensions.sizeX() <= MAX_AXIS_LENGTH
+                && dimensions.sizeY() <= MAX_AXIS_LENGTH
+                && dimensions.sizeZ() <= MAX_AXIS_LENGTH
+                && dimensions.volume() <= MAX_BLOCKS_PER_REQUEST;
     }
 
     private static long axisLength(int first, int second) {
         return Math.abs((long) first - second) + 1L;
+    }
+
+    public record Dimensions(long sizeX, long sizeY, long sizeZ) {
+        private static final Dimensions EMPTY = new Dimensions(0L, 0L, 0L);
+
+        public long volume() {
+            try {
+                return Math.multiplyExact(Math.multiplyExact(sizeX, sizeY), sizeZ);
+            } catch (ArithmeticException ignored) {
+                return Long.MAX_VALUE;
+            }
+        }
     }
 }

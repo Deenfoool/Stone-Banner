@@ -101,8 +101,11 @@ public final class DesignationController {
         return Optional.ofNullable(dragEnd);
     }
 
-    public static long previewVolume() {
-        return DesignationLimits.volume(dragStart, dragEnd);
+    public static Optional<DesignationLimits.Dimensions> previewDimensions() {
+        if (dragStart == null || dragEnd == null) {
+            return Optional.empty();
+        }
+        return Optional.of(DesignationLimits.dimensions(dragStart, dragEnd));
     }
 
     public static boolean previewAllowed() {

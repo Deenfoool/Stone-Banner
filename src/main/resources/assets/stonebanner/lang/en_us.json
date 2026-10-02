@@ -38,7 +38,7 @@
   "hud.stonebanner.tactical.entity": "Entity: %s",
   "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear",
   "hud.stonebanner.tactical.npc_selected": "NPC selected: %s [%s]  •  Left click ground: move  •  Right click: stop/deselect",
-  "hud.stonebanner.designation.active": "%s designation  •  drag LMB: select volume (%s blocks)  •  G: next tool  •  RMB: exit",
+  "hud.stonebanner.designation.selection_size": "Selection: %s × %s × %s — about %s blocks",
 
   "hud.stonebanner.top.settlement": "Settlement",
   "hud.stonebanner.top.not_founded": "not founded",

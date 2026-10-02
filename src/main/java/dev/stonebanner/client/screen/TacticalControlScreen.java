@@ -73,6 +73,20 @@ public final class TacticalControlScreen extends Screen {
                     );
             graphics.drawString(font, targetLabel, 8, 40, 0xFFD8D2C8);
         });
+
+        DesignationController.previewDimensions().ifPresent(dimensions -> graphics.drawString(
+                font,
+                Component.translatable(
+                        "hud.stonebanner.designation.selection_size",
+                        dimensions.sizeX(),
+                        dimensions.sizeY(),
+                        dimensions.sizeZ(),
+                        dimensions.volume()
+                ),
+                8,
+                52,
+                DesignationController.previewAllowed() ? 0xFFE7C46A : 0xFFFF6868
+        ));
     }
 
     private int cursorColor() {

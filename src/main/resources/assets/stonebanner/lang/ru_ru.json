@@ -38,7 +38,7 @@
   "hud.stonebanner.tactical.entity": "Существо: %s",
   "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены",
   "hud.stonebanner.tactical.npc_selected": "Выбран NPC: %s [%s]  •  ЛКМ по земле: отправить  •  ПКМ: стоп/снять выбор",
-  "hud.stonebanner.designation.active": "Назначение: %s  •  тяни ЛКМ: выделить объём (%s блоков)  •  G: следующий инструмент  •  ПКМ: выйти",
+  "hud.stonebanner.designation.selection_size": "Область: %s × %s × %s — примерно %s блоков",
 
   "hud.stonebanner.top.settlement": "Поселение",
   "hud.stonebanner.top.not_founded": "не основано",
