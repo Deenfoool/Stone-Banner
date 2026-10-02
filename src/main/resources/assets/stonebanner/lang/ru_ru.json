@@ -11,5 +11,6 @@
   "hud.stonebanner.tactical.unreachable": "Безопасный маршрут не найден",
   "hud.stonebanner.tactical.block": "Цель: %s, %s, %s",
   "hud.stonebanner.tactical.entity": "Существо: %s",
-  "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены"
+  "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены",
+  "entity.stonebanner.human_npc": "Человек"
 }

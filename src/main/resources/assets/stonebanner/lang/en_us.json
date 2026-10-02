@@ -11,5 +11,6 @@
   "hud.stonebanner.tactical.unreachable": "No safe route found",
   "hud.stonebanner.tactical.block": "Target: %s, %s, %s",
   "hud.stonebanner.tactical.entity": "Entity: %s",
-  "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear"
+  "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear",
+  "entity.stonebanner.human_npc": "Human"
 }
