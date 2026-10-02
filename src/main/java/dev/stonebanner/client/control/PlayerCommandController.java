@@ -5,6 +5,7 @@ import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.CameraSpace;
 import dev.stonebanner.control.ControlMode;
+import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.Input;
