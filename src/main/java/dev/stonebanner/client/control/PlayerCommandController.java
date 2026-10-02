@@ -185,8 +185,13 @@ public final class PlayerCommandController {
 
         Vec3 moveTarget = BlockPathfinder.waypoint(level, nextNode);
         double deltaX = moveTarget.x - player.getX();
+        double deltaY = moveTarget.y - player.getY();
         double deltaZ = moveTarget.z - player.getZ();
-        double distance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        boolean climbing = BlockPathfinder.isClimbable(level, nextNode)
+                || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()));
+        double distance = climbing
+                ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
+                : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         double waypointArrival = path.size() == 1 ? ARRIVAL_DISTANCE : 0.35D;
         if (distance <= waypointArrival) {
             path.removeFirst();
@@ -197,12 +202,31 @@ public final class PlayerCommandController {
             nextNode = path.peekFirst();
             moveTarget = BlockPathfinder.waypoint(level, nextNode);
             deltaX = moveTarget.x - player.getX();
+            deltaY = moveTarget.y - player.getY();
             deltaZ = moveTarget.z - player.getZ();
-            distance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+            climbing = BlockPathfinder.isClimbable(level, nextNode)
+                    || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()));
+            distance = climbing
+                    ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
+                    : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         }
 
-        double worldX = deltaX / distance;
-        double worldZ = deltaZ / distance;
+        double horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        double worldX;
+        double worldZ;
+        if (climbing && horizontalDistance < 0.08D) {
+            Direction climbDirection = BlockPathfinder.climbDirection(level, nextNode)
+                    .or(() -> BlockPathfinder.climbDirection(level, BlockPos.containing(player.position())))
+                    .orElse(Direction.NORTH);
+            worldX = climbDirection.getStepX();
+            worldZ = climbDirection.getStepZ();
+        } else if (horizontalDistance > 1.0E-4D) {
+            worldX = deltaX / horizontalDistance;
+            worldZ = deltaZ / horizontalDistance;
+        } else {
+            worldX = 0.0D;
+            worldZ = 0.0D;
+        }
         CameraSpace.MovementVector movement = CameraSpace.worldToLocal(worldX, worldZ, player.getYRot());
 
         input.leftImpulse = Mth.clamp(movement.left(), -1.0F, 1.0F);
@@ -211,7 +235,10 @@ public final class PlayerCommandController {
         input.right = input.leftImpulse < -0.01F;
         input.up = input.forwardImpulse > 0.01F;
         input.down = input.forwardImpulse < -0.01F;
-        if (player.isInWater()) {
+        if (climbing) {
+            input.jumping = deltaY > 0.15D;
+            input.shiftKeyDown = deltaY < -0.15D;
+        } else if (player.isInWater()) {
             input.jumping = moveTarget.y > player.getY() + 0.25D;
             input.shiftKeyDown = moveTarget.y < player.getY() - 0.40D;
         } else {

@@ -3,12 +3,15 @@ package dev.stonebanner.client.control;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -99,13 +102,20 @@ public final class BlockPathfinder {
         BlockState headState = level.getBlockState(feet.above());
         BlockState supportState = level.getBlockState(feet.below());
         VoxelShape feetShape = feetState.getCollisionShape(level, feet);
-        boolean water = feetState.getFluidState().is(FluidTags.WATER);
+        boolean water = feetState.getFluidState().is(FluidTags.WATER) && feetShape.isEmpty();
+        boolean climbable = isClimbable(feetState);
         boolean partialSurface = isTraversablePartialBlock(feetState, feetShape);
-        boolean feetClear = feetShape.isEmpty() || water || DoorBlock.isWoodenDoor(feetState) || partialSurface;
+        boolean feetClear = feetShape.isEmpty()
+                || water
+                || DoorBlock.isWoodenDoor(feetState)
+                || isOpenTrapdoor(feetState)
+                || climbable
+                || partialSurface;
         boolean headClear = isPassableBodyState(level, feet.above(), headState);
         boolean extraHeadroom = !partialSurface
                 || isPassableBodyState(level, feet.above(2), level.getBlockState(feet.above(2)));
         boolean supported = water
+                || climbable
                 || partialSurface
                 || !supportState.getCollisionShape(level, feet.below()).isEmpty();
         boolean bodyClear = feetClear && headClear && extraHeadroom;
@@ -123,7 +133,9 @@ public final class BlockPathfinder {
         double y;
         if (isTraversablePartialBlock(feetState, feetShape)) {
             y = node.getY() + feetShape.max(Axis.Y);
-        } else if (feetState.getFluidState().is(FluidTags.WATER)) {
+        } else if (isClimbable(feetState)) {
+            y = node.getY() + 0.1D;
+        } else if (feetState.getFluidState().is(FluidTags.WATER) && feetShape.isEmpty()) {
             y = node.getY() + 0.1D;
         } else {
             VoxelShape support = level.getBlockState(node.below()).getCollisionShape(level, node.below());
@@ -137,8 +149,21 @@ public final class BlockPathfinder {
         return DoorBlock.isWoodenDoor(state) && !state.getValue(DoorBlock.OPEN);
     }
 
+    public static boolean isClimbable(ClientLevel level, BlockPos pos) {
+        return isClimbable(level.getBlockState(pos));
+    }
+
+    /** Direction to press while climbing: toward the block supporting the ladder. */
+    public static Optional<Direction> climbDirection(ClientLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.hasProperty(net.minecraft.world.level.block.LadderBlock.FACING)) {
+            return Optional.of(state.getValue(net.minecraft.world.level.block.LadderBlock.FACING).getOpposite());
+        }
+        return Optional.empty();
+    }
+
     private static List<BlockPos> neighbors(ClientLevel level, BlockPos current, BlockPos start) {
-        List<BlockPos> result = new ArrayList<>(4);
+        List<BlockPos> result = new ArrayList<>(6);
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
             BlockPos horizontal = current.relative(direction);
             BlockPos neighbor = firstWalkable(level, horizontal, horizontal.above(), horizontal.below());
@@ -151,7 +176,19 @@ public final class BlockPathfinder {
             }
             result.add(neighbor);
         }
+        addClimbNeighbor(level, current, current.above(), start, result);
+        addClimbNeighbor(level, current, current.below(), start, result);
         return result;
+    }
+
+    private static void addClimbNeighbor(ClientLevel level, BlockPos current, BlockPos candidate,
+                                         BlockPos start, List<BlockPos> result) {
+        if ((!isClimbable(level, current) && !isClimbable(level, candidate))
+                || Math.abs(candidate.getY() - start.getY()) > MAX_VERTICAL_RANGE
+                || !isWalkable(level, candidate)) {
+            return;
+        }
+        result.add(candidate.immutable());
     }
 
     private static BlockPos firstWalkable(ClientLevel level, BlockPos... candidates) {
@@ -204,8 +241,12 @@ public final class BlockPathfinder {
     private static double stepCost(ClientLevel level, BlockPos from, BlockPos to) {
         int vertical = to.getY() - from.getY();
         double base = vertical > 0 ? 1.4D : vertical < 0 ? 1.15D : 1.0D;
-        if (level.getFluidState(to).is(FluidTags.WATER)) {
+        if (level.getFluidState(to).is(FluidTags.WATER)
+                && level.getBlockState(to).getCollisionShape(level, to).isEmpty()) {
             base += 1.25D;
+        }
+        if (isClimbable(level, to) || isClimbable(level, from)) {
+            base += 0.65D;
         }
         if (DoorBlock.isWoodenDoor(level.getBlockState(to))) {
             base += 0.35D;
@@ -220,15 +261,29 @@ public final class BlockPathfinder {
         if (state.getBlock() instanceof StairBlock) {
             return true;
         }
+        if (state.getBlock() instanceof TrapDoorBlock) {
+            return !state.getValue(TrapDoorBlock.OPEN)
+                    && state.getValue(TrapDoorBlock.HALF) == Half.BOTTOM;
+        }
         return state.getBlock() instanceof SlabBlock
                 && shape.min(Axis.Y) < 0.01D
                 && shape.max(Axis.Y) < 0.99D;
     }
 
     private static boolean isPassableBodyState(ClientLevel level, BlockPos pos, BlockState state) {
-        return state.getCollisionShape(level, pos).isEmpty()
-                || state.getFluidState().is(FluidTags.WATER)
-                || DoorBlock.isWoodenDoor(state);
+        VoxelShape shape = state.getCollisionShape(level, pos);
+        return shape.isEmpty()
+                || DoorBlock.isWoodenDoor(state)
+                || isOpenTrapdoor(state)
+                || isClimbable(state);
+    }
+
+    private static boolean isOpenTrapdoor(BlockState state) {
+        return state.getBlock() instanceof TrapDoorBlock && state.getValue(TrapDoorBlock.OPEN);
+    }
+
+    private static boolean isClimbable(BlockState state) {
+        return state.is(BlockTags.CLIMBABLE);
     }
 
     private static double horizontalDistance(BlockPos from, BlockPos to) {
