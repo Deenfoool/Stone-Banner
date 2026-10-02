@@ -65,7 +65,7 @@ public final class TacticalControlScreen extends Screen {
                     Component.translatable("designation.stonebanner." + designationType.serializedName()),
                     DesignationController.previewVolume()
             );
-            hintColor = designationColor(designationType);
+            hintColor = DesignationController.previewAllowed() ? designationColor(designationType) : 0xFFFF6868;
         } else if (selectedNpc != null) {
             hint = Component.translatable(
                     "hud.stonebanner.tactical.npc_selected",
@@ -112,7 +112,7 @@ public final class TacticalControlScreen extends Screen {
     private int cursorColor() {
         DesignationType type = DesignationController.activeType().orElse(null);
         if (type != null) {
-            return designationColor(type);
+            return DesignationController.previewAllowed() ? designationColor(type) : 0xFFFF6868;
         }
         return hoveredTarget.map(hit -> hit instanceof EntityHitResult ? 0xFF69DDE7 : 0xFFE7C46A)
                 .orElse(0xFFBA4A4A);
@@ -122,6 +122,7 @@ public final class TacticalControlScreen extends Screen {
         return switch (type) {
             case CHOP -> 0xFF79D46C;
             case MINE -> 0xFFE2B85C;
+            case CLEAR -> 0xFF8ED9C3;
             case CANCEL -> 0xFFFF6868;
         };
     }
