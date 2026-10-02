@@ -7,7 +7,9 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -27,15 +29,16 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
- * Bounded A* path query shared by client player control and future server-side NPC navigation.
+ * Bounded A* path query shared by client player control and server-side Citizen navigation.
  *
  * This class only reads world state. It deliberately depends on common {@link Level}, not ClientLevel,
- * so Citizen AI can reuse the same terrain classification without importing client classes.
+ * so player control and Citizen AI share one terrain classification.
  */
 public final class BlockPathfinder {
     private static final int MAX_VISITED_NODES = 4096;
     private static final int MAX_HORIZONTAL_RANGE = 64;
     private static final int MAX_VERTICAL_RANGE = 16;
+    private static final int DOOR_CONTROL_SCAN_RADIUS = 2;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
     };
@@ -108,10 +111,13 @@ public final class BlockPathfinder {
         VoxelShape feetShape = feetState.getCollisionShape(level, feet);
         boolean water = feetState.getFluidState().is(FluidTags.WATER) && feetShape.isEmpty();
         boolean climbable = isClimbable(feetState);
+        boolean climbTopTransition = feetShape.isEmpty() && isClimbable(supportState);
         boolean partialSurface = isTraversablePartialBlock(feetState, feetShape);
+        boolean managedIronDoor = isClosedIronDoor(feetState) && findNearbyDoorControl(level, feet).isPresent();
         boolean feetClear = feetShape.isEmpty()
                 || water
                 || DoorBlock.isWoodenDoor(feetState)
+                || managedIronDoor
                 || isOpenTrapdoor(feetState)
                 || climbable
                 || partialSurface;
@@ -120,6 +126,7 @@ public final class BlockPathfinder {
                 || isPassableBodyState(level, feet.above(2), level.getBlockState(feet.above(2)));
         boolean supported = water
                 || climbable
+                || climbTopTransition
                 || partialSurface
                 || !supportState.getCollisionShape(level, feet.below()).isEmpty();
         boolean bodyClear = feetClear && headClear && extraHeadroom;
@@ -153,6 +160,40 @@ public final class BlockPathfinder {
         return DoorBlock.isWoodenDoor(state) && !state.getValue(DoorBlock.OPEN);
     }
 
+    public static boolean isClosedIronDoor(Level level, BlockPos pos) {
+        return isClosedIronDoor(level.getBlockState(pos));
+    }
+
+    /**
+     * Returns the closest local lever/button that can be used as a simple controlled-door interaction target.
+     * Remote redstone networks stay outside pathfinding; those can be handled later by richer interaction jobs.
+     */
+    public static Optional<BlockPos> findNearbyDoorControl(Level level, BlockPos doorPos) {
+        BlockPos best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int x = -DOOR_CONTROL_SCAN_RADIUS; x <= DOOR_CONTROL_SCAN_RADIUS; x++) {
+            for (int y = -DOOR_CONTROL_SCAN_RADIUS; y <= DOOR_CONTROL_SCAN_RADIUS; y++) {
+                for (int z = -DOOR_CONTROL_SCAN_RADIUS; z <= DOOR_CONTROL_SCAN_RADIUS; z++) {
+                    int distance = Math.abs(x) + Math.abs(y) + Math.abs(z);
+                    if (distance == 0 || distance > DOOR_CONTROL_SCAN_RADIUS + 1 || distance >= bestDistance) {
+                        continue;
+                    }
+                    BlockPos candidate = doorPos.offset(x, y, z);
+                    if (!level.hasChunkAt(candidate) || !isDoorControl(level.getBlockState(candidate))) {
+                        continue;
+                    }
+                    best = candidate.immutable();
+                    bestDistance = distance;
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    public static boolean isDoorControl(BlockState state) {
+        return state.getBlock() instanceof LeverBlock || state.getBlock() instanceof ButtonBlock;
+    }
+
     public static boolean isClimbable(Level level, BlockPos pos) {
         return isClimbable(level.getBlockState(pos));
     }
@@ -167,7 +208,7 @@ public final class BlockPathfinder {
     }
 
     private static List<BlockPos> neighbors(Level level, BlockPos current, BlockPos start) {
-        List<BlockPos> result = new ArrayList<>(6);
+        List<BlockPos> result = new ArrayList<>(7);
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
             BlockPos horizontal = current.relative(direction);
             BlockPos neighbor = firstWalkable(level, horizontal, horizontal.above(), horizontal.below());
@@ -187,12 +228,16 @@ public final class BlockPathfinder {
 
     private static void addClimbNeighbor(Level level, BlockPos current, BlockPos candidate,
                                          BlockPos start, List<BlockPos> result) {
-        if ((!isClimbable(level, current) && !isClimbable(level, candidate))
+        if ((!isClimbable(level, current) && !isClimbable(level, candidate)
+                && !isClimbable(level.getBlockState(candidate.below())))
                 || Math.abs(candidate.getY() - start.getY()) > MAX_VERTICAL_RANGE
                 || !isWalkable(level, candidate)) {
             return;
         }
-        result.add(candidate.immutable());
+        BlockPos immutable = candidate.immutable();
+        if (!result.contains(immutable)) {
+            result.add(immutable);
+        }
     }
 
     private static BlockPos firstWalkable(Level level, BlockPos... candidates) {
@@ -249,11 +294,14 @@ public final class BlockPathfinder {
                 && level.getBlockState(to).getCollisionShape(level, to).isEmpty()) {
             base += 1.25D;
         }
-        if (isClimbable(level, to) || isClimbable(level, from)) {
+        if (isClimbable(level, to) || isClimbable(level, from)
+                || isClimbable(level.getBlockState(to.below()))) {
             base += 0.65D;
         }
         if (DoorBlock.isWoodenDoor(level.getBlockState(to))) {
             base += 0.35D;
+        } else if (isClosedIronDoor(level, to) && findNearbyDoorControl(level, to).isPresent()) {
+            base += 1.15D;
         }
         return base;
     }
@@ -278,12 +326,19 @@ public final class BlockPathfinder {
         VoxelShape shape = state.getCollisionShape(level, pos);
         return shape.isEmpty()
                 || DoorBlock.isWoodenDoor(state)
+                || (isClosedIronDoor(state) && findNearbyDoorControl(level, pos).isPresent())
                 || isOpenTrapdoor(state)
                 || isClimbable(state);
     }
 
     private static boolean isOpenTrapdoor(BlockState state) {
         return state.getBlock() instanceof TrapDoorBlock && state.getValue(TrapDoorBlock.OPEN);
+    }
+
+    private static boolean isClosedIronDoor(BlockState state) {
+        return state.getBlock() instanceof DoorBlock
+                && !DoorBlock.isWoodenDoor(state)
+                && !state.getValue(DoorBlock.OPEN);
     }
 
     private static boolean isClimbable(BlockState state) {
