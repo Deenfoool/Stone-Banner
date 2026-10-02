@@ -6,7 +6,9 @@ import dev.stonebanner.citizen.CitizenData;
 import dev.stonebanner.citizen.CitizenDecisionPolicy;
 import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.citizen.CitizenParticipation;
+import dev.stonebanner.citizen.CitizenProfession;
 import dev.stonebanner.citizen.CitizenWorkController;
+import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.command.ActorCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -61,6 +63,16 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Integer> DATA_BRAIN_STATE =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_PROFESSION =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_HUNGER =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_FATIGUE =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_DANGER =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_WORK_TYPE =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
 
     private final CitizenCommandController commandController;
     private final CitizenWorkController workController;
@@ -89,6 +101,11 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.define(DATA_SKIN_ID, 0);
         entityData.define(DATA_SLIM_MODEL, false);
         entityData.define(DATA_BRAIN_STATE, CitizenBrainState.IDLE.ordinal());
+        entityData.define(DATA_PROFESSION, CitizenProfession.UNEMPLOYED.ordinal());
+        entityData.define(DATA_HUNGER, 0);
+        entityData.define(DATA_FATIGUE, 0);
+        entityData.define(DATA_DANGER, 0);
+        entityData.define(DATA_WORK_TYPE, -1);
     }
 
     @Override
@@ -109,6 +126,7 @@ public class HumanNpcEntity extends PathfinderMob {
         if (tickCount % 20 == 0) {
             tickCitizenSecond();
         }
+        syncHudData();
     }
 
     private void tickCitizenSecond() {
@@ -215,6 +233,7 @@ public class HumanNpcEntity extends PathfinderMob {
         ensureIdentity();
         citizenData.initializeStarterSkills(variantSeed());
         setBrainState(CitizenBrainState.IDLE);
+        syncHudData();
         return result;
     }
 
@@ -267,6 +286,44 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.set(DATA_BRAIN_STATE, (state == null ? CitizenBrainState.IDLE : state).ordinal());
     }
 
+    public CitizenProfession hudProfession() {
+        int id = entityData.get(DATA_PROFESSION);
+        CitizenProfession[] values = CitizenProfession.values();
+        return id >= 0 && id < values.length ? values[id] : CitizenProfession.UNEMPLOYED;
+    }
+
+    public int hudHunger() {
+        return entityData.get(DATA_HUNGER);
+    }
+
+    public int hudFatigue() {
+        return entityData.get(DATA_FATIGUE);
+    }
+
+    public int hudDanger() {
+        return entityData.get(DATA_DANGER);
+    }
+
+    @Nullable
+    public WorkType hudWorkType() {
+        int id = entityData.get(DATA_WORK_TYPE);
+        WorkType[] values = WorkType.values();
+        return id >= 0 && id < values.length ? values[id] : null;
+    }
+
+    private void syncHudData() {
+        if (level().isClientSide) {
+            return;
+        }
+        entityData.set(DATA_PROFESSION, citizenData.profession().ordinal());
+        entityData.set(DATA_HUNGER, (int) Math.round(citizenData.needs().hunger()));
+        entityData.set(DATA_FATIGUE, (int) Math.round(citizenData.needs().fatigue()));
+        entityData.set(DATA_DANGER, (int) Math.round(citizenData.needs().danger()));
+        entityData.set(DATA_WORK_TYPE, workController.currentJob()
+                .map(job -> job.workType().ordinal())
+                .orElse(-1));
+    }
+
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
@@ -301,5 +358,6 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         setBrainState(CitizenBrainState.fromSerializedName(tag.getString(TAG_BRAIN_STATE)));
+        syncHudData();
     }
 }
