@@ -2,11 +2,20 @@ package dev.stonebanner.citizen;
 
 import java.util.Locale;
 
-/** Minimal high-level state exposed by Citizen AI and debug/UI code. */
+/** High-level state exposed by Citizen AI and debug/UI code. */
 public enum CitizenBrainState {
+    // Keep the first three ordinals stable for saves created by the early prototype.
     IDLE,
     MOVE,
-    FOLLOW;
+    FOLLOW,
+    WORK,
+    EAT,
+    SLEEP,
+    FLEE,
+    DEFEND,
+    TRAVEL,
+    MIGRATE,
+    RETURN_HOME;
 
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);

@@ -15,10 +15,12 @@ public final class CitizenData {
     private static final String TAG_SKILLS_INITIALIZED = "SkillsInitialized";
     private static final String TAG_SKILLS = "Skills";
     private static final String TAG_WORK_PRIORITIES = "WorkPriorities";
+    private static final String TAG_NEEDS = "Needs";
 
     private CitizenProfession profession = CitizenProfession.UNEMPLOYED;
     private final EnumMap<CitizenSkill, Integer> skills = new EnumMap<>(CitizenSkill.class);
     private final EnumMap<WorkType, WorkPriority> workPriorities = new EnumMap<>(WorkType.class);
+    private final CitizenNeeds needs = new CitizenNeeds();
     private boolean skillsInitialized;
 
     public CitizenData() {
@@ -37,6 +39,10 @@ public final class CitizenData {
         if (resetPriorities) {
             applyProfessionDefaults();
         }
+    }
+
+    public CitizenNeeds needs() {
+        return needs;
     }
 
     public int skill(CitizenSkill skill) {
@@ -97,6 +103,7 @@ public final class CitizenData {
             priorityTag.putInt(workType.serializedName(), workPriority(workType).code());
         }
         root.put(TAG_WORK_PRIORITIES, priorityTag);
+        root.put(TAG_NEEDS, needs.save());
         return root;
     }
 
@@ -121,6 +128,10 @@ public final class CitizenData {
                     setWorkPriority(workType, WorkPriority.fromCode(priorityTag.getInt(workType.serializedName())));
                 }
             }
+        }
+
+        if (root.contains(TAG_NEEDS, Tag.TAG_COMPOUND)) {
+            needs.load(root.getCompound(TAG_NEEDS));
         }
     }
 

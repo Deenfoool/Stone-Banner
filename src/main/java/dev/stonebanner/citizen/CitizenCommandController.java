@@ -23,6 +23,7 @@ public final class CitizenCommandController {
     private final Deque<BlockPos> path = new ArrayDeque<>();
 
     private ActorCommand activeCommand;
+    private CitizenBrainState movementState = CitizenBrainState.IDLE;
     private CommandStatus status = CommandStatus.IDLE;
     private int navigationRefreshCooldown;
     private int followRepathCooldown;
@@ -41,9 +42,7 @@ public final class CitizenCommandController {
             return true;
         }
         if (command instanceof ActorCommand.MoveTo moveTo) {
-            activeCommand = command;
-            followRepathCooldown = 0;
-            return rebuildPath(moveTo.target(), CitizenBrainState.MOVE, CommandStatus.MOVING);
+            return issueMove(moveTo.target(), CitizenBrainState.MOVE);
         }
         if (command instanceof ActorCommand.FollowEntity follow) {
             Entity target = owner.level().getEntity(follow.entityId());
@@ -52,6 +51,7 @@ public final class CitizenCommandController {
                 return false;
             }
             activeCommand = command;
+            movementState = CitizenBrainState.FOLLOW;
             path.clear();
             navigationRefreshCooldown = 0;
             followRepathCooldown = 0;
@@ -63,13 +63,26 @@ public final class CitizenCommandController {
         return false;
     }
 
+    /** Internal Citizen AI movement, e.g. flee/return-home, without inventing a second navigation stack. */
+    public boolean issueSystemMove(BlockPos target, CitizenBrainState state) {
+        CitizenBrainState resolvedState = state == null ? CitizenBrainState.MOVE : state;
+        return issueMove(target, resolvedState);
+    }
+
+    private boolean issueMove(BlockPos target, CitizenBrainState state) {
+        activeCommand = new ActorCommand.MoveTo(target);
+        movementState = state;
+        followRepathCooldown = 0;
+        return rebuildPath(target, state, CommandStatus.MOVING);
+    }
+
     public void tick() {
         if (owner.level().isClientSide || activeCommand == null) {
             return;
         }
 
         if (activeCommand instanceof ActorCommand.MoveTo) {
-            tickPath(CitizenBrainState.MOVE, CommandStatus.MOVING);
+            tickPath(movementState, CommandStatus.MOVING);
             return;
         }
         if (activeCommand instanceof ActorCommand.FollowEntity follow) {
@@ -89,6 +102,7 @@ public final class CitizenCommandController {
             path.clear();
             owner.getNavigation().stop();
             status = CommandStatus.FOLLOWING;
+            movementState = CitizenBrainState.FOLLOW;
             owner.setBrainState(CitizenBrainState.FOLLOW);
             navigationRefreshCooldown = 0;
             followRepathCooldown = Math.max(0, followRepathCooldown - 1);
@@ -98,12 +112,14 @@ public final class CitizenCommandController {
         if (followRepathCooldown <= 0 || path.isEmpty()) {
             if (!rebuildPath(BlockPos.containing(target.position()), CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING)) {
                 status = CommandStatus.UNREACHABLE;
+                movementState = CitizenBrainState.FOLLOW;
                 owner.setBrainState(CitizenBrainState.FOLLOW);
                 activeCommand = follow;
                 followRepathCooldown = FOLLOW_REPATH_TICKS;
                 return;
             }
             activeCommand = follow;
+            movementState = CitizenBrainState.FOLLOW;
             followRepathCooldown = FOLLOW_REPATH_TICKS;
         } else {
             followRepathCooldown--;
@@ -148,6 +164,7 @@ public final class CitizenCommandController {
         }
 
         status = movingStatus;
+        movementState = state;
         owner.setBrainState(state);
     }
 
@@ -162,6 +179,7 @@ public final class CitizenCommandController {
         owner.getNavigation().stop();
         if (result.isEmpty()) {
             status = CommandStatus.UNREACHABLE;
+            movementState = CitizenBrainState.IDLE;
             owner.setBrainState(CitizenBrainState.IDLE);
             return false;
         }
@@ -169,7 +187,8 @@ public final class CitizenCommandController {
         path.addAll(result.get());
         navigationRefreshCooldown = 0;
         status = path.isEmpty() ? CommandStatus.IDLE : movingStatus;
-        owner.setBrainState(path.isEmpty() ? CitizenBrainState.IDLE : state);
+        movementState = path.isEmpty() ? CitizenBrainState.IDLE : state;
+        owner.setBrainState(movementState);
         if (path.isEmpty() && state != CitizenBrainState.FOLLOW) {
             activeCommand = null;
         }
@@ -181,6 +200,7 @@ public final class CitizenCommandController {
         path.clear();
         navigationRefreshCooldown = 0;
         followRepathCooldown = 0;
+        movementState = CitizenBrainState.IDLE;
         owner.getNavigation().stop();
         status = CommandStatus.IDLE;
         owner.setBrainState(CitizenBrainState.IDLE);
@@ -192,12 +212,21 @@ public final class CitizenCommandController {
         owner.getNavigation().stop();
         navigationRefreshCooldown = 0;
         followRepathCooldown = 0;
+        movementState = CitizenBrainState.IDLE;
         status = CommandStatus.IDLE;
         owner.setBrainState(CitizenBrainState.IDLE);
     }
 
     private boolean isUsableTarget(Entity target) {
         return target != null && target.isAlive() && target != owner;
+    }
+
+    public boolean hasActiveCommand() {
+        return activeCommand != null;
+    }
+
+    public CitizenBrainState movementState() {
+        return movementState;
     }
 
     public CommandStatus status() {

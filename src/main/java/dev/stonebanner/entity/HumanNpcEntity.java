@@ -3,7 +3,11 @@ package dev.stonebanner.entity;
 import dev.stonebanner.citizen.CitizenBrainState;
 import dev.stonebanner.citizen.CitizenCommandController;
 import dev.stonebanner.citizen.CitizenData;
+import dev.stonebanner.citizen.CitizenDecisionPolicy;
+import dev.stonebanner.citizen.CitizenProfession;
+import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.command.ActorCommand;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -20,10 +24,13 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
+import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
+import java.util.Comparator;
 
 /**
  * Player-proportioned Stone & Banner citizen entity.
@@ -40,6 +47,8 @@ public class HumanNpcEntity extends PathfinderMob {
     private static final String TAG_SLIM_MODEL = "SlimModel";
     private static final String TAG_BRAIN_STATE = "BrainState";
     private static final String TAG_CITIZEN_DATA = "CitizenData";
+    private static final double THREAT_SCAN_RANGE = 10.0D;
+    private static final double FLEE_DISTANCE = 8.0D;
 
     private static final EntityDataAccessor<Boolean> DATA_IDENTITY_INITIALIZED =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.BOOLEAN);
@@ -81,7 +90,7 @@ public class HumanNpcEntity extends PathfinderMob {
 
     @Override
     protected void registerGoals() {
-        // Citizen AI will own movement/work goals. These two only keep an idle NPC visually alive.
+        // Citizen AI owns movement/work goals. These two only keep an idle NPC visually alive.
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
     }
@@ -89,8 +98,80 @@ public class HumanNpcEntity extends PathfinderMob {
     @Override
     public void tick() {
         super.tick();
-        if (!level().isClientSide) {
-            commandController.tick();
+        if (level().isClientSide) {
+            return;
+        }
+
+        commandController.tick();
+        if (tickCount % 20 == 0) {
+            tickCitizenSecond();
+        }
+    }
+
+    private void tickCitizenSecond() {
+        CitizenNeeds needs = citizenData.needs();
+        needs.tickSecond(brainState() == CitizenBrainState.SLEEP);
+
+        Monster threat = nearestThreat();
+        if (threat != null) {
+            needs.setDanger(CitizenNeeds.MAX);
+        }
+
+        CitizenBrainState commandedState = commandController.hasActiveCommand()
+                ? commandController.movementState()
+                : CitizenBrainState.IDLE;
+        CitizenBrainState decision = CitizenDecisionPolicy.chooseState(citizenData, commandedState);
+
+        if (decision == CitizenBrainState.FLEE) {
+            if (threat != null) {
+                fleeFrom(threat);
+            } else {
+                commandController.stop();
+                setBrainState(CitizenBrainState.FLEE);
+            }
+            return;
+        }
+
+        if (decision == CitizenBrainState.DEFEND) {
+            commandController.stop();
+            setBrainState(CitizenBrainState.DEFEND);
+            return;
+        }
+
+        if (decision == CitizenBrainState.EAT || decision == CitizenBrainState.SLEEP) {
+            if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
+                commandController.stop();
+                setBrainState(decision);
+            }
+            return;
+        }
+
+        if (!commandController.hasActiveCommand()) {
+            setBrainState(decision);
+        }
+    }
+
+    @Nullable
+    private Monster nearestThreat() {
+        return level().getEntitiesOfClass(
+                        Monster.class,
+                        getBoundingBox().inflate(THREAT_SCAN_RANGE),
+                        Monster::isAlive
+                ).stream()
+                .min(Comparator.comparingDouble(this::distanceToSqr))
+                .orElse(null);
+    }
+
+    private void fleeFrom(Monster threat) {
+        Vec3 away = position().subtract(threat.position());
+        Vec3 horizontal = new Vec3(away.x, 0.0D, away.z);
+        if (horizontal.lengthSqr() < 1.0E-4D) {
+            horizontal = new Vec3(((variantSeed() & 1) == 0) ? 1.0D : -1.0D, 0.0D, 0.0D);
+        }
+
+        BlockPos target = BlockPos.containing(position().add(horizontal.normalize().scale(FLEE_DISTANCE)));
+        if (!commandController.issueSystemMove(target, CitizenBrainState.FLEE)) {
+            setBrainState(CitizenBrainState.FLEE);
         }
     }
 
