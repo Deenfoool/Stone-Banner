@@ -159,6 +159,11 @@ public final class PathPreviewRenderer {
                     green = 0.70F;
                     blue = 0.30F;
                 }
+                case EXCAVATE -> {
+                    red = 0.86F;
+                    green = 0.52F;
+                    blue = 0.22F;
+                }
                 case CLEAR -> {
                     red = 0.45F;
                     green = 0.85F;
@@ -169,7 +174,6 @@ public final class PathPreviewRenderer {
                     green = 0.35F;
                     blue = 0.35F;
                 }
-                default -> throw new IllegalStateException("Unexpected designation type: " + type);
             }
         }
         LevelRenderer.renderLineBox(poses, lines, box, red, green, blue, 1.0F);
