@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public final class CitizenWorkController {
         }
         acquireCooldown = ACQUIRE_INTERVAL_TICKS;
 
-        // Excavation is a job producer: only the currently exposed quarry layer is published.
+        // Excavation is a job producer: only the currently exposed quarry/tunnel slice is published.
         // Reconciliation is globally throttled inside the SavedData, so many workers stay cheap.
         ExcavationPlanData.forLevel(level).reconcileIfDue(level);
 
@@ -175,6 +176,9 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (currentJob.workType() == WorkType.MINING && isOccupiedByOtherCitizen(level, currentJob.target())) {
+            return;
+        }
         completeCurrentJob(level);
     }
 
@@ -240,6 +244,15 @@ public final class CitizenWorkController {
 
         return candidates.stream()
                 .min(Comparator.comparingDouble(pos -> owner.distanceToSqr(Vec3.atCenterOf(pos))));
+    }
+
+    private boolean isOccupiedByOtherCitizen(ServerLevel level, BlockPos target) {
+        AABB blockVolume = new AABB(target);
+        return !level.getEntitiesOfClass(
+                HumanNpcEntity.class,
+                blockVolume,
+                npc -> npc != owner && npc.isAlive()
+        ).isEmpty();
     }
 
     private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
