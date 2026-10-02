@@ -1,5 +1,6 @@
 package dev.stonebanner.citizen;
 
+import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
@@ -84,6 +85,10 @@ public final class CitizenWorkController {
             return;
         }
         acquireCooldown = ACQUIRE_INTERVAL_TICKS;
+
+        // Excavation is a job producer: only the currently exposed quarry layer is published.
+        // Reconciliation is globally throttled inside the SavedData, so many workers stay cheap.
+        ExcavationPlanData.forLevel(level).reconcileIfDue(level);
 
         if (owner.commandController().hasActiveCommand()
                 || owner.brainState() != CitizenBrainState.IDLE
