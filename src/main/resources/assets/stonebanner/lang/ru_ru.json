@@ -24,8 +24,10 @@
   "screen.stonebanner.none": "нет",
   "screen.stonebanner.work.hint": "ЛКМ по ячейке: 1 → 2 → 3 → 4 → X",
   "screen.stonebanner.work.citizen": "Житель",
-  "screen.stonebanner.inventory.pending": "Инвентарь Citizen пока не подключён.",
-  "screen.stonebanner.inventory.pending_detail": "Здесь появятся реальные предметы NPC после добавления личного хранилища.",
+  "screen.stonebanner.inventory.loading": "Загрузка инвентаря...",
+  "screen.stonebanner.inventory.personal": "Личный инвентарь",
+  "screen.stonebanner.inventory.real_items": "Здесь хранятся реальные предметы Minecraft.",
+  "screen.stonebanner.inventory.food_hint": "Голодный Citizen автоматически ест подходящую еду отсюда.",
 
   "hud.stonebanner.tactical.hint": "ЛКМ: идти  •  G: назначения  •  ПКМ: стоп  •  Средняя кнопка: вращать камеру",
   "hud.stonebanner.tactical.moving": "Персонаж идёт — точек маршрута: %s  •  ПКМ для остановки",
