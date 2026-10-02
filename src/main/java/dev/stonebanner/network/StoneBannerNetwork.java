@@ -1,6 +1,8 @@
 package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.network.packet.DesignationAreaPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.StopCitizenPacket;
 import net.minecraft.core.BlockPos;
@@ -45,6 +47,13 @@ public final class StoneBannerNetwork {
                 StopCitizenPacket::decode,
                 StopCitizenPacket::handle
         );
+        CHANNEL.registerMessage(
+                nextPacketId++,
+                DesignationAreaPacket.class,
+                DesignationAreaPacket::encode,
+                DesignationAreaPacket::decode,
+                DesignationAreaPacket::handle
+        );
     }
 
     public static void sendMoveCitizen(int entityId, BlockPos target) {
@@ -53,5 +62,9 @@ public final class StoneBannerNetwork {
 
     public static void sendStopCitizen(int entityId) {
         CHANNEL.sendToServer(new StopCitizenPacket(entityId));
+    }
+
+    public static void sendDesignation(DesignationType type, BlockPos first, BlockPos second) {
+        CHANNEL.sendToServer(new DesignationAreaPacket(type, first, second));
     }
 }
