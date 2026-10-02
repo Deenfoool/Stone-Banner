@@ -9,6 +9,7 @@ import java.util.Locale;
 public enum DesignationType {
     CHOP(WorkType.FORESTRY),
     MINE(WorkType.MINING),
+    EXCAVATE(null),
     CLEAR(WorkType.CLEARING),
     CANCEL(null);
 
