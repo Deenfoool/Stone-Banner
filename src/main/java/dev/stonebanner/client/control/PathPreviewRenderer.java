@@ -164,6 +164,11 @@ public final class PathPreviewRenderer {
                     green = 0.52F;
                     blue = 0.22F;
                 }
+                case TUNNEL -> {
+                    red = 0.68F;
+                    green = 0.48F;
+                    blue = 0.92F;
+                }
                 case CLEAR -> {
                     red = 0.45F;
                     green = 0.85F;
