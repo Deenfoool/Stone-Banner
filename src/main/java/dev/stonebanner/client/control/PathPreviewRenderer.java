@@ -195,9 +195,9 @@ public final class PathPreviewRenderer {
         int maxZ = Math.max(first.getZ(), second.getZ()) + 1;
         AABB box = new AABB(minX, minY, minZ, maxX, maxY, maxZ).inflate(0.01D);
 
-        float red;
-        float green;
-        float blue;
+        float red = 1.0F;
+        float green = 0.35F;
+        float blue = 0.35F;
         if (!DesignationController.previewAllowed()) {
             red = 1.0F;
             green = 0.25F;

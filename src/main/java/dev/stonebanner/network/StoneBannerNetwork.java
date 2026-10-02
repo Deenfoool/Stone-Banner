@@ -114,7 +114,7 @@ public final class StoneBannerNetwork {
             List<ExcavationPlanSnapshotPacket.PlanSnapshot> plans
     ) {
         CHANNEL.send(
-                PacketDistributor.PLAYER.with(player),
+                PacketDistributor.PLAYER.with(() -> player),
                 new ExcavationPlanSnapshotPacket(plans)
         );
     }

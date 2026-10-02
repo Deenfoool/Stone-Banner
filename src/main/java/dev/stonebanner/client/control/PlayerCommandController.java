@@ -9,6 +9,7 @@ import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.Input;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -420,7 +421,7 @@ public final class PlayerCommandController {
 
     private static void useBlock(Player player, BlockPos pos) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.gameMode == null) {
+        if (minecraft.gameMode == null || !(player instanceof LocalPlayer localPlayer)) {
             return;
         }
         BlockHitResult hit = new BlockHitResult(
@@ -429,7 +430,7 @@ public final class PlayerCommandController {
                 pos,
                 false
         );
-        InteractionResult result = minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
+        InteractionResult result = minecraft.gameMode.useItemOn(localPlayer, InteractionHand.MAIN_HAND, hit);
         if (result.shouldSwing()) {
             player.swing(InteractionHand.MAIN_HAND);
         }

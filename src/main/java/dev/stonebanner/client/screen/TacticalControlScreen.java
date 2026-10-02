@@ -88,6 +88,8 @@ public final class TacticalControlScreen extends Screen {
         return switch (type) {
             case CHOP -> 0xFF79D46C;
             case MINE -> 0xFFE2B85C;
+            case EXCAVATE -> 0xFFDB8438;
+            case TUNNEL -> 0xFFAD7AF0;
             case CLEAR -> 0xFF8ED9C3;
             case CANCEL -> 0xFFFF6868;
         };
