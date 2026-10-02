@@ -1,6 +1,8 @@
 package dev.stonebanner.entity;
 
 import dev.stonebanner.citizen.CitizenBrainState;
+import dev.stonebanner.citizen.CitizenCommandController;
+import dev.stonebanner.command.ActorCommand;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -48,8 +50,11 @@ public class HumanNpcEntity extends PathfinderMob {
     private static final EntityDataAccessor<Integer> DATA_BRAIN_STATE =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
 
+    private final CitizenCommandController commandController;
+
     public HumanNpcEntity(EntityType<? extends HumanNpcEntity> entityType, Level level) {
         super(entityType, level);
+        commandController = new CitizenCommandController(this);
         setPersistenceRequired();
     }
 
@@ -78,6 +83,14 @@ public class HumanNpcEntity extends PathfinderMob {
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        if (!level().isClientSide) {
+            commandController.tick();
+        }
+    }
+
+    @Override
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
                                         MobSpawnType spawnType, @Nullable SpawnGroupData spawnData,
                                         @Nullable CompoundTag spawnTag) {
@@ -85,6 +98,14 @@ public class HumanNpcEntity extends PathfinderMob {
         ensureIdentity();
         setBrainState(CitizenBrainState.IDLE);
         return result;
+    }
+
+    public boolean issueCommand(ActorCommand command) {
+        return commandController.issue(command);
+    }
+
+    public CitizenCommandController commandController() {
+        return commandController;
     }
 
     public void ensureIdentity() {
