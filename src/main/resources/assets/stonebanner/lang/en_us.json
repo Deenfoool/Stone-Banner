@@ -18,6 +18,7 @@
   "hud.stonebanner.designation.active": "%s designation  •  drag LMB: select volume (%s blocks)  •  G: next tool  •  RMB: exit",
   "designation.stonebanner.chop": "Chop",
   "designation.stonebanner.mine": "Mine",
+  "designation.stonebanner.clear": "Clear",
   "designation.stonebanner.cancel": "Cancel",
   "entity.stonebanner.human_npc": "Human"
 }
