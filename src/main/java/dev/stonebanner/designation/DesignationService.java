@@ -37,7 +37,18 @@ public final class DesignationService {
 
         ServerLevel level = player.serverLevel();
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+
+        if (type == DesignationType.EXCAVATE) {
+            int targets = ExcavationPlanData.forLevel(level).createVertical(level, first, second);
+            return targets == 0
+                    ? new Outcome(Status.NO_TARGETS, 0)
+                    : new Outcome(Status.APPLIED, targets);
+        }
+
         int affected = 0;
+        if (type == DesignationType.CANCEL) {
+            affected += ExcavationPlanData.forLevel(level).cancelIntersecting(level, first, second);
+        }
 
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
