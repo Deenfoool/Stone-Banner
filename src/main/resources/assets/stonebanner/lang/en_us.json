@@ -1,0 +1,15 @@
+{
+  "key.categories.stonebanner": "Stone & Banner",
+  "key.stonebanner.cycle_control_mode": "Cycle control mode",
+  "control_mode.stonebanner.action": "Action / WASD",
+  "control_mode.stonebanner.tactical": "Tactical / Mouse",
+  "control_mode.stonebanner.hybrid": "Hybrid",
+  "message.stonebanner.control_mode": "Control mode: %s",
+  "screen.stonebanner.tactical": "Tactical control",
+  "hud.stonebanner.tactical.hint": "Left click: move  •  Right click: stop  •  Middle drag: rotate",
+  "hud.stonebanner.tactical.moving": "Moving — %s route nodes  •  Right click to stop",
+  "hud.stonebanner.tactical.unreachable": "No safe route found",
+  "hud.stonebanner.tactical.block": "Target: %s, %s, %s",
+  "hud.stonebanner.tactical.entity": "Entity: %s",
+  "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear"
+}

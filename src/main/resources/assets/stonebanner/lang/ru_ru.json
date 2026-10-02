@@ -1,0 +1,15 @@
+{
+  "key.categories.stonebanner": "Stone & Banner",
+  "key.stonebanner.cycle_control_mode": "Переключить режим управления",
+  "control_mode.stonebanner.action": "Динамический / WASD",
+  "control_mode.stonebanner.tactical": "Тактический / мышь",
+  "control_mode.stonebanner.hybrid": "Гибридный",
+  "message.stonebanner.control_mode": "Режим управления: %s",
+  "screen.stonebanner.tactical": "Тактическое управление",
+  "hud.stonebanner.tactical.hint": "ЛКМ: идти  •  ПКМ: стоп  •  Средняя кнопка: вращать камеру",
+  "hud.stonebanner.tactical.moving": "Персонаж идёт — точек маршрута: %s  •  ПКМ для остановки",
+  "hud.stonebanner.tactical.unreachable": "Безопасный маршрут не найден",
+  "hud.stonebanner.tactical.block": "Цель: %s, %s, %s",
+  "hud.stonebanner.tactical.entity": "Существо: %s",
+  "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены"
+}
