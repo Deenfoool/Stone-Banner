@@ -3,6 +3,7 @@ package dev.stonebanner.client.control;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.navigation.BlockPathfinder;
 import dev.stonebanner.config.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
