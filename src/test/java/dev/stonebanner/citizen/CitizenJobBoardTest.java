@@ -1,6 +1,7 @@
 package dev.stonebanner.citizen;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -56,5 +57,33 @@ class CitizenJobBoardTest {
 
         assertEquals(2, board.removeAt(target));
         assertEquals(0, board.size());
+    }
+
+    @Test
+    void savedDataRoundTripsJobsButResetsReservations() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long forestry = board.publish(WorkType.FORESTRY, new BlockPos(1, 70, 1), 12L);
+        long mining = board.publish(
+                WorkType.MINING,
+                new BlockPos(3, 42, -7),
+                CitizenSkill.MINING,
+                2,
+                20L
+        );
+        UUID worker = UUID.randomUUID();
+        assertTrue(board.reserve(mining, worker, 25L));
+
+        CompoundTag saved = board.save(new CompoundTag());
+        CitizenJobBoard loaded = CitizenJobBoard.load(saved);
+
+        assertEquals(2, loaded.size());
+        assertEquals(WorkType.FORESTRY, loaded.job(forestry).orElseThrow().workType());
+        CitizenJob loadedMining = loaded.job(mining).orElseThrow();
+        assertEquals(CitizenSkill.MINING, loadedMining.requiredSkill());
+        assertEquals(2, loadedMining.minimumSkill());
+        assertEquals(2, loaded.availableJobs(UUID.randomUUID(), 26L).size());
+
+        long next = loaded.publish(WorkType.FORESTRY, new BlockPos(9, 70, 9), 30L);
+        assertTrue(next > mining);
     }
 }
