@@ -3,6 +3,7 @@ package dev.stonebanner;
 import com.mojang.logging.LogUtils;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.entity.ModEntities;
+import dev.stonebanner.network.StoneBannerNetwork;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -15,6 +16,7 @@ public final class StoneAndBanner {
 
     public StoneAndBanner(FMLJavaModLoadingContext context) {
         ModEntities.register(context.getModEventBus());
+        StoneBannerNetwork.register();
 
         context.registerConfig(
                 ModConfig.Type.CLIENT,
