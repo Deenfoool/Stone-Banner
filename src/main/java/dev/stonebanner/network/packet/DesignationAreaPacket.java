@@ -45,6 +45,10 @@ public record DesignationAreaPacket(DesignationType type, BlockPos first, BlockP
                             "message.stonebanner.designation.applied",
                             outcome.affected()
                     );
+                    case PLANNED -> Component.translatable(
+                            "message.stonebanner.designation.excavation_planned",
+                            outcome.affected()
+                    );
                     case NO_TARGETS -> Component.translatable("message.stonebanner.designation.no_targets");
                     case TOO_LARGE -> Component.translatable("message.stonebanner.designation.too_large_server");
                     case REJECTED -> Component.translatable("message.stonebanner.designation.rejected");
