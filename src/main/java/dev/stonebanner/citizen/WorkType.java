@@ -8,6 +8,7 @@ public enum WorkType {
     FARMING,
     FORESTRY,
     MINING,
+    CLEARING,
     BUILDING,
     CRAFTING,
     HAULING,
