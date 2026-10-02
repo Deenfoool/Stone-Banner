@@ -39,6 +39,16 @@ public final class CitizenHealth {
         return Math.max(0.20D, multiplier);
     }
 
+    /**
+     * A Citizen can limp on one badly damaged leg, but two structurally unusable legs prevent
+     * independent pathing. Treatment/carrying can later provide alternate mobility without changing
+     * the underlying injury model.
+     */
+    public boolean canMoveIndependently() {
+        return !(isImmobilizingLeg(injury(BodyPart.LEFT_LEG))
+                && isImmobilizingLeg(injury(BodyPart.RIGHT_LEG)));
+    }
+
     public double workEfficiencyMultiplier() {
         double multiplier = 1.0D;
         multiplier *= armMultiplier(injury(BodyPart.LEFT_ARM));
@@ -114,5 +124,9 @@ public final class CitizenHealth {
         return state == InjuryState.HEAVY_WOUND
                 || state == InjuryState.FRACTURE
                 || state == InjuryState.MISSING;
+    }
+
+    private static boolean isImmobilizingLeg(InjuryState state) {
+        return state == InjuryState.FRACTURE || state == InjuryState.MISSING;
     }
 }
