@@ -12,5 +12,6 @@
   "hud.stonebanner.tactical.block": "Target: %s, %s, %s",
   "hud.stonebanner.tactical.entity": "Entity: %s",
   "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear",
+  "hud.stonebanner.tactical.npc_selected": "NPC selected: %s [%s]  •  Left click ground: move  •  Right click: stop/deselect",
   "entity.stonebanner.human_npc": "Human"
 }
