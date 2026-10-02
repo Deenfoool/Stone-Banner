@@ -143,23 +143,34 @@ public final class PathPreviewRenderer {
         float red;
         float green;
         float blue;
-        switch (type) {
-            case CHOP -> {
-                red = 0.42F;
-                green = 0.90F;
-                blue = 0.35F;
+        if (!DesignationController.previewAllowed()) {
+            red = 1.0F;
+            green = 0.25F;
+            blue = 0.25F;
+        } else {
+            switch (type) {
+                case CHOP -> {
+                    red = 0.42F;
+                    green = 0.90F;
+                    blue = 0.35F;
+                }
+                case MINE -> {
+                    red = 0.90F;
+                    green = 0.70F;
+                    blue = 0.30F;
+                }
+                case CLEAR -> {
+                    red = 0.45F;
+                    green = 0.85F;
+                    blue = 0.75F;
+                }
+                case CANCEL -> {
+                    red = 1.0F;
+                    green = 0.35F;
+                    blue = 0.35F;
+                }
+                default -> throw new IllegalStateException("Unexpected designation type: " + type);
             }
-            case MINE -> {
-                red = 0.90F;
-                green = 0.70F;
-                blue = 0.30F;
-            }
-            case CANCEL -> {
-                red = 1.0F;
-                green = 0.35F;
-                blue = 0.35F;
-            }
-            default -> throw new IllegalStateException("Unexpected designation type: " + type);
         }
         LevelRenderer.renderLineBox(poses, lines, box, red, green, blue, 1.0F);
     }
