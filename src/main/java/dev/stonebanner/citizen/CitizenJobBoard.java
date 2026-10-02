@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,7 +67,7 @@ public final class CitizenJobBoard {
                 result.add(entry.job);
             }
         }
-        return ListCopy.copyOf(result);
+        return List.copyOf(result);
     }
 
     public Optional<CitizenJob> job(long jobId) {
@@ -137,16 +138,6 @@ public final class CitizenJobBoard {
 
         private Entry(CitizenJob job) {
             this.job = job;
-        }
-    }
-
-    /** Java 17-friendly immutable collection helper kept local to avoid leaking mutable board state. */
-    private static final class ListCopy {
-        private ListCopy() {
-        }
-
-        private static <T> java.util.List<T> copyOf(Collection<T> values) {
-            return java.util.List.copyOf(values);
         }
     }
 }
