@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenHealthTest {
@@ -20,6 +21,26 @@ class CitizenHealthTest {
         assertTrue(slowed < 1.0D);
         assertEquals(InjuryState.FRACTURE, loaded.injury(BodyPart.LEFT_LEG));
         assertEquals(slowed, loaded.movementMultiplier(), 0.0001D);
+        assertTrue(loaded.canMoveIndependently());
+    }
+
+    @Test
+    void twoStructurallyDisabledLegsPreventIndependentMovement() {
+        CitizenHealth health = new CitizenHealth();
+        health.setInjury(BodyPart.LEFT_LEG, InjuryState.FRACTURE);
+        health.setInjury(BodyPart.RIGHT_LEG, InjuryState.MISSING);
+
+        assertFalse(health.canMoveIndependently());
+    }
+
+    @Test
+    void heavyLegWoundsStillAllowSlowIndependentMovement() {
+        CitizenHealth health = new CitizenHealth();
+        health.setInjury(BodyPart.LEFT_LEG, InjuryState.HEAVY_WOUND);
+        health.setInjury(BodyPart.RIGHT_LEG, InjuryState.HEAVY_WOUND);
+
+        assertTrue(health.canMoveIndependently());
+        assertTrue(health.movementMultiplier() < 1.0D);
     }
 
     @Test
