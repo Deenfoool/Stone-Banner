@@ -5,9 +5,7 @@ import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -236,19 +234,7 @@ public final class CitizenWorkController {
     }
 
     private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
-        BlockState state = level.getBlockState(job.target());
-        return switch (job.workType()) {
-            case FORESTRY -> state.is(BlockTags.LOGS);
-            case MINING -> isMineableBlock(level, job.target(), state);
-            default -> false;
-        };
-    }
-
-    private static boolean isMineableBlock(ServerLevel level, BlockPos pos, BlockState state) {
-        return !state.isAir()
-                && !state.is(BlockTags.LOGS)
-                && !state.getCollisionShape(level, pos).isEmpty()
-                && state.getDestroySpeed(level, pos) >= 0.0F;
+        return WorkTargetRules.isValid(job.workType(), level, job.target());
     }
 
     private double workRate(CitizenJob job) {
