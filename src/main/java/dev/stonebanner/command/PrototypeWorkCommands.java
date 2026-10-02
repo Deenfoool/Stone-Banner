@@ -2,13 +2,16 @@ package dev.stonebanner.command;
 
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.citizen.CitizenJobBoard;
+import dev.stonebanner.citizen.CitizenSkill;
 import dev.stonebanner.citizen.WorkType;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -32,6 +35,13 @@ public final class PrototypeWorkCommands {
                                                         BlockPosArgument.getLoadedBlockPos(context, "pos"),
                                                         context.getSource()
                                                 ))))
+                                .then(Commands.literal("mine")
+                                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                .executes(context -> publishMining(
+                                                        context.getSource().getLevel(),
+                                                        BlockPosArgument.getLoadedBlockPos(context, "pos"),
+                                                        context.getSource()
+                                                ))))
                                 .then(Commands.literal("count")
                                         .executes(context -> {
                                             int count = CitizenJobBoard.forLevel(context.getSource().getLevel()).size();
@@ -45,8 +55,7 @@ public final class PrototypeWorkCommands {
         );
     }
 
-    private static int publishForestry(ServerLevel level, BlockPos target,
-                                       net.minecraft.commands.CommandSourceStack source) {
+    private static int publishForestry(ServerLevel level, BlockPos target, CommandSourceStack source) {
         if (!level.getBlockState(target).is(BlockTags.LOGS)) {
             source.sendFailure(Component.literal("Target block is not a log"));
             return 0;
@@ -56,6 +65,31 @@ public final class PrototypeWorkCommands {
         long id = board.publish(WorkType.FORESTRY, target, level.getGameTime());
         source.sendSuccess(
                 () -> Component.literal("Published FORESTRY job #" + id + " at " + target.toShortString()),
+                false
+        );
+        return 1;
+    }
+
+    private static int publishMining(ServerLevel level, BlockPos target, CommandSourceStack source) {
+        BlockState state = level.getBlockState(target);
+        if (state.isAir()
+                || state.is(BlockTags.LOGS)
+                || state.getCollisionShape(level, target).isEmpty()
+                || state.getDestroySpeed(level, target) < 0.0F) {
+            source.sendFailure(Component.literal("Target block is not a valid mining target"));
+            return 0;
+        }
+
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        long id = board.publish(
+                WorkType.MINING,
+                target,
+                CitizenSkill.MINING,
+                0,
+                level.getGameTime()
+        );
+        source.sendSuccess(
+                () -> Component.literal("Published MINING job #" + id + " at " + target.toShortString()),
                 false
         );
         return 1;
