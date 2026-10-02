@@ -1,13 +1,18 @@
 package dev.stonebanner.entity;
 
+import dev.stonebanner.citizen.BodyPart;
 import dev.stonebanner.citizen.CitizenBrainState;
 import dev.stonebanner.citizen.CitizenCommandController;
 import dev.stonebanner.citizen.CitizenData;
 import dev.stonebanner.citizen.CitizenDecisionPolicy;
+import dev.stonebanner.citizen.CitizenHudCodec;
 import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.citizen.CitizenParticipation;
 import dev.stonebanner.citizen.CitizenProfession;
+import dev.stonebanner.citizen.CitizenSkill;
 import dev.stonebanner.citizen.CitizenWorkController;
+import dev.stonebanner.citizen.InjuryState;
+import dev.stonebanner.citizen.WorkPriority;
 import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.command.ActorCommand;
 import net.minecraft.core.BlockPos;
@@ -73,6 +78,12 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_WORK_TYPE =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_SKILLS_PACKED =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_INJURIES_PACKED =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Long> DATA_PRIORITIES_PACKED =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.LONG);
 
     private final CitizenCommandController commandController;
     private final CitizenWorkController workController;
@@ -106,6 +117,9 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.define(DATA_FATIGUE, 0);
         entityData.define(DATA_DANGER, 0);
         entityData.define(DATA_WORK_TYPE, -1);
+        entityData.define(DATA_SKILLS_PACKED, 0);
+        entityData.define(DATA_INJURIES_PACKED, 0);
+        entityData.define(DATA_PRIORITIES_PACKED, 0L);
     }
 
     @Override
@@ -311,6 +325,26 @@ public class HumanNpcEntity extends PathfinderMob {
         return id >= 0 && id < values.length ? values[id] : null;
     }
 
+    public int hudSkill(CitizenSkill skill) {
+        return CitizenHudCodec.skill(entityData.get(DATA_SKILLS_PACKED), skill);
+    }
+
+    public InjuryState hudInjury(BodyPart part) {
+        return CitizenHudCodec.injury(entityData.get(DATA_INJURIES_PACKED), part);
+    }
+
+    public WorkPriority hudWorkPriority(WorkType type) {
+        return CitizenHudCodec.priority(entityData.get(DATA_PRIORITIES_PACKED), type);
+    }
+
+    public void setWorkPriority(WorkType type, WorkPriority priority) {
+        if (level().isClientSide || type == null || priority == null) {
+            return;
+        }
+        citizenData.setWorkPriority(type, priority);
+        syncHudData();
+    }
+
     private void syncHudData() {
         if (level().isClientSide) {
             return;
@@ -322,6 +356,9 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.set(DATA_WORK_TYPE, workController.currentJob()
                 .map(job -> job.workType().ordinal())
                 .orElse(-1));
+        entityData.set(DATA_SKILLS_PACKED, CitizenHudCodec.packSkills(citizenData));
+        entityData.set(DATA_INJURIES_PACKED, CitizenHudCodec.packInjuries(citizenData.health()));
+        entityData.set(DATA_PRIORITIES_PACKED, CitizenHudCodec.packPriorities(citizenData));
     }
 
     @Override
