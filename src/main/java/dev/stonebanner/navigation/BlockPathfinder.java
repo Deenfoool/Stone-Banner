@@ -8,6 +8,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -27,7 +28,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
- * Bounded A* path query shared by client player control and future server-side NPC navigation.
+ * Bounded A* path query shared by client player control and server-side Citizen navigation.
  *
  * This class only reads world state. It deliberately depends on common {@link Level}, not ClientLevel,
  * so Citizen AI can reuse the same terrain classification without importing client classes.
@@ -160,14 +161,14 @@ public final class BlockPathfinder {
     /** Direction to press while climbing: toward the block supporting the ladder. */
     public static Optional<Direction> climbDirection(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.hasProperty(net.minecraft.world.level.block.LadderBlock.FACING)) {
-            return Optional.of(state.getValue(net.minecraft.world.level.block.LadderBlock.FACING).getOpposite());
+        if (state.hasProperty(LadderBlock.FACING)) {
+            return Optional.of(state.getValue(LadderBlock.FACING).getOpposite());
         }
         return Optional.empty();
     }
 
     private static List<BlockPos> neighbors(Level level, BlockPos current, BlockPos start) {
-        List<BlockPos> result = new ArrayList<>(6);
+        List<BlockPos> result = new ArrayList<>(8);
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
             BlockPos horizontal = current.relative(direction);
             BlockPos neighbor = firstWalkable(level, horizontal, horizontal.above(), horizontal.below());
@@ -178,10 +179,11 @@ public final class BlockPathfinder {
                     && !level.getBlockState(current.above(2)).getCollisionShape(level, current.above(2)).isEmpty()) {
                 continue;
             }
-            result.add(neighbor);
+            addUnique(result, neighbor);
         }
         addClimbNeighbor(level, current, current.above(), start, result);
         addClimbNeighbor(level, current, current.below(), start, result);
+        addLadderTopExit(level, current, start, result);
         return result;
     }
 
@@ -192,7 +194,40 @@ public final class BlockPathfinder {
                 || !isWalkable(level, candidate)) {
             return;
         }
-        result.add(candidate.immutable());
+        addUnique(result, candidate);
+    }
+
+    /**
+     * A ladder's final movement is not purely vertical: at the top the actor must step onto the
+     * supporting block's upper surface. Model that as an explicit diagonal-up neighbor so both
+     * player and Citizen routes can finish a climb instead of oscillating at the last ladder node.
+     */
+    private static void addLadderTopExit(Level level, BlockPos current, BlockPos start, List<BlockPos> result) {
+        BlockState state = level.getBlockState(current);
+        if (!state.hasProperty(LadderBlock.FACING)) {
+            return;
+        }
+
+        Direction supportDirection = state.getValue(LadderBlock.FACING).getOpposite();
+        BlockPos exitFeet = current.above().relative(supportDirection);
+        if (Math.abs(exitFeet.getY() - start.getY()) > MAX_VERTICAL_RANGE || !isWalkable(level, exitFeet)) {
+            return;
+        }
+
+        // Only offer the top exit if the ladder really reaches this level. This prevents ladders in
+        // the middle of a shaft from creating sideways teleports onto unrelated ledges.
+        BlockPos aboveLadder = current.above();
+        if (isClimbable(level, aboveLadder)) {
+            return;
+        }
+        addUnique(result, exitFeet);
+    }
+
+    private static void addUnique(List<BlockPos> result, BlockPos candidate) {
+        BlockPos immutable = candidate.immutable();
+        if (!result.contains(immutable)) {
+            result.add(immutable);
+        }
     }
 
     private static BlockPos firstWalkable(Level level, BlockPos... candidates) {
