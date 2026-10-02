@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ExcavationPlanDataTest {
     @Test
-    void loadAndSavePreserveActiveLayerAndNextId() {
+    void legacyVerticalPlanLoadsAndSavesInGenericSliceFormat() {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", 9L);
 
@@ -33,8 +33,38 @@ class ExcavationPlanDataTest {
         assertEquals(9L, saved.getLong("NextId"));
         ListTag savedPlans = saved.getList("Plans", Tag.TAG_COMPOUND);
         assertEquals(1, savedPlans.size());
-        assertEquals(24, savedPlans.getCompound(0).getInt("CurrentY"));
-        assertEquals(20, savedPlans.getCompound(0).getInt("MinY"));
-        assertEquals(28, savedPlans.getCompound(0).getInt("MaxY"));
+        CompoundTag savedPlan = savedPlans.getCompound(0);
+        assertEquals("vertical", savedPlan.getString("Mode"));
+        assertEquals(24, savedPlan.getInt("CurrentSlice"));
+        assertEquals(-1, savedPlan.getInt("Step"));
+        assertEquals(20, savedPlan.getInt("MinY"));
+        assertEquals(28, savedPlan.getInt("MaxY"));
+    }
+
+    @Test
+    void tunnelPlanFormatRoundTripsWithoutLosingDirection() {
+        CompoundTag root = new CompoundTag();
+        root.putLong("NextId", 3L);
+
+        CompoundTag plan = new CompoundTag();
+        plan.putLong("Id", 2L);
+        plan.putInt("MinX", 10);
+        plan.putInt("MinY", 40);
+        plan.putInt("MinZ", 2);
+        plan.putInt("MaxX", 30);
+        plan.putInt("MaxY", 42);
+        plan.putInt("MaxZ", 4);
+        plan.putString("Mode", "tunnel_x");
+        plan.putInt("CurrentSlice", 27);
+        plan.putInt("Step", -1);
+        ListTag plans = new ListTag();
+        plans.add(plan);
+        root.put("Plans", plans);
+
+        CompoundTag saved = ExcavationPlanData.load(root).save(new CompoundTag());
+        CompoundTag savedPlan = saved.getList("Plans", Tag.TAG_COMPOUND).getCompound(0);
+        assertEquals("tunnel_x", savedPlan.getString("Mode"));
+        assertEquals(27, savedPlan.getInt("CurrentSlice"));
+        assertEquals(-1, savedPlan.getInt("Step"));
     }
 }
