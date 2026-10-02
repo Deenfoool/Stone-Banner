@@ -8,6 +8,8 @@
   "message.stonebanner.control_mode": "Режим управления: %s",
   "message.stonebanner.designation.too_large": "Слишком большая область: максимум %s блоков и %s блоков по одной оси",
   "message.stonebanner.designation.applied": "Назначение создано: %s задач",
+  "message.stonebanner.designation.excavation_planned": "План выемки создан: %s блоков, добыча пойдёт слоями сверху вниз",
+  "message.stonebanner.designation.tunnel_planned": "План тоннеля создан: %s блоков, добыча пойдёт секциями от входа",
   "message.stonebanner.designation.no_targets": "В выделенной области нет подходящих блоков",
   "message.stonebanner.designation.too_large_server": "Назначение отклонено: область слишком большая",
   "message.stonebanner.designation.rejected": "Сервер отклонил назначение",
@@ -51,6 +53,7 @@
   "hud.stonebanner.npc.now": "Сейчас:",
 
   "hud.stonebanner.alerts": "События",
+  "hud.stonebanner.alert.excavation_hazard": "%s выработок остановлено: вода или лава",
   "hud.stonebanner.alert.danger": "Непосредственная опасность",
   "hud.stonebanner.alert.low_health": "%s тяжело ранен",
   "hud.stonebanner.alert.hunger": "%s критически голоден",
@@ -134,6 +137,8 @@
 
   "designation.stonebanner.chop": "Рубить",
   "designation.stonebanner.mine": "Добывать",
+  "designation.stonebanner.excavate": "Объёмная выемка",
+  "designation.stonebanner.tunnel": "Тоннель",
   "designation.stonebanner.clear": "Расчистить",
   "designation.stonebanner.cancel": "Отменить",
   "entity.stonebanner.human_npc": "Человек"

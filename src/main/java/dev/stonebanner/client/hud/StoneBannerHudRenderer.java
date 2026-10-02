@@ -4,6 +4,7 @@ import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
+import dev.stonebanner.client.control.ExcavationOverlayState;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.ChatFormatting;
@@ -46,9 +47,8 @@ public final class StoneBannerHudRenderer {
         HumanNpcEntity selected = CitizenSelectionController.selected().orElse(null);
         if (selected != null) {
             renderCitizenCard(graphics, minecraft.font, selected, screenHeight);
-            renderAlerts(graphics, minecraft.font, selected, screenWidth);
         }
-
+        renderAlerts(graphics, minecraft.font, selected, screenWidth);
         renderContextBar(graphics, minecraft.font, screenWidth, screenHeight, selected);
     }
 
@@ -144,18 +144,31 @@ public final class StoneBannerHudRenderer {
 
     private static void renderAlerts(GuiGraphics graphics, Font font, HumanNpcEntity npc, int screenWidth) {
         List<Alert> alerts = new ArrayList<>();
-        int health = percentage(npc.getHealth(), npc.getMaxHealth());
-        if (npc.hudDanger() >= CitizenNeeds.CRITICAL_DANGER_THRESHOLD) {
-            alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.danger"), DANGER));
+
+        long hazardPlans = ExcavationOverlayState.plans().stream()
+                .filter(plan -> plan.hazardPaused())
+                .count();
+        if (hazardPlans > 0) {
+            alerts.add(new Alert(
+                    Component.translatable("hud.stonebanner.alert.excavation_hazard", hazardPlans),
+                    DANGER
+            ));
         }
-        if (health <= 30) {
-            alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.low_health", npc.getDisplayName()), DANGER));
-        }
-        if (npc.hudHunger() >= CitizenNeeds.CRITICAL_HUNGER_THRESHOLD) {
-            alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.hunger", npc.getDisplayName()), WARNING));
-        }
-        if (npc.hudFatigue() >= CitizenNeeds.CRITICAL_FATIGUE_THRESHOLD) {
-            alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.fatigue", npc.getDisplayName()), WARNING));
+
+        if (npc != null) {
+            int health = percentage(npc.getHealth(), npc.getMaxHealth());
+            if (npc.hudDanger() >= CitizenNeeds.CRITICAL_DANGER_THRESHOLD) {
+                alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.danger"), DANGER));
+            }
+            if (health <= 30) {
+                alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.low_health", npc.getDisplayName()), DANGER));
+            }
+            if (npc.hudHunger() >= CitizenNeeds.CRITICAL_HUNGER_THRESHOLD) {
+                alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.hunger", npc.getDisplayName()), WARNING));
+            }
+            if (npc.hudFatigue() >= CitizenNeeds.CRITICAL_FATIGUE_THRESHOLD) {
+                alerts.add(new Alert(Component.translatable("hud.stonebanner.alert.fatigue", npc.getDisplayName()), WARNING));
+            }
         }
         if (alerts.isEmpty()) {
             return;

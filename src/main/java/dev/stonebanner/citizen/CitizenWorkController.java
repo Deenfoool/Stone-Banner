@@ -1,11 +1,13 @@
 package dev.stonebanner.citizen;
 
+import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -84,6 +86,10 @@ public final class CitizenWorkController {
             return;
         }
         acquireCooldown = ACQUIRE_INTERVAL_TICKS;
+
+        // Excavation is a job producer: only the currently exposed quarry/tunnel slice is published.
+        // Reconciliation is globally throttled inside the SavedData, so many workers stay cheap.
+        ExcavationPlanData.forLevel(level).reconcileIfDue(level);
 
         if (owner.commandController().hasActiveCommand()
                 || owner.brainState() != CitizenBrainState.IDLE
@@ -170,6 +176,9 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (currentJob.workType() == WorkType.MINING && isOccupiedByOtherCitizen(level, currentJob.target())) {
+            return;
+        }
         completeCurrentJob(level);
     }
 
@@ -235,6 +244,16 @@ public final class CitizenWorkController {
 
         return candidates.stream()
                 .min(Comparator.comparingDouble(pos -> owner.distanceToSqr(Vec3.atCenterOf(pos))));
+    }
+
+    private boolean isOccupiedByOtherCitizen(ServerLevel level, BlockPos target) {
+        // Inflate slightly so an NPC standing exactly on the block's top face is treated as occupying it.
+        AABB safetyVolume = new AABB(target).inflate(0.05D);
+        return !level.getEntitiesOfClass(
+                HumanNpcEntity.class,
+                safetyVolume,
+                npc -> npc != owner && npc.isAlive()
+        ).isEmpty();
     }
 
     private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {

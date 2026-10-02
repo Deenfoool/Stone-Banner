@@ -41,9 +41,10 @@ public final class PathPreviewRenderer {
         Entity selectedCitizen = CitizenSelectionController.selected().orElse(null);
         boolean hasDesignationPreview = DesignationController.dragStart().isPresent()
                 && DesignationController.dragEnd().isPresent();
+        boolean hasExcavationOverlay = ExcavationOverlayState.hasPlans();
         if (path.isEmpty() && destination == null && hoveredEntity == null
                 && selectedEntity == null && selectedCitizen == null && hoveredLocation == null
-                && !hasDesignationPreview) {
+                && !hasDesignationPreview && !hasExcavationOverlay) {
             return;
         }
 
@@ -119,9 +120,63 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
+        renderExcavationPlans(poses, lines);
         renderDesignationPreview(poses, lines);
         poses.popPose();
         buffers.endBatch(RenderType.lines());
+    }
+
+    private static void renderExcavationPlans(PoseStack poses, VertexConsumer lines) {
+        for (var plan : ExcavationOverlayState.plans()) {
+            BlockPos min = plan.min();
+            BlockPos max = plan.max();
+            AABB wholePlan = new AABB(
+                    min.getX(), min.getY(), min.getZ(),
+                    max.getX() + 1.0D, max.getY() + 1.0D, max.getZ() + 1.0D
+            ).inflate(0.006D);
+
+            float red = plan.hazardPaused() ? 1.0F : plan.modeCode() == 0 ? 0.86F : 0.68F;
+            float green = plan.hazardPaused() ? 0.22F : plan.modeCode() == 0 ? 0.52F : 0.48F;
+            float blue = plan.hazardPaused() ? 0.18F : plan.modeCode() == 0 ? 0.22F : 0.92F;
+            LevelRenderer.renderLineBox(poses, lines, wholePlan, red, green, blue, 0.38F);
+
+            AABB activeFront = currentSliceBox(plan.modeCode(), plan.currentSlice(), min, max);
+            if (activeFront != null) {
+                LevelRenderer.renderLineBox(
+                        poses,
+                        lines,
+                        activeFront.inflate(0.014D),
+                        red,
+                        green,
+                        blue,
+                        1.0F
+                );
+            }
+        }
+    }
+
+    private static AABB currentSliceBox(int modeCode, int currentSlice, BlockPos min, BlockPos max) {
+        return switch (modeCode) {
+            case 0 -> currentSlice < min.getY() || currentSlice > max.getY()
+                    ? null
+                    : new AABB(
+                            min.getX(), currentSlice, min.getZ(),
+                            max.getX() + 1.0D, currentSlice + 1.0D, max.getZ() + 1.0D
+                    );
+            case 1 -> currentSlice < min.getX() || currentSlice > max.getX()
+                    ? null
+                    : new AABB(
+                            currentSlice, min.getY(), min.getZ(),
+                            currentSlice + 1.0D, max.getY() + 1.0D, max.getZ() + 1.0D
+                    );
+            case 2 -> currentSlice < min.getZ() || currentSlice > max.getZ()
+                    ? null
+                    : new AABB(
+                            min.getX(), min.getY(), currentSlice,
+                            max.getX() + 1.0D, max.getY() + 1.0D, currentSlice + 1.0D
+                    );
+            default -> null;
+        };
     }
 
     private static void renderDesignationPreview(PoseStack poses, VertexConsumer lines) {
@@ -159,6 +214,16 @@ public final class PathPreviewRenderer {
                     green = 0.70F;
                     blue = 0.30F;
                 }
+                case EXCAVATE -> {
+                    red = 0.86F;
+                    green = 0.52F;
+                    blue = 0.22F;
+                }
+                case TUNNEL -> {
+                    red = 0.68F;
+                    green = 0.48F;
+                    blue = 0.92F;
+                }
                 case CLEAR -> {
                     red = 0.45F;
                     green = 0.85F;
@@ -169,7 +234,6 @@ public final class PathPreviewRenderer {
                     green = 0.35F;
                     blue = 0.35F;
                 }
-                default -> throw new IllegalStateException("Unexpected designation type: " + type);
             }
         }
         LevelRenderer.renderLineBox(poses, lines, box, red, green, blue, 1.0F);

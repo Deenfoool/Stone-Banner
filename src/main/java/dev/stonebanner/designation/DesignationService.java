@@ -37,7 +37,25 @@ public final class DesignationService {
 
         ServerLevel level = player.serverLevel();
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        ExcavationPlanData excavationPlans = ExcavationPlanData.forLevel(level);
+
+        if (type == DesignationType.EXCAVATE) {
+            int targets = excavationPlans.createVertical(level, first, second);
+            return targets == 0
+                    ? new Outcome(Status.NO_TARGETS, 0)
+                    : new Outcome(Status.PLANNED, targets);
+        }
+        if (type == DesignationType.TUNNEL) {
+            int targets = excavationPlans.createTunnel(level, first, second, player.blockPosition());
+            return targets == 0
+                    ? new Outcome(Status.NO_TARGETS, 0)
+                    : new Outcome(Status.TUNNEL_PLANNED, targets);
+        }
+
         int affected = 0;
+        if (type == DesignationType.CANCEL) {
+            affected += excavationPlans.cancelIntersecting(level, first, second);
+        }
 
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
@@ -84,6 +102,8 @@ public final class DesignationService {
 
     public enum Status {
         APPLIED,
+        PLANNED,
+        TUNNEL_PLANNED,
         NO_TARGETS,
         TOO_LARGE,
         REJECTED
