@@ -41,6 +41,13 @@ public final class PrototypeWorkCommands {
                                                         BlockPosArgument.getLoadedBlockPos(context, "pos"),
                                                         context.getSource()
                                                 ))))
+                                .then(Commands.literal("clear")
+                                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                .executes(context -> publishClearing(
+                                                        context.getSource().getLevel(),
+                                                        BlockPosArgument.getLoadedBlockPos(context, "pos"),
+                                                        context.getSource()
+                                                ))))
                                 .then(Commands.literal("cancel")
                                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                                 .executes(context -> cancelAt(
@@ -92,6 +99,21 @@ public final class PrototypeWorkCommands {
         );
         source.sendSuccess(
                 () -> Component.literal("Published MINING job #" + id + " at " + target.toShortString()),
+                false
+        );
+        return 1;
+    }
+
+    private static int publishClearing(ServerLevel level, BlockPos target, CommandSourceStack source) {
+        if (!WorkTargetRules.isClearingTarget(level, target)) {
+            source.sendFailure(Component.literal("Target block is not a clearing target"));
+            return 0;
+        }
+
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        long id = board.publish(WorkType.CLEARING, target, level.getGameTime());
+        source.sendSuccess(
+                () -> Component.literal("Published CLEARING job #" + id + " at " + target.toShortString()),
                 false
         );
         return 1;
