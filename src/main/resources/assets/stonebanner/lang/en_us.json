@@ -1,17 +1,22 @@
 {
   "key.categories.stonebanner": "Stone & Banner",
   "key.stonebanner.cycle_control_mode": "Cycle control mode",
+  "key.stonebanner.cycle_designation_mode": "Cycle designation tool",
   "control_mode.stonebanner.action": "Action / WASD",
   "control_mode.stonebanner.tactical": "Tactical / Mouse",
   "control_mode.stonebanner.hybrid": "Hybrid",
   "message.stonebanner.control_mode": "Control mode: %s",
   "screen.stonebanner.tactical": "Tactical control",
-  "hud.stonebanner.tactical.hint": "Left click: move  •  Right click: stop  •  Middle drag: rotate",
+  "hud.stonebanner.tactical.hint": "Left click: move  •  G: designations  •  Right click: stop  •  Middle drag: rotate",
   "hud.stonebanner.tactical.moving": "Moving — %s route nodes  •  Right click to stop",
   "hud.stonebanner.tactical.unreachable": "No safe route found",
   "hud.stonebanner.tactical.block": "Target: %s, %s, %s",
   "hud.stonebanner.tactical.entity": "Entity: %s",
   "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear",
   "hud.stonebanner.tactical.npc_selected": "NPC selected: %s [%s]  •  Left click ground: move  •  Right click: stop/deselect",
+  "hud.stonebanner.designation.active": "%s designation  •  drag LMB: select volume (%s blocks)  •  G: next tool  •  RMB: exit",
+  "designation.stonebanner.chop": "Chop",
+  "designation.stonebanner.mine": "Mine",
+  "designation.stonebanner.cancel": "Cancel",
   "entity.stonebanner.human_npc": "Human"
 }
