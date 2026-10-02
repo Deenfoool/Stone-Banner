@@ -18,6 +18,7 @@
   "hud.stonebanner.designation.active": "Назначение: %s  •  тяни ЛКМ: выделить объём (%s блоков)  •  G: следующий инструмент  •  ПКМ: выйти",
   "designation.stonebanner.chop": "Рубить",
   "designation.stonebanner.mine": "Добывать",
+  "designation.stonebanner.clear": "Расчистить",
   "designation.stonebanner.cancel": "Отменить",
   "entity.stonebanner.human_npc": "Человек"
 }
