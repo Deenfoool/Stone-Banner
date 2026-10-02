@@ -15,6 +15,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -22,8 +23,8 @@ import java.util.Objects;
  * Persistent sequencing for volume excavation.
  *
  * The job board answers "what work is currently available". This class answers
- * "which part of an excavation is allowed to become available". The first mode
- * is a vertical quarry that exposes one horizontal layer at a time, top-down.
+ * "which part of an excavation is allowed to become available". Quarries expose
+ * horizontal layers top-down; tunnels expose cross-sections from their entrance forward.
  */
 public final class ExcavationPlanData extends SavedData {
     private static final String DATA_NAME = "stonebanner_excavation_plans";
@@ -36,7 +37,10 @@ public final class ExcavationPlanData extends SavedData {
     private static final String TAG_MAX_X = "MaxX";
     private static final String TAG_MAX_Y = "MaxY";
     private static final String TAG_MAX_Z = "MaxZ";
-    private static final String TAG_CURRENT_Y = "CurrentY";
+    private static final String TAG_MODE = "Mode";
+    private static final String TAG_CURRENT_SLICE = "CurrentSlice";
+    private static final String TAG_CURRENT_Y_LEGACY = "CurrentY";
+    private static final String TAG_STEP = "Step";
     private static final long RECONCILE_INTERVAL_TICKS = 20L;
 
     private final Map<Long, Plan> plans = new LinkedHashMap<>();
@@ -52,23 +56,34 @@ public final class ExcavationPlanData extends SavedData {
         );
     }
 
-    /** Creates a top-down quarry plan and publishes only its first non-empty layer. */
+    /** Creates a top-down quarry plan and publishes only its first non-empty horizontal layer. */
     public int createVertical(ServerLevel level, BlockPos first, BlockPos second) {
-        Plan plan = Plan.from(nextId++, first, second);
+        return create(level, Plan.vertical(nextId++, first, second));
+    }
+
+    /**
+     * Creates a horizontal tunnel/shaft plan. The longest horizontal axis becomes the tunnel axis;
+     * the endpoint nearest the player becomes the entrance and sections open away from it.
+     */
+    public int createTunnel(ServerLevel level, BlockPos first, BlockPos second, BlockPos entranceHint) {
+        return create(level, Plan.tunnel(nextId++, first, second, entranceHint));
+    }
+
+    private int create(ServerLevel level, Plan plan) {
         int totalTargets = countTargets(level, plan);
         if (totalTargets <= 0) {
             return 0;
         }
 
         plans.put(plan.id, plan);
-        exposeCurrentOrNextLayer(level, plan);
+        exposeCurrentOrNextSlice(level, plan);
         setDirty();
         return totalTargets;
     }
 
     /**
      * Reconciles plans at most once per second. Workers call this while looking for jobs,
-     * so a cleared layer naturally exposes the next layer without a global world scan.
+     * so a cleared slice naturally exposes the next one without a global world scan.
      */
     public void reconcileIfDue(ServerLevel level) {
         long gameTime = level.getGameTime();
@@ -124,46 +139,43 @@ public final class ExcavationPlanData extends SavedData {
     }
 
     private void reconcile(ServerLevel level, Plan plan) {
-        if (plan.currentY < plan.minY) {
+        if (!plan.currentSliceInsideBounds()) {
             plans.remove(plan.id);
             setDirty();
             return;
         }
 
-        if (layerHasTargets(level, plan, plan.currentY)) {
+        if (sliceHasTargets(level, plan)) {
             // Re-publish missing jobs if the world still contains a target block.
-            publishLayer(level, plan, plan.currentY);
+            publishCurrentSlice(level, plan);
             return;
         }
 
-        plan.currentY--;
-        exposeCurrentOrNextLayer(level, plan);
+        plan.advance();
+        exposeCurrentOrNextSlice(level, plan);
         setDirty();
     }
 
-    private void exposeCurrentOrNextLayer(ServerLevel level, Plan plan) {
-        while (plan.currentY >= plan.minY) {
-            if (layerHasTargets(level, plan, plan.currentY)) {
-                publishLayer(level, plan, plan.currentY);
+    private void exposeCurrentOrNextSlice(ServerLevel level, Plan plan) {
+        while (plan.currentSliceInsideBounds()) {
+            if (sliceHasTargets(level, plan)) {
+                publishCurrentSlice(level, plan);
                 return;
             }
-            plan.currentY--;
+            plan.advance();
         }
         plans.remove(plan.id);
     }
 
-    private static void publishLayer(ServerLevel level, Plan plan, int y) {
+    private static void publishCurrentSlice(ServerLevel level, Plan plan) {
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         long gameTime = level.getGameTime();
-        for (int x = plan.minX; x <= plan.maxX; x++) {
-            for (int z = plan.minZ; z <= plan.maxZ; z++) {
-                BlockPos pos = new BlockPos(x, y, z);
-                if (!level.hasChunkAt(pos) || !WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
-                    continue;
-                }
-                board.publish(WorkType.MINING, pos, CitizenSkill.MINING, 0, gameTime);
+        forEachPositionInCurrentSlice(plan, pos -> {
+            if (!level.hasChunkAt(pos) || !WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
+                return;
             }
-        }
+            board.publish(WorkType.MINING, pos, CitizenSkill.MINING, 0, gameTime);
+        });
     }
 
     private static int countTargets(ServerLevel level, Plan plan) {
@@ -181,16 +193,45 @@ public final class ExcavationPlanData extends SavedData {
         return count;
     }
 
-    private static boolean layerHasTargets(ServerLevel level, Plan plan, int y) {
-        for (int x = plan.minX; x <= plan.maxX; x++) {
-            for (int z = plan.minZ; z <= plan.maxZ; z++) {
-                BlockPos pos = new BlockPos(x, y, z);
-                if (level.hasChunkAt(pos) && WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
-                    return true;
+    private static boolean sliceHasTargets(ServerLevel level, Plan plan) {
+        final boolean[] found = {false};
+        forEachPositionInCurrentSlice(plan, pos -> {
+            if (!found[0]
+                    && level.hasChunkAt(pos)
+                    && WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
+                found[0] = true;
+            }
+        });
+        return found[0];
+    }
+
+    private static void forEachPositionInCurrentSlice(Plan plan, PositionConsumer consumer) {
+        switch (plan.mode) {
+            case VERTICAL -> {
+                int y = plan.currentSlice;
+                for (int x = plan.minX; x <= plan.maxX; x++) {
+                    for (int z = plan.minZ; z <= plan.maxZ; z++) {
+                        consumer.accept(new BlockPos(x, y, z));
+                    }
+                }
+            }
+            case TUNNEL_X -> {
+                int x = plan.currentSlice;
+                for (int y = plan.minY; y <= plan.maxY; y++) {
+                    for (int z = plan.minZ; z <= plan.maxZ; z++) {
+                        consumer.accept(new BlockPos(x, y, z));
+                    }
+                }
+            }
+            case TUNNEL_Z -> {
+                int z = plan.currentSlice;
+                for (int x = plan.minX; x <= plan.maxX; x++) {
+                    for (int y = plan.minY; y <= plan.maxY; y++) {
+                        consumer.accept(new BlockPos(x, y, z));
+                    }
                 }
             }
         }
-        return false;
     }
 
     @Override
@@ -206,7 +247,9 @@ public final class ExcavationPlanData extends SavedData {
             tag.putInt(TAG_MAX_X, plan.maxX);
             tag.putInt(TAG_MAX_Y, plan.maxY);
             tag.putInt(TAG_MAX_Z, plan.maxZ);
-            tag.putInt(TAG_CURRENT_Y, plan.currentY);
+            tag.putString(TAG_MODE, plan.mode.serializedName());
+            tag.putInt(TAG_CURRENT_SLICE, plan.currentSlice);
+            tag.putInt(TAG_STEP, plan.step);
             list.add(tag);
         }
         root.put(TAG_PLANS, list);
@@ -219,6 +262,15 @@ public final class ExcavationPlanData extends SavedData {
         ListTag list = root.getList(TAG_PLANS, Tag.TAG_COMPOUND);
         for (int index = 0; index < list.size(); index++) {
             CompoundTag tag = list.getCompound(index);
+            Mode mode = tag.contains(TAG_MODE, Tag.TAG_STRING)
+                    ? Mode.fromSerializedName(tag.getString(TAG_MODE))
+                    : Mode.VERTICAL;
+            int currentSlice = tag.contains(TAG_CURRENT_SLICE, Tag.TAG_INT)
+                    ? tag.getInt(TAG_CURRENT_SLICE)
+                    : tag.getInt(TAG_CURRENT_Y_LEGACY);
+            int step = tag.contains(TAG_STEP, Tag.TAG_INT)
+                    ? normalizeStep(tag.getInt(TAG_STEP))
+                    : -1;
             Plan plan = new Plan(
                     tag.getLong(TAG_ID),
                     tag.getInt(TAG_MIN_X),
@@ -227,7 +279,9 @@ public final class ExcavationPlanData extends SavedData {
                     tag.getInt(TAG_MAX_X),
                     tag.getInt(TAG_MAX_Y),
                     tag.getInt(TAG_MAX_Z),
-                    tag.getInt(TAG_CURRENT_Y)
+                    mode,
+                    currentSlice,
+                    step
             );
             data.plans.put(plan.id, plan);
             highestId = Math.max(highestId, plan.id);
@@ -235,6 +289,29 @@ public final class ExcavationPlanData extends SavedData {
         long savedNext = root.contains(TAG_NEXT_ID, Tag.TAG_LONG) ? root.getLong(TAG_NEXT_ID) : 1L;
         data.nextId = Math.max(Math.max(1L, savedNext), highestId + 1L);
         return data;
+    }
+
+    private static int normalizeStep(int value) {
+        return value < 0 ? -1 : 1;
+    }
+
+    private enum Mode {
+        VERTICAL,
+        TUNNEL_X,
+        TUNNEL_Z;
+
+        private String serializedName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        private static Mode fromSerializedName(String value) {
+            for (Mode mode : values()) {
+                if (mode.serializedName().equalsIgnoreCase(value)) {
+                    return mode;
+                }
+            }
+            return VERTICAL;
+        }
     }
 
     private static final class Plan {
@@ -245,10 +322,13 @@ public final class ExcavationPlanData extends SavedData {
         private final int maxX;
         private final int maxY;
         private final int maxZ;
-        private int currentY;
+        private final Mode mode;
+        private int currentSlice;
+        private final int step;
 
         private Plan(long id, int minX, int minY, int minZ,
-                     int maxX, int maxY, int maxZ, int currentY) {
+                     int maxX, int maxY, int maxZ,
+                     Mode mode, int currentSlice, int step) {
             this.id = id;
             this.minX = minX;
             this.minY = minY;
@@ -256,13 +336,53 @@ public final class ExcavationPlanData extends SavedData {
             this.maxX = maxX;
             this.maxY = maxY;
             this.maxZ = maxZ;
-            this.currentY = currentY;
+            this.mode = mode;
+            this.currentSlice = currentSlice;
+            this.step = normalizeStep(step);
         }
 
-        private static Plan from(long id, BlockPos first, BlockPos second) {
+        private static Plan vertical(long id, BlockPos first, BlockPos second) {
             Bounds bounds = Bounds.from(first, second);
             return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
-                    bounds.maxX, bounds.maxY, bounds.maxZ, bounds.maxY);
+                    bounds.maxX, bounds.maxY, bounds.maxZ,
+                    Mode.VERTICAL, bounds.maxY, -1);
+        }
+
+        private static Plan tunnel(long id, BlockPos first, BlockPos second, BlockPos entranceHint) {
+            Bounds bounds = Bounds.from(first, second);
+            int spanX = bounds.maxX - bounds.minX;
+            int spanZ = bounds.maxZ - bounds.minZ;
+            BlockPos hint = entranceHint == null ? first : entranceHint;
+
+            if (spanX >= spanZ) {
+                boolean enterFromMin = Math.abs(hint.getX() - bounds.minX)
+                        <= Math.abs(hint.getX() - bounds.maxX);
+                return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
+                        bounds.maxX, bounds.maxY, bounds.maxZ,
+                        Mode.TUNNEL_X,
+                        enterFromMin ? bounds.minX : bounds.maxX,
+                        enterFromMin ? 1 : -1);
+            }
+
+            boolean enterFromMin = Math.abs(hint.getZ() - bounds.minZ)
+                    <= Math.abs(hint.getZ() - bounds.maxZ);
+            return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
+                    bounds.maxX, bounds.maxY, bounds.maxZ,
+                    Mode.TUNNEL_Z,
+                    enterFromMin ? bounds.minZ : bounds.maxZ,
+                    enterFromMin ? 1 : -1);
+        }
+
+        private void advance() {
+            currentSlice += step;
+        }
+
+        private boolean currentSliceInsideBounds() {
+            return switch (mode) {
+                case VERTICAL -> currentSlice >= minY && currentSlice <= maxY;
+                case TUNNEL_X -> currentSlice >= minX && currentSlice <= maxX;
+                case TUNNEL_Z -> currentSlice >= minZ && currentSlice <= maxZ;
+            };
         }
 
         private boolean contains(BlockPos pos) {
@@ -289,5 +409,10 @@ public final class ExcavationPlanData extends SavedData {
                     Math.max(first.getZ(), second.getZ())
             );
         }
+    }
+
+    @FunctionalInterface
+    private interface PositionConsumer {
+        void accept(BlockPos pos);
     }
 }
