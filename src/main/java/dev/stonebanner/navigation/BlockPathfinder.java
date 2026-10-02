@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -113,10 +114,13 @@ public final class BlockPathfinder {
         boolean climbable = isClimbable(feetState);
         boolean climbTopTransition = feetShape.isEmpty() && isClimbable(supportState);
         boolean partialSurface = isTraversablePartialBlock(feetState, feetShape);
-        boolean managedIronDoor = isClosedIronDoor(feetState) && findNearbyDoorControl(level, feet).isPresent();
+        boolean lowerDoorCell = isDoorLowerHalf(feetState);
+        boolean managedIronDoor = lowerDoorCell
+                && isClosedIronDoor(feetState)
+                && findNearbyDoorControl(level, feet).isPresent();
         boolean feetClear = feetShape.isEmpty()
                 || water
-                || DoorBlock.isWoodenDoor(feetState)
+                || (lowerDoorCell && DoorBlock.isWoodenDoor(feetState))
                 || managedIronDoor
                 || isOpenTrapdoor(feetState)
                 || climbable
@@ -325,14 +329,18 @@ public final class BlockPathfinder {
     private static boolean isPassableBodyState(Level level, BlockPos pos, BlockState state) {
         VoxelShape shape = state.getCollisionShape(level, pos);
         return shape.isEmpty()
-                || DoorBlock.isWoodenDoor(state)
-                || (isClosedIronDoor(state) && findNearbyDoorControl(level, pos).isPresent())
+                || state.getBlock() instanceof DoorBlock
                 || isOpenTrapdoor(state)
                 || isClimbable(state);
     }
 
     private static boolean isOpenTrapdoor(BlockState state) {
         return state.getBlock() instanceof TrapDoorBlock && state.getValue(TrapDoorBlock.OPEN);
+    }
+
+    private static boolean isDoorLowerHalf(BlockState state) {
+        return state.getBlock() instanceof DoorBlock
+                && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
     }
 
     private static boolean isClosedIronDoor(BlockState state) {
