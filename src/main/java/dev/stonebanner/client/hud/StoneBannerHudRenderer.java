@@ -76,7 +76,7 @@ public final class StoneBannerHudRenderer {
             cursor = metric(graphics, font, cursor, y + 5,
                     Component.translatable("hud.stonebanner.top.treasury"), Component.literal("—"), TEXT);
             cursor = metric(graphics, font, cursor, y + 5,
-                    Component.translatable("hud.stonebanner.top.wellbeing"), Component.literal("—"), TEXT);
+                    Component.translatable("hud.stonebanner.top.prosperity"), Component.literal("—"), TEXT);
         }
         if (screenWidth >= 1040) {
             metric(graphics, font, cursor, y + 5,
