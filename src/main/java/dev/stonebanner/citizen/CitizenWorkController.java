@@ -23,6 +23,7 @@ public final class CitizenWorkController {
     private static final int ACQUIRE_INTERVAL_TICKS = 20;
     private static final double WORK_RANGE_SQR = 2.75D * 2.75D;
     private static final double FORESTRY_BASE_WORK = 60.0D;
+    private static final double CLEARING_BASE_WORK = 20.0D;
     private static final double MINING_BASE_WORK_PER_HARDNESS = 40.0D;
 
     private final HumanNpcEntity owner;
@@ -176,7 +177,7 @@ public final class CitizenWorkController {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         boolean completed = switch (job.workType()) {
-            case FORESTRY, MINING -> level.destroyBlock(job.target(), true, owner);
+            case FORESTRY, MINING, CLEARING -> level.destroyBlock(job.target(), true, owner);
             default -> false;
         };
 
@@ -252,6 +253,9 @@ public final class CitizenWorkController {
     private static double requiredWork(ServerLevel level, CitizenJob job) {
         if (job.workType() == WorkType.FORESTRY) {
             return FORESTRY_BASE_WORK;
+        }
+        if (job.workType() == WorkType.CLEARING) {
+            return CLEARING_BASE_WORK;
         }
         if (job.workType() == WorkType.MINING) {
             float hardness = level.getBlockState(job.target()).getDestroySpeed(level, job.target());
