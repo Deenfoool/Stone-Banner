@@ -49,6 +49,7 @@ public final class CitizenWorkController {
 
         CitizenJobBoard board = CitizenJobBoard.forLevel(serverLevel);
         if (board.job(currentJob.id()).isEmpty()) {
+            owner.commandController().stop();
             clearLocalState();
             return;
         }
@@ -92,10 +93,17 @@ public final class CitizenWorkController {
         }
 
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
-        List<CitizenJob> candidates = board.availableJobs(owner.getUUID(), level.getGameTime()).stream()
-                .filter(job -> owner.citizenData().canTravelTo(job.target()))
-                .filter(job -> isJobStillValid(level, job))
-                .toList();
+        List<CitizenJob> candidates = new ArrayList<>();
+        for (CitizenJob job : board.availableJobs(owner.getUUID(), level.getGameTime())) {
+            if (!owner.citizenData().canTravelTo(job.target())) {
+                continue;
+            }
+            if (!isJobStillValid(level, job)) {
+                board.remove(job.id());
+                continue;
+            }
+            candidates.add(job);
+        }
 
         Optional<CitizenJob> selected = CitizenJobPlanner.choose(owner.citizenData(), owner.blockPosition(), candidates);
         if (selected.isEmpty()) {
