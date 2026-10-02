@@ -9,6 +9,7 @@ import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.client.control.WorldCursor;
 import dev.stonebanner.client.hud.StoneBannerHudRenderer;
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -23,6 +24,10 @@ import java.util.Optional;
 
 /** Transparent, non-pausing input layer used while tactical mouse control is active. */
 public final class TacticalControlScreen extends Screen {
+    private static final int CITIZEN_CARD_X = 8;
+    private static final int CITIZEN_CARD_WIDTH = 210;
+    private static final int CITIZEN_CARD_HEIGHT = 151;
+
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public TacticalControlScreen() {
@@ -90,6 +95,21 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            HumanNpcEntity selected = CitizenSelectionController.selected().orElse(null);
+            int cardY = Math.max(44, height - CITIZEN_CARD_HEIGHT - 40);
+            if (selected != null
+                    && mouseX >= CITIZEN_CARD_X && mouseX < CITIZEN_CARD_X + CITIZEN_CARD_WIDTH
+                    && mouseY >= cardY && mouseY < cardY + CITIZEN_CARD_HEIGHT) {
+                minecraft.setScreen(new CitizenDetailsScreen(
+                        this,
+                        selected.getId(),
+                        CitizenDetailsScreen.Tab.OVERVIEW
+                ));
+                return true;
+            }
+        }
+
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && DesignationController.isActive()) {
             hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
             hoveredTarget.filter(BlockHitResult.class::isInstance)
