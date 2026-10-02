@@ -42,11 +42,14 @@ public final class CitizenCommandController {
             return true;
         }
         if (command instanceof ActorCommand.MoveTo moveTo) {
+            if (!owner.citizenData().canTravelTo(moveTo.target())) {
+                return false;
+            }
             return issueMove(moveTo.target(), CitizenBrainState.MOVE);
         }
         if (command instanceof ActorCommand.FollowEntity follow) {
             Entity target = owner.level().getEntity(follow.entityId());
-            if (!isUsableTarget(target)) {
+            if (!isUsableTarget(target) || !owner.citizenData().canTravelTo(target.blockPosition())) {
                 stop();
                 return false;
             }
@@ -63,7 +66,7 @@ public final class CitizenCommandController {
         return false;
     }
 
-    /** Internal Citizen AI movement, e.g. flee/return-home, without inventing a second navigation stack. */
+    /** Internal Citizen AI movement, e.g. flee/return-home, deliberately bypasses player travel limits. */
     public boolean issueSystemMove(BlockPos target, CitizenBrainState state) {
         CitizenBrainState resolvedState = state == null ? CitizenBrainState.MOVE : state;
         return issueMove(target, resolvedState);
@@ -92,7 +95,7 @@ public final class CitizenCommandController {
 
     private void tickFollow(ActorCommand.FollowEntity follow) {
         Entity target = owner.level().getEntity(follow.entityId());
-        if (!isUsableTarget(target)) {
+        if (!isUsableTarget(target) || !owner.citizenData().canTravelTo(target.blockPosition())) {
             stop();
             return;
         }

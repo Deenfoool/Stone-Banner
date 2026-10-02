@@ -12,17 +12,21 @@ public final class CitizenData {
     public static final int MAX_SKILL_LEVEL = 10;
 
     private static final String TAG_PROFESSION = "Profession";
+    private static final String TAG_PARTICIPATION = "Participation";
     private static final String TAG_SKILLS_INITIALIZED = "SkillsInitialized";
     private static final String TAG_SKILLS = "Skills";
     private static final String TAG_WORK_PRIORITIES = "WorkPriorities";
     private static final String TAG_NEEDS = "Needs";
     private static final String TAG_HEALTH = "Health";
+    private static final String TAG_HOME = "Home";
 
     private CitizenProfession profession = CitizenProfession.UNEMPLOYED;
+    private CitizenParticipation participation = CitizenParticipation.LOCAL_HELPER;
     private final EnumMap<CitizenSkill, Integer> skills = new EnumMap<>(CitizenSkill.class);
     private final EnumMap<WorkType, WorkPriority> workPriorities = new EnumMap<>(WorkType.class);
     private final CitizenNeeds needs = new CitizenNeeds();
     private final CitizenHealth health = new CitizenHealth();
+    private final CitizenHome home = new CitizenHome();
     private boolean skillsInitialized;
 
     public CitizenData() {
@@ -43,12 +47,28 @@ public final class CitizenData {
         }
     }
 
+    public CitizenParticipation participation() {
+        return participation;
+    }
+
+    public void setParticipation(CitizenParticipation participation) {
+        this.participation = participation == null ? CitizenParticipation.LOCAL_HELPER : participation;
+    }
+
     public CitizenNeeds needs() {
         return needs;
     }
 
     public CitizenHealth health() {
         return health;
+    }
+
+    public CitizenHome home() {
+        return home;
+    }
+
+    public boolean canTravelTo(net.minecraft.core.BlockPos target) {
+        return participation != CitizenParticipation.LOCAL_HELPER || !home.hasHome() || home.contains(target);
     }
 
     public int skill(CitizenSkill skill) {
@@ -96,6 +116,7 @@ public final class CitizenData {
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
         root.putString(TAG_PROFESSION, profession.serializedName());
+        root.putString(TAG_PARTICIPATION, participation.serializedName());
         root.putBoolean(TAG_SKILLS_INITIALIZED, skillsInitialized);
 
         CompoundTag skillTag = new CompoundTag();
@@ -111,11 +132,13 @@ public final class CitizenData {
         root.put(TAG_WORK_PRIORITIES, priorityTag);
         root.put(TAG_NEEDS, needs.save());
         root.put(TAG_HEALTH, health.save());
+        root.put(TAG_HOME, home.save());
         return root;
     }
 
     public void load(CompoundTag root) {
         profession = CitizenProfession.fromSerializedName(root.getString(TAG_PROFESSION));
+        participation = CitizenParticipation.fromSerializedName(root.getString(TAG_PARTICIPATION));
         applyProfessionDefaults();
 
         if (root.contains(TAG_SKILLS, Tag.TAG_COMPOUND)) {
@@ -142,6 +165,9 @@ public final class CitizenData {
         }
         if (root.contains(TAG_HEALTH, Tag.TAG_COMPOUND)) {
             health.load(root.getCompound(TAG_HEALTH));
+        }
+        if (root.contains(TAG_HOME, Tag.TAG_COMPOUND)) {
+            home.load(root.getCompound(TAG_HOME));
         }
     }
 

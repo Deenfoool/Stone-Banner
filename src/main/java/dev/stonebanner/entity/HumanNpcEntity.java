@@ -4,8 +4,8 @@ import dev.stonebanner.citizen.CitizenBrainState;
 import dev.stonebanner.citizen.CitizenCommandController;
 import dev.stonebanner.citizen.CitizenData;
 import dev.stonebanner.citizen.CitizenDecisionPolicy;
-import dev.stonebanner.citizen.CitizenProfession;
 import dev.stonebanner.citizen.CitizenNeeds;
+import dev.stonebanner.citizen.CitizenParticipation;
 import dev.stonebanner.command.ActorCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -90,7 +90,6 @@ public class HumanNpcEntity extends PathfinderMob {
 
     @Override
     protected void registerGoals() {
-        // Citizen AI owns movement/work goals. These two only keep an idle NPC visually alive.
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
     }
@@ -115,6 +114,17 @@ public class HumanNpcEntity extends PathfinderMob {
         Monster threat = nearestThreat();
         if (threat != null) {
             needs.setDanger(CitizenNeeds.MAX);
+        }
+
+        if (!CitizenDecisionPolicy.isCriticalPreemption(citizenData)
+                && citizenData.participation() == CitizenParticipation.LOCAL_HELPER
+                && citizenData.home().hasHome()
+                && !citizenData.home().contains(blockPosition())) {
+            if (!commandController.hasActiveCommand()
+                    || commandController.movementState() != CitizenBrainState.RETURN_HOME) {
+                commandController.issueSystemMove(citizenData.home().homePos(), CitizenBrainState.RETURN_HOME);
+            }
+            return;
         }
 
         CitizenBrainState commandedState = commandController.hasActiveCommand()
