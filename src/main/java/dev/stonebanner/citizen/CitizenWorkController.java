@@ -100,6 +100,9 @@ public final class CitizenWorkController {
                 board.remove(job.id());
                 continue;
             }
+            if (findApproachPosition(level, job.target()).isEmpty()) {
+                continue;
+            }
             candidates.add(job);
         }
 
