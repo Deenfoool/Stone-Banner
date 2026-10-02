@@ -2,6 +2,7 @@ package dev.stonebanner.entity;
 
 import dev.stonebanner.citizen.CitizenBrainState;
 import dev.stonebanner.citizen.CitizenCommandController;
+import dev.stonebanner.citizen.CitizenData;
 import dev.stonebanner.command.ActorCommand;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -27,8 +28,8 @@ import javax.annotation.Nullable;
 /**
  * Player-proportioned Stone & Banner citizen entity.
  *
- * Identity is generated once, synchronized to clients and persisted in NBT so an NPC never changes
- * appearance after a reload or profession change. Work/profession systems are deliberately separate.
+ * Visual identity and Citizen gameplay data are persisted separately so profession/work changes never
+ * reroll appearance, and future Villager-backed citizens can reuse CitizenData without this renderer.
  */
 public class HumanNpcEntity extends PathfinderMob {
     public static final int MVP_SKIN_POOL_SIZE = 32;
@@ -38,6 +39,7 @@ public class HumanNpcEntity extends PathfinderMob {
     private static final String TAG_SKIN_ID = "SkinId";
     private static final String TAG_SLIM_MODEL = "SlimModel";
     private static final String TAG_BRAIN_STATE = "BrainState";
+    private static final String TAG_CITIZEN_DATA = "CitizenData";
 
     private static final EntityDataAccessor<Boolean> DATA_IDENTITY_INITIALIZED =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.BOOLEAN);
@@ -51,9 +53,11 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
 
     private final CitizenCommandController commandController;
+    private final CitizenData citizenData;
 
     public HumanNpcEntity(EntityType<? extends HumanNpcEntity> entityType, Level level) {
         super(entityType, level);
+        citizenData = new CitizenData();
         commandController = new CitizenCommandController(this);
         setPersistenceRequired();
     }
@@ -96,6 +100,7 @@ public class HumanNpcEntity extends PathfinderMob {
                                         @Nullable CompoundTag spawnTag) {
         SpawnGroupData result = super.finalizeSpawn(level, difficulty, spawnType, spawnData, spawnTag);
         ensureIdentity();
+        citizenData.initializeStarterSkills(variantSeed());
         setBrainState(CitizenBrainState.IDLE);
         return result;
     }
@@ -106,6 +111,10 @@ public class HumanNpcEntity extends PathfinderMob {
 
     public CitizenCommandController commandController() {
         return commandController;
+    }
+
+    public CitizenData citizenData() {
+        return citizenData;
     }
 
     public void ensureIdentity() {
@@ -148,6 +157,7 @@ public class HumanNpcEntity extends PathfinderMob {
         tag.putInt(TAG_SKIN_ID, skinId());
         tag.putBoolean(TAG_SLIM_MODEL, usesSlimModel());
         tag.putString(TAG_BRAIN_STATE, brainState().serializedName());
+        tag.put(TAG_CITIZEN_DATA, citizenData.save());
     }
 
     @Override
@@ -164,6 +174,12 @@ public class HumanNpcEntity extends PathfinderMob {
             entityData.set(DATA_IDENTITY_INITIALIZED, true);
         } else if (!level().isClientSide) {
             ensureIdentity();
+        }
+
+        if (tag.contains(TAG_CITIZEN_DATA, Tag.TAG_COMPOUND)) {
+            citizenData.load(tag.getCompound(TAG_CITIZEN_DATA));
+        } else if (entityData.get(DATA_IDENTITY_INITIALIZED)) {
+            citizenData.initializeStarterSkills(variantSeed());
         }
 
         setBrainState(CitizenBrainState.fromSerializedName(tag.getString(TAG_BRAIN_STATE)));
