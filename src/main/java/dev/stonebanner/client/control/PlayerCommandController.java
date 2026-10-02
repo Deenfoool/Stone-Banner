@@ -31,7 +31,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 
-/** Client-side executor for player commands. The command model itself is shared with future Citizen AI. */
+/** Client-side executor for player commands. The command model itself is shared with Citizen AI. */
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, value = Dist.CLIENT)
 public final class PlayerCommandController {
     private static final double ARRIVAL_DISTANCE = 0.55D;
@@ -45,6 +45,7 @@ public final class PlayerCommandController {
     private static int replanCooldown;
     private static Integer selectedEntityId;
     private static PendingAction pendingAction = PendingAction.NONE;
+    private static BlockPos attemptedControlledDoor;
 
     private PlayerCommandController() {
     }
@@ -132,6 +133,7 @@ public final class PlayerCommandController {
         destination = null;
         selectedEntityId = null;
         pendingAction = PendingAction.NONE;
+        attemptedControlledDoor = null;
         status = CommandStatus.IDLE;
         resetProgressTracking();
     }
@@ -233,13 +235,15 @@ public final class PlayerCommandController {
         double deltaY = moveTarget.y - player.getY();
         double deltaZ = moveTarget.z - player.getZ();
         boolean climbing = BlockPathfinder.isClimbable(level, nextNode)
-                || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()));
+                || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()))
+                || BlockPathfinder.isClimbable(level, nextNode.below());
         double distance = climbing
                 ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
                 : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         double waypointArrival = path.size() == 1 ? ARRIVAL_DISTANCE : 0.35D;
         if (distance <= waypointArrival) {
             path.removeFirst();
+            attemptedControlledDoor = null;
             if (path.isEmpty()) {
                 finishMovement();
                 return;
@@ -250,7 +254,8 @@ public final class PlayerCommandController {
             deltaY = moveTarget.y - player.getY();
             deltaZ = moveTarget.z - player.getZ();
             climbing = BlockPathfinder.isClimbable(level, nextNode)
-                    || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()));
+                    || BlockPathfinder.isClimbable(level, BlockPos.containing(player.position()))
+                    || BlockPathfinder.isClimbable(level, nextNode.below());
             distance = climbing
                     ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
                     : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
@@ -304,6 +309,7 @@ public final class PlayerCommandController {
         Optional<List<BlockPos>> result = BlockPathfinder.findPath(minecraft.level, start, destination);
         path.clear();
         result.ifPresent(path::addAll);
+        attemptedControlledDoor = null;
         status = result.isPresent() ? (path.isEmpty() ? CommandStatus.IDLE : CommandStatus.MOVING)
                 : CommandStatus.UNREACHABLE;
         if (result.isEmpty()) {
@@ -336,6 +342,7 @@ public final class PlayerCommandController {
         Optional<List<BlockPos>> result = BlockPathfinder.findPath(level, start, destination);
         path.clear();
         result.ifPresent(path::addAll);
+        attemptedControlledDoor = null;
         status = result.isPresent() ? (path.isEmpty() ? CommandStatus.IDLE : CommandStatus.MOVING)
                 : CommandStatus.UNREACHABLE;
         if (result.isPresent() && path.isEmpty()) {
@@ -350,6 +357,7 @@ public final class PlayerCommandController {
 
     private static void finishMovement() {
         clearPath();
+        attemptedControlledDoor = null;
         status = selectedEntityId == null ? CommandStatus.IDLE : CommandStatus.TARGET_SELECTED;
         resetProgressTracking();
     }
@@ -373,6 +381,7 @@ public final class PlayerCommandController {
         }
         pendingAction = PendingAction.NONE;
         clearPath();
+        attemptedControlledDoor = null;
         status = CommandStatus.TARGET_SELECTED;
         resetProgressTracking();
         return true;
@@ -380,18 +389,47 @@ public final class PlayerCommandController {
 
     private static void openDoorAhead(Player player, ClientLevel level, BlockPos nextNode) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.gameMode == null || !BlockPathfinder.isClosedWoodenDoor(level, nextNode)
-                || player.distanceToSqr(Vec3.atCenterOf(nextNode)) > 6.25D) {
+        if (minecraft.gameMode == null) {
             return;
         }
 
-        BlockHitResult doorHit = new BlockHitResult(
-                Vec3.atCenterOf(nextNode),
+        if (BlockPathfinder.isClosedWoodenDoor(level, nextNode)) {
+            if (player.distanceToSqr(Vec3.atCenterOf(nextNode)) > 6.25D) {
+                return;
+            }
+            attemptedControlledDoor = null;
+            useBlock(player, nextNode);
+            return;
+        }
+
+        if (!BlockPathfinder.isClosedIronDoor(level, nextNode)) {
+            attemptedControlledDoor = null;
+            return;
+        }
+        if (nextNode.equals(attemptedControlledDoor)) {
+            return;
+        }
+
+        BlockPos control = BlockPathfinder.findNearbyDoorControl(level, nextNode).orElse(null);
+        if (control == null || player.distanceToSqr(Vec3.atCenterOf(control)) > 25.0D) {
+            return;
+        }
+        attemptedControlledDoor = nextNode.immutable();
+        useBlock(player, control);
+    }
+
+    private static void useBlock(Player player, BlockPos pos) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.gameMode == null) {
+            return;
+        }
+        BlockHitResult hit = new BlockHitResult(
+                Vec3.atCenterOf(pos),
                 Direction.UP,
-                nextNode,
+                pos,
                 false
         );
-        InteractionResult result = minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.MAIN_HAND, doorHit);
+        InteractionResult result = minecraft.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
         if (result.shouldSwing()) {
             player.swing(InteractionHand.MAIN_HAND);
         }
