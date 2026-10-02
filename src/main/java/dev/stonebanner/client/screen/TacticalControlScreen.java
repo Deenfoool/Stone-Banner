@@ -3,13 +3,16 @@ package dev.stonebanner.client.screen;
 import dev.stonebanner.client.ClientKeyMappings;
 import dev.stonebanner.client.ClientRuntime;
 import dev.stonebanner.client.camera.RpgCameraController;
+import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.client.control.WorldCursor;
+import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import org.lwjgl.glfw.GLFW;
@@ -48,7 +51,15 @@ public final class TacticalControlScreen extends Screen {
 
         Component hint;
         int hintColor;
-        if (PlayerCommandController.status() == PlayerCommandController.CommandStatus.UNREACHABLE) {
+        HumanNpcEntity selectedNpc = CitizenSelectionController.selected().orElse(null);
+        if (selectedNpc != null) {
+            hint = Component.translatable(
+                    "hud.stonebanner.tactical.npc_selected",
+                    selectedNpc.getDisplayName(),
+                    selectedNpc.brainState().serializedName()
+            );
+            hintColor = 0xFF8CE673;
+        } else if (PlayerCommandController.status() == PlayerCommandController.CommandStatus.UNREACHABLE) {
             hint = Component.translatable("hud.stonebanner.tactical.unreachable");
             hintColor = 0xFFFF6868;
         } else if (PlayerCommandController.hasMoveTarget()) {
@@ -76,9 +87,9 @@ public final class TacticalControlScreen extends Screen {
                     ? Component.translatable("hud.stonebanner.tactical.entity", entityHit.getEntity().getDisplayName())
                     : Component.translatable(
                             "hud.stonebanner.tactical.block",
-                            ((net.minecraft.world.phys.BlockHitResult) hit).getBlockPos().getX(),
-                            ((net.minecraft.world.phys.BlockHitResult) hit).getBlockPos().getY(),
-                            ((net.minecraft.world.phys.BlockHitResult) hit).getBlockPos().getZ()
+                            ((BlockHitResult) hit).getBlockPos().getX(),
+                            ((BlockHitResult) hit).getBlockPos().getY(),
+                            ((BlockHitResult) hit).getBlockPos().getZ()
                     );
             graphics.drawString(font, targetLabel, 8, 8, 0xFFFFFFFF);
         });
@@ -90,15 +101,25 @@ public final class TacticalControlScreen extends Screen {
             hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
             hoveredTarget.ifPresent(hit -> {
                 if (hit instanceof EntityHitResult entityHit) {
-                    PlayerCommandController.contextAction(entityHit.getEntity());
+                    if (CitizenSelectionController.select(entityHit.getEntity())) {
+                        PlayerCommandController.stop();
+                    } else {
+                        CitizenSelectionController.clear();
+                        PlayerCommandController.contextAction(entityHit.getEntity());
+                    }
                 } else {
-                    PlayerCommandController.moveTo((net.minecraft.world.phys.BlockHitResult) hit);
+                    BlockHitResult blockHit = (BlockHitResult) hit;
+                    if (!CitizenSelectionController.moveSelected(blockHit)) {
+                        PlayerCommandController.moveTo(blockHit);
+                    }
                 }
             });
             return true;
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            PlayerCommandController.stop();
+            if (!CitizenSelectionController.stopAndClear()) {
+                PlayerCommandController.stop();
+            }
             return true;
         }
         return button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE || super.mouseClicked(mouseX, mouseY, button);
