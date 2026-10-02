@@ -37,8 +37,9 @@ public final class PathPreviewRenderer {
         Entity hoveredEntity = WorldCursor.hoveredEntity().orElse(null);
         Vec3 hoveredLocation = WorldCursor.hoveredLocation().orElse(null);
         Entity selectedEntity = PlayerCommandController.selectedEntity().orElse(null);
+        Entity selectedCitizen = CitizenSelectionController.selected().orElse(null);
         if (path.isEmpty() && destination == null && hoveredEntity == null
-                && selectedEntity == null && hoveredLocation == null) {
+                && selectedEntity == null && selectedCitizen == null && hoveredLocation == null) {
             return;
         }
 
@@ -100,6 +101,17 @@ public final class PathPreviewRenderer {
                     0.98F,
                     0.74F,
                     0.20F,
+                    1.0F
+            );
+        }
+        if (selectedCitizen != null) {
+            LevelRenderer.renderLineBox(
+                    poses,
+                    lines,
+                    selectedCitizen.getBoundingBox().inflate(0.14D),
+                    0.42F,
+                    0.95F,
+                    0.35F,
                     1.0F
             );
         }
