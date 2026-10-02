@@ -25,6 +25,7 @@ public final class CitizenWorkController {
     private static final int ACQUIRE_INTERVAL_TICKS = 20;
     private static final double WORK_RANGE_SQR = 2.75D * 2.75D;
     private static final double FORESTRY_BASE_WORK = 60.0D;
+    private static final double MINING_BASE_WORK_PER_HARDNESS = 40.0D;
 
     private final HumanNpcEntity owner;
     private CitizenJob currentJob;
@@ -154,9 +155,8 @@ public final class CitizenWorkController {
             owner.swing(InteractionHand.MAIN_HAND);
         }
 
-        double efficiency = owner.citizenData().health().workEfficiencyMultiplier();
-        workProgress += Math.max(0.20D, efficiency);
-        if (workProgress < requiredWork(currentJob)) {
+        workProgress += workRate(currentJob);
+        if (workProgress < requiredWork(level, currentJob)) {
             return;
         }
 
@@ -167,7 +167,7 @@ public final class CitizenWorkController {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         boolean completed = switch (job.workType()) {
-            case FORESTRY -> level.destroyBlock(job.target(), true, owner);
+            case FORESTRY, MINING -> level.destroyBlock(job.target(), true, owner);
             default -> false;
         };
 
@@ -228,15 +228,39 @@ public final class CitizenWorkController {
     }
 
     private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
-        if (job.workType() == WorkType.FORESTRY) {
-            BlockState state = level.getBlockState(job.target());
-            return state.is(BlockTags.LOGS);
-        }
-        return false;
+        BlockState state = level.getBlockState(job.target());
+        return switch (job.workType()) {
+            case FORESTRY -> state.is(BlockTags.LOGS);
+            case MINING -> isMineableBlock(level, job.target(), state);
+            default -> false;
+        };
     }
 
-    private static double requiredWork(CitizenJob job) {
-        return job.workType() == WorkType.FORESTRY ? FORESTRY_BASE_WORK : Double.POSITIVE_INFINITY;
+    private static boolean isMineableBlock(ServerLevel level, BlockPos pos, BlockState state) {
+        return !state.isAir()
+                && !state.is(BlockTags.LOGS)
+                && !state.getCollisionShape(level, pos).isEmpty()
+                && state.getDestroySpeed(level, pos) >= 0.0F;
+    }
+
+    private double workRate(CitizenJob job) {
+        double healthEfficiency = owner.citizenData().health().workEfficiencyMultiplier();
+        if (job.workType() == WorkType.MINING) {
+            int skill = owner.citizenData().skill(CitizenSkill.MINING);
+            return Math.max(0.20D, healthEfficiency * (1.0D + skill * 0.08D));
+        }
+        return Math.max(0.20D, healthEfficiency);
+    }
+
+    private static double requiredWork(ServerLevel level, CitizenJob job) {
+        if (job.workType() == WorkType.FORESTRY) {
+            return FORESTRY_BASE_WORK;
+        }
+        if (job.workType() == WorkType.MINING) {
+            float hardness = level.getBlockState(job.target()).getDestroySpeed(level, job.target());
+            return MINING_BASE_WORK_PER_HARDNESS * Math.max(1.0D, hardness);
+        }
+        return Double.POSITIVE_INFINITY;
     }
 
     private void clearLocalState() {
