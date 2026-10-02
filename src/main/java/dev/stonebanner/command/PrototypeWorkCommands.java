@@ -67,9 +67,13 @@ public final class PrototypeWorkCommands {
                                         }))
                                 .then(Commands.literal("plans")
                                         .executes(context -> {
-                                            int count = ExcavationPlanData.forLevel(context.getSource().getLevel()).activePlanCount();
+                                            ServerLevel level = context.getSource().getLevel();
+                                            ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+                                            int count = plans.activePlanCount();
+                                            int paused = plans.hazardPausedPlanCount(level);
                                             context.getSource().sendSuccess(
-                                                    () -> Component.literal("Active excavation plans: " + count),
+                                                    () -> Component.literal("Active excavation plans: " + count
+                                                            + " (hazard-paused: " + paused + ")"),
                                                     false
                                             );
                                             return count;
