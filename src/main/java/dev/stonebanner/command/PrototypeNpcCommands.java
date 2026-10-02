@@ -7,6 +7,7 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.citizen.BodyPart;
 import dev.stonebanner.citizen.CitizenNeeds;
+import dev.stonebanner.citizen.CitizenParticipation;
 import dev.stonebanner.citizen.InjuryState;
 import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.commands.CommandSourceStack;
@@ -29,6 +30,8 @@ public final class PrototypeNpcCommands {
             new SimpleCommandExceptionType(Component.literal("Unknown body part"));
     private static final SimpleCommandExceptionType INVALID_INJURY =
             new SimpleCommandExceptionType(Component.literal("Unknown injury state"));
+    private static final SimpleCommandExceptionType INVALID_PARTICIPATION =
+            new SimpleCommandExceptionType(Component.literal("Unknown participation: local_helper, companion, settler"));
 
     private PrototypeNpcCommands() {
     }
@@ -103,6 +106,24 @@ public final class PrototypeNpcCommands {
                                                                         StringArgumentType.getString(context, "part"),
                                                                         StringArgumentType.getString(context, "state")
                                                                 ))))))
+                                .then(Commands.literal("home")
+                                        .then(Commands.argument("npc", EntityArgument.entity())
+                                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                        .then(Commands.argument("radiusChunks", IntegerArgumentType.integer(0, 16))
+                                                                .executes(context -> setHome(
+                                                                        context.getSource(),
+                                                                        EntityArgument.getEntity(context, "npc"),
+                                                                        BlockPosArgument.getLoadedBlockPos(context, "pos"),
+                                                                        IntegerArgumentType.getInteger(context, "radiusChunks")
+                                                                ))))))
+                                .then(Commands.literal("participation")
+                                        .then(Commands.argument("npc", EntityArgument.entity())
+                                                .then(Commands.argument("mode", StringArgumentType.word())
+                                                        .executes(context -> setParticipation(
+                                                                context.getSource(),
+                                                                EntityArgument.getEntity(context, "npc"),
+                                                                StringArgumentType.getString(context, "mode")
+                                                        )))))
                         )
         );
     }
@@ -112,7 +133,7 @@ public final class PrototypeNpcCommands {
         boolean accepted = npc.issueCommand(new ActorCommand.MoveTo(target));
         source.sendSuccess(
                 () -> Component.literal(accepted ? "Human NPC moving to " + target.toShortString()
-                        : "Human NPC could not plan a route"),
+                        : "Human NPC rejected the route (unreachable or outside home territory)"),
                 false
         );
         return accepted ? 1 : 0;
@@ -139,10 +160,15 @@ public final class PrototypeNpcCommands {
     private static int status(CommandSourceStack source, Entity entity) throws CommandSyntaxException {
         HumanNpcEntity npc = requireHumanNpc(entity);
         CitizenNeeds needs = npc.citizenData().needs();
+        String home = npc.citizenData().home().hasHome()
+                ? npc.citizenData().home().homePos().toShortString() + "/" + npc.citizenData().home().radiusChunks() + "ch"
+                : "none";
         source.sendSuccess(
                 () -> Component.literal(
                         "state=" + npc.brainState().serializedName()
                                 + " profession=" + npc.citizenData().profession().serializedName()
+                                + " participation=" + npc.citizenData().participation().serializedName()
+                                + " home=" + home
                                 + " hunger=" + Math.round(needs.hunger())
                                 + " fatigue=" + Math.round(needs.fatigue())
                                 + " danger=" + Math.round(needs.danger())
@@ -181,6 +207,29 @@ public final class PrototypeNpcCommands {
         return 1;
     }
 
+    private static int setHome(CommandSourceStack source, Entity entity, BlockPos position, int radiusChunks)
+            throws CommandSyntaxException {
+        HumanNpcEntity npc = requireHumanNpc(entity);
+        npc.citizenData().home().assign("debug", position, radiusChunks);
+        source.sendSuccess(
+                () -> Component.literal("Home set to " + position.toShortString() + " radius=" + radiusChunks + " chunks"),
+                false
+        );
+        return 1;
+    }
+
+    private static int setParticipation(CommandSourceStack source, Entity entity, String mode)
+            throws CommandSyntaxException {
+        HumanNpcEntity npc = requireHumanNpc(entity);
+        CitizenParticipation participation = parseParticipation(mode);
+        npc.citizenData().setParticipation(participation);
+        source.sendSuccess(
+                () -> Component.literal("Participation set to " + participation.serializedName()),
+                false
+        );
+        return 1;
+    }
+
     private static BodyPart parseBodyPart(String value) throws CommandSyntaxException {
         for (BodyPart part : BodyPart.values()) {
             if (part.serializedName().equalsIgnoreCase(value)) {
@@ -197,6 +246,15 @@ public final class PrototypeNpcCommands {
             }
         }
         throw INVALID_INJURY.create();
+    }
+
+    private static CitizenParticipation parseParticipation(String value) throws CommandSyntaxException {
+        for (CitizenParticipation participation : CitizenParticipation.values()) {
+            if (participation.serializedName().equalsIgnoreCase(value)) {
+                return participation;
+            }
+        }
+        throw INVALID_PARTICIPATION.create();
     }
 
     private static HumanNpcEntity requireHumanNpc(Entity entity) throws CommandSyntaxException {
