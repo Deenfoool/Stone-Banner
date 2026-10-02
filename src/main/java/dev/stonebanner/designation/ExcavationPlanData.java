@@ -5,11 +5,14 @@ import dev.stonebanner.citizen.CitizenJobBoard;
 import dev.stonebanner.citizen.CitizenSkill;
 import dev.stonebanner.citizen.WorkTargetRules;
 import dev.stonebanner.citizen.WorkType;
+import dev.stonebanner.network.StoneBannerNetwork;
+import dev.stonebanner.network.packet.ExcavationPlanSnapshotPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.saveddata.SavedData;
 
@@ -43,6 +46,7 @@ public final class ExcavationPlanData extends SavedData {
     private static final String TAG_CURRENT_Y_LEGACY = "CurrentY";
     private static final String TAG_STEP = "Step";
     private static final long RECONCILE_INTERVAL_TICKS = 20L;
+    private static final int MAX_SYNC_PLANS = 256;
 
     private final Map<Long, Plan> plans = new LinkedHashMap<>();
     private long nextId = 1L;
@@ -79,6 +83,7 @@ public final class ExcavationPlanData extends SavedData {
         plans.put(plan.id, plan);
         exposeCurrentOrNextSlice(level, plan);
         setDirty();
+        syncAll(level);
         return totalTargets;
     }
 
@@ -94,12 +99,16 @@ public final class ExcavationPlanData extends SavedData {
         }
         lastReconcileTick = gameTime;
 
+        boolean hadPlans = !plans.isEmpty();
         List<Long> ids = new ArrayList<>(plans.keySet());
         for (Long id : ids) {
             Plan plan = plans.get(id);
             if (plan != null) {
                 reconcile(level, plan);
             }
+        }
+        if (hadPlans || !plans.isEmpty()) {
+            syncAll(level);
         }
     }
 
@@ -132,6 +141,7 @@ public final class ExcavationPlanData extends SavedData {
             plans.remove(plan.id);
         }
         setDirty();
+        syncAll(level);
         return removedJobs + removedPlans.size();
     }
 
@@ -147,6 +157,40 @@ public final class ExcavationPlanData extends SavedData {
             }
         }
         return paused;
+    }
+
+    /** Sends the current compact overlay state to one player, including an empty snapshot. */
+    public void syncTo(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        StoneBannerNetwork.sendExcavationSnapshot(player, networkSnapshots(player.serverLevel()));
+    }
+
+    private void syncAll(ServerLevel level) {
+        List<ExcavationPlanSnapshotPacket.PlanSnapshot> snapshot = networkSnapshots(level);
+        for (ServerPlayer player : level.players()) {
+            StoneBannerNetwork.sendExcavationSnapshot(player, snapshot);
+        }
+    }
+
+    private List<ExcavationPlanSnapshotPacket.PlanSnapshot> networkSnapshots(ServerLevel level) {
+        ArrayList<ExcavationPlanSnapshotPacket.PlanSnapshot> snapshot = new ArrayList<>();
+        for (Plan plan : plans.values()) {
+            if (snapshot.size() >= MAX_SYNC_PLANS) {
+                break;
+            }
+            snapshot.add(new ExcavationPlanSnapshotPacket.PlanSnapshot(
+                    plan.id,
+                    new BlockPos(plan.minX, plan.minY, plan.minZ),
+                    new BlockPos(plan.maxX, plan.maxY, plan.maxZ),
+                    plan.mode.ordinal(),
+                    plan.currentSlice,
+                    plan.step,
+                    plan.currentSliceInsideBounds() && sliceHasHazard(level, plan)
+            ));
+        }
+        return List.copyOf(snapshot);
     }
 
     private void reconcile(ServerLevel level, Plan plan) {
