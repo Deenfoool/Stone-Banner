@@ -6,12 +6,14 @@ import dev.stonebanner.citizen.CitizenSkill;
 import dev.stonebanner.citizen.InjuryState;
 import dev.stonebanner.citizen.WorkPriority;
 import dev.stonebanner.citizen.WorkType;
+import dev.stonebanner.client.control.CitizenInventoryClientCache;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.network.StoneBannerNetwork;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.Comparator;
 import java.util.List;
@@ -35,10 +37,14 @@ public final class CitizenDetailsScreen extends Screen {
     private static final int WORK_CELL_WIDTH = 42;
     private static final int WORK_ROW_HEIGHT = 20;
     private static final double WORK_TABLE_RANGE = 48.0D;
+    private static final int INVENTORY_COLUMNS = 3;
+    private static final int INVENTORY_SLOT_SIZE = 26;
+    private static final int INVENTORY_REFRESH_TICKS = 20;
 
     private final Screen parent;
     private final int citizenEntityId;
     private Tab activeTab;
+    private int inventoryRefreshTicks;
 
     public CitizenDetailsScreen(Screen parent, int citizenEntityId, Tab initialTab) {
         super(Component.translatable("screen.stonebanner.citizen"));
@@ -48,12 +54,33 @@ public final class CitizenDetailsScreen extends Screen {
     }
 
     @Override
+    protected void init() {
+        super.init();
+        if (activeTab == Tab.INVENTORY) {
+            requestInventorySnapshot(true);
+        }
+    }
+
+    @Override
     public boolean isPauseScreen() {
         return false;
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        if (activeTab != Tab.INVENTORY) {
+            inventoryRefreshTicks = 0;
+            return;
+        }
+        if (++inventoryRefreshTicks >= INVENTORY_REFRESH_TICKS) {
+            requestInventorySnapshot(false);
+        }
+    }
+
+    @Override
     public void onClose() {
+        CitizenInventoryClientCache.clear(citizenEntityId);
         minecraft.setScreen(parent);
     }
 
@@ -88,7 +115,7 @@ public final class CitizenDetailsScreen extends Screen {
             case HEALTH -> renderHealth(graphics, citizen, x + 16, contentY);
             case SKILLS -> renderSkills(graphics, citizen, x + 16, contentY);
             case WORK -> renderWork(graphics, citizen, x + 10, contentY, panelWidth - 20, panelHeight - 88, mouseX, mouseY);
-            case INVENTORY -> renderInventory(graphics, x + 16, contentY);
+            case INVENTORY -> renderInventory(graphics, x + 16, contentY, mouseX, mouseY);
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
@@ -199,9 +226,41 @@ public final class CitizenDetailsScreen extends Screen {
         }
     }
 
-    private void renderInventory(GuiGraphics graphics, int x, int y) {
-        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.pending"), x, y, MUTED);
-        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.pending_detail"), x, y + 18, MUTED);
+    private void renderInventory(GuiGraphics graphics, int x, int y, int mouseX, int mouseY) {
+        List<ItemStack> stacks = CitizenInventoryClientCache.snapshot(citizenEntityId);
+        if (stacks.isEmpty()) {
+            graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.loading"), x, y, MUTED);
+            return;
+        }
+
+        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.personal"), x, y, TEXT);
+        int gridY = y + 22;
+        ItemStack hovered = ItemStack.EMPTY;
+        for (int slot = 0; slot < stacks.size(); slot++) {
+            int column = slot % INVENTORY_COLUMNS;
+            int row = slot / INVENTORY_COLUMNS;
+            int slotX = x + column * INVENTORY_SLOT_SIZE;
+            int slotY = gridY + row * INVENTORY_SLOT_SIZE;
+            graphics.fill(slotX, slotY, slotX + 22, slotY + 22, PANEL_SOFT);
+            graphics.renderOutline(slotX, slotY, 22, 22, BORDER);
+
+            ItemStack stack = stacks.get(slot);
+            if (!stack.isEmpty()) {
+                graphics.renderItem(stack, slotX + 3, slotY + 3);
+                graphics.renderItemDecorations(font, stack, slotX + 3, slotY + 3);
+                if (inside(mouseX, mouseY, slotX, slotY, 22, 22)) {
+                    hovered = stack;
+                }
+            }
+        }
+
+        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.real_items"),
+                x + 104, gridY + 2, MUTED);
+        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.food_hint"),
+                x + 104, gridY + 20, MUTED);
+        if (!hovered.isEmpty()) {
+            graphics.renderTooltip(font, hovered, mouseX, mouseY);
+        }
     }
 
     @Override
@@ -223,7 +282,12 @@ public final class CitizenDetailsScreen extends Screen {
         for (Tab tab : Tab.values()) {
             int widthForTab = Math.min(tabWidth, tabX + availableWidth - cursor);
             if (inside(mouseX, mouseY, cursor, tabY, widthForTab, TAB_HEIGHT)) {
-                activeTab = tab;
+                if (activeTab != tab) {
+                    activeTab = tab;
+                    if (tab == Tab.INVENTORY) {
+                        requestInventorySnapshot(true);
+                    }
+                }
                 return true;
             }
             cursor += widthForTab;
@@ -237,6 +301,14 @@ public final class CitizenDetailsScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private void requestInventorySnapshot(boolean clearOld) {
+        if (clearOld) {
+            CitizenInventoryClientCache.clear(citizenEntityId);
+        }
+        StoneBannerNetwork.requestCitizenInventory(citizenEntityId);
+        inventoryRefreshTicks = 0;
     }
 
     private boolean handleWorkClick(HumanNpcEntity selected, int x, int y, int availableWidth, int availableHeight,
