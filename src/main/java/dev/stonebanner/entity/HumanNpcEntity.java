@@ -6,6 +6,7 @@ import dev.stonebanner.citizen.CitizenData;
 import dev.stonebanner.citizen.CitizenDecisionPolicy;
 import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.citizen.CitizenParticipation;
+import dev.stonebanner.citizen.CitizenWorkController;
 import dev.stonebanner.command.ActorCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -62,12 +63,14 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
 
     private final CitizenCommandController commandController;
+    private final CitizenWorkController workController;
     private final CitizenData citizenData;
 
     public HumanNpcEntity(EntityType<? extends HumanNpcEntity> entityType, Level level) {
         super(entityType, level);
         citizenData = new CitizenData();
         commandController = new CitizenCommandController(this);
+        workController = new CitizenWorkController(this);
         setPersistenceRequired();
     }
 
@@ -102,6 +105,7 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         commandController.tick();
+        workController.tick();
         if (tickCount % 20 == 0) {
             tickCitizenSecond();
         }
@@ -116,10 +120,17 @@ public class HumanNpcEntity extends PathfinderMob {
             needs.setDanger(CitizenNeeds.MAX);
         }
 
+        if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
+            workController.interrupt(true);
+        }
+
         if (!CitizenDecisionPolicy.isCriticalPreemption(citizenData)
                 && citizenData.participation() == CitizenParticipation.LOCAL_HELPER
                 && citizenData.home().hasHome()
                 && !citizenData.home().contains(blockPosition())) {
+            if (workController.hasActiveJob()) {
+                workController.interrupt(true);
+            }
             if (!commandController.hasActiveCommand()
                     || commandController.movementState() != CitizenBrainState.RETURN_HOME) {
                 commandController.issueSystemMove(citizenData.home().homePos(), CitizenBrainState.RETURN_HOME);
@@ -127,12 +138,17 @@ public class HumanNpcEntity extends PathfinderMob {
             return;
         }
 
-        CitizenBrainState commandedState = commandController.hasActiveCommand()
+        CitizenBrainState commandedState = workController.hasActiveJob()
+                ? CitizenBrainState.WORK
+                : commandController.hasActiveCommand()
                 ? commandController.movementState()
                 : CitizenBrainState.IDLE;
         CitizenBrainState decision = CitizenDecisionPolicy.chooseState(citizenData, commandedState);
 
         if (decision == CitizenBrainState.FLEE) {
+            if (workController.hasActiveJob()) {
+                workController.interrupt(true);
+            }
             if (threat != null) {
                 fleeFrom(threat);
             } else {
@@ -143,6 +159,9 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         if (decision == CitizenBrainState.DEFEND) {
+            if (workController.hasActiveJob()) {
+                workController.interrupt(true);
+            }
             commandController.stop();
             setBrainState(CitizenBrainState.DEFEND);
             return;
@@ -150,13 +169,16 @@ public class HumanNpcEntity extends PathfinderMob {
 
         if (decision == CitizenBrainState.EAT || decision == CitizenBrainState.SLEEP) {
             if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
+                if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
+                    workController.interrupt(true);
+                }
                 commandController.stop();
                 setBrainState(decision);
             }
             return;
         }
 
-        if (!commandController.hasActiveCommand()) {
+        if (!commandController.hasActiveCommand() && !workController.hasActiveJob()) {
             setBrainState(decision);
         }
     }
@@ -197,11 +219,16 @@ public class HumanNpcEntity extends PathfinderMob {
     }
 
     public boolean issueCommand(ActorCommand command) {
+        workController.interrupt(false);
         return commandController.issue(command);
     }
 
     public CitizenCommandController commandController() {
         return commandController;
+    }
+
+    public CitizenWorkController workController() {
+        return workController;
     }
 
     public CitizenData citizenData() {
