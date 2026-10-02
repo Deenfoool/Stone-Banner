@@ -171,7 +171,7 @@ public final class ExcavationPlanData extends SavedData {
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         long gameTime = level.getGameTime();
         forEachPositionInCurrentSlice(plan, pos -> {
-            if (!level.hasChunkAt(pos) || !WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
+            if (!isExcavationTarget(level, plan, pos)) {
                 return;
             }
             board.publish(WorkType.MINING, pos, CitizenSkill.MINING, 0, gameTime);
@@ -183,8 +183,7 @@ public final class ExcavationPlanData extends SavedData {
         for (int x = plan.minX; x <= plan.maxX; x++) {
             for (int y = plan.minY; y <= plan.maxY; y++) {
                 for (int z = plan.minZ; z <= plan.maxZ; z++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    if (level.hasChunkAt(pos) && WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
+                    if (isExcavationTarget(level, plan, new BlockPos(x, y, z))) {
                         count++;
                     }
                 }
@@ -196,13 +195,17 @@ public final class ExcavationPlanData extends SavedData {
     private static boolean sliceHasTargets(ServerLevel level, Plan plan) {
         final boolean[] found = {false};
         forEachPositionInCurrentSlice(plan, pos -> {
-            if (!found[0]
-                    && level.hasChunkAt(pos)
-                    && WorkTargetRules.isValid(WorkType.MINING, level, pos)) {
+            if (!found[0] && isExcavationTarget(level, plan, pos)) {
                 found[0] = true;
             }
         });
         return found[0];
+    }
+
+    private static boolean isExcavationTarget(ServerLevel level, Plan plan, BlockPos pos) {
+        return level.hasChunkAt(pos)
+                && !plan.isReservedRampSupport(pos)
+                && WorkTargetRules.isValid(WorkType.MINING, level, pos);
     }
 
     private static void forEachPositionInCurrentSlice(Plan plan, PositionConsumer consumer) {
@@ -383,6 +386,49 @@ public final class ExcavationPlanData extends SavedData {
                 case TUNNEL_X -> currentSlice >= minX && currentSlice <= maxX;
                 case TUNNEL_Z -> currentSlice >= minZ && currentSlice <= maxZ;
             };
+        }
+
+        /**
+         * Default quarry access mode: preserve one block per depth around the perimeter.
+         * Consecutive supports are horizontally adjacent and one block lower, forming a
+         * physical Minecraft staircase/spiral. Narrow 1-block strips wait for the future
+         * ladder access mode instead of pretending they have a safe ramp.
+         */
+        private boolean isReservedRampSupport(BlockPos pos) {
+            if (mode != Mode.VERTICAL || maxX <= minX || maxZ <= minZ) {
+                return false;
+            }
+            if (pos.getY() < minY || pos.getY() > maxY) {
+                return false;
+            }
+            BlockPos support = rampSupportAtY(pos.getY());
+            return support != null && support.equals(pos);
+        }
+
+        private BlockPos rampSupportAtY(int y) {
+            int sizeX = maxX - minX + 1;
+            int sizeZ = maxZ - minZ + 1;
+            if (sizeX < 2 || sizeZ < 2) {
+                return null;
+            }
+
+            int perimeter = 2 * sizeX + 2 * sizeZ - 4;
+            int depth = maxY - y;
+            int index = Math.floorMod(depth, perimeter);
+
+            if (index < sizeX) {
+                return new BlockPos(minX + index, y, minZ);
+            }
+            index -= sizeX;
+            if (index < sizeZ - 1) {
+                return new BlockPos(maxX, y, minZ + 1 + index);
+            }
+            index -= sizeZ - 1;
+            if (index < sizeX - 1) {
+                return new BlockPos(maxX - 1 - index, y, maxZ);
+            }
+            index -= sizeX - 1;
+            return new BlockPos(minX, y, maxZ - 1 - index);
         }
 
         private boolean contains(BlockPos pos) {
