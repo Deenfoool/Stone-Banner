@@ -6,6 +6,7 @@
   "control_mode.stonebanner.tactical": "Tactical / Mouse",
   "control_mode.stonebanner.hybrid": "Hybrid",
   "message.stonebanner.control_mode": "Control mode: %s",
+  "message.stonebanner.designation.too_large": "Designation is too large: max %s blocks and %s blocks per axis",
   "screen.stonebanner.tactical": "Tactical control",
   "hud.stonebanner.tactical.hint": "Left click: move  •  G: designations  •  Right click: stop  •  Middle drag: rotate",
   "hud.stonebanner.tactical.moving": "Moving — %s route nodes  •  Right click to stop",
