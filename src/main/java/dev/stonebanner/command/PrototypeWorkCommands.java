@@ -5,6 +5,7 @@ import dev.stonebanner.citizen.CitizenJobBoard;
 import dev.stonebanner.citizen.CitizenSkill;
 import dev.stonebanner.citizen.WorkTargetRules;
 import dev.stonebanner.citizen.WorkType;
+import dev.stonebanner.designation.ExcavationPlanData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -60,6 +61,15 @@ public final class PrototypeWorkCommands {
                                             int count = CitizenJobBoard.forLevel(context.getSource().getLevel()).size();
                                             context.getSource().sendSuccess(
                                                     () -> Component.literal("Published Citizen jobs: " + count),
+                                                    false
+                                            );
+                                            return count;
+                                        }))
+                                .then(Commands.literal("plans")
+                                        .executes(context -> {
+                                            int count = ExcavationPlanData.forLevel(context.getSource().getLevel()).activePlanCount();
+                                            context.getSource().sendSuccess(
+                                                    () -> Component.literal("Active excavation plans: " + count),
                                                     false
                                             );
                                             return count;
@@ -120,13 +130,15 @@ public final class PrototypeWorkCommands {
     }
 
     private static int cancelAt(ServerLevel level, BlockPos target, CommandSourceStack source) {
-        int removed = CitizenJobBoard.forLevel(level).removeAt(target);
+        int removed = ExcavationPlanData.forLevel(level).cancelIntersecting(level, target, target);
+        removed += CitizenJobBoard.forLevel(level).removeAt(target);
         if (removed == 0) {
-            source.sendFailure(Component.literal("No Citizen jobs at " + target.toShortString()));
+            source.sendFailure(Component.literal("No Citizen jobs or excavation plan at " + target.toShortString()));
             return 0;
         }
+        int result = removed;
         source.sendSuccess(
-                () -> Component.literal("Cancelled " + removed + " Citizen job(s) at " + target.toShortString()),
+                () -> Component.literal("Cancelled " + result + " job/plan entry(s) at " + target.toShortString()),
                 false
         );
         return removed;
