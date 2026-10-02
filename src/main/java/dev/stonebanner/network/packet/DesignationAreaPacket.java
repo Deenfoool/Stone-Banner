@@ -4,6 +4,7 @@ import dev.stonebanner.designation.DesignationService;
 import dev.stonebanner.designation.DesignationType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -32,7 +33,24 @@ public record DesignationAreaPacket(DesignationType type, BlockPos first, BlockP
         NetworkEvent.Context context = contextSupplier.get();
         ServerPlayer sender = context.getSender();
         if (sender != null) {
-            context.enqueueWork(() -> DesignationService.apply(sender, packet.type, packet.first, packet.second));
+            context.enqueueWork(() -> {
+                DesignationService.Outcome outcome = DesignationService.apply(
+                        sender,
+                        packet.type,
+                        packet.first,
+                        packet.second
+                );
+                Component feedback = switch (outcome.status()) {
+                    case APPLIED -> Component.translatable(
+                            "message.stonebanner.designation.applied",
+                            outcome.affected()
+                    );
+                    case NO_TARGETS -> Component.translatable("message.stonebanner.designation.no_targets");
+                    case TOO_LARGE -> Component.translatable("message.stonebanner.designation.too_large_server");
+                    case REJECTED -> Component.translatable("message.stonebanner.designation.rejected");
+                };
+                sender.displayClientMessage(feedback, true);
+            });
         }
         context.setPacketHandled(true);
     }
