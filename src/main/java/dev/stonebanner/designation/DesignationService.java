@@ -16,16 +16,16 @@ public final class DesignationService {
     private DesignationService() {
     }
 
-    public static Result apply(ServerPlayer player, DesignationType type, BlockPos first, BlockPos second) {
+    public static Outcome apply(ServerPlayer player, DesignationType type, BlockPos first, BlockPos second) {
         if (player == null || type == null || first == null || second == null) {
-            return Result.REJECTED;
+            return new Outcome(Status.REJECTED, 0);
         }
 
         if (!withinRange(player, first) || !withinRange(player, second)) {
-            return Result.REJECTED;
+            return new Outcome(Status.REJECTED, 0);
         }
         if (!DesignationLimits.isAllowed(first, second)) {
-            return Result.TOO_LARGE;
+            return new Outcome(Status.TOO_LARGE, 0);
         }
 
         int minX = Math.min(first.getX(), second.getX());
@@ -56,17 +56,22 @@ public final class DesignationService {
                         continue;
                     }
 
+                    int before = board.size();
                     if (workType == WorkType.MINING) {
                         board.publish(workType, pos, CitizenSkill.MINING, 0, level.getGameTime());
                     } else {
                         board.publish(workType, pos, level.getGameTime());
                     }
-                    affected++;
+                    if (board.size() > before) {
+                        affected++;
+                    }
                 }
             }
         }
 
-        return affected == 0 ? Result.NO_TARGETS : Result.APPLIED;
+        return affected == 0
+                ? new Outcome(Status.NO_TARGETS, 0)
+                : new Outcome(Status.APPLIED, affected);
     }
 
     private static boolean withinRange(ServerPlayer player, BlockPos pos) {
@@ -74,7 +79,10 @@ public final class DesignationService {
         return player.distanceToSqr(center.x, center.y, center.z) <= MAX_DISTANCE_SQR;
     }
 
-    public enum Result {
+    public record Outcome(Status status, int affected) {
+    }
+
+    public enum Status {
         APPLIED,
         NO_TARGETS,
         TOO_LARGE,
