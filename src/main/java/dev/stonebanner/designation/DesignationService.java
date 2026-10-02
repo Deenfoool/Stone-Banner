@@ -11,8 +11,6 @@ import net.minecraft.world.phys.Vec3;
 
 /** Converts validated player designations into shared Citizen jobs. */
 public final class DesignationService {
-    public static final int MAX_BLOCKS_PER_REQUEST = 4096;
-    public static final int MAX_AXIS_LENGTH = 64;
     private static final double MAX_DISTANCE_SQR = 128.0D * 128.0D;
 
     private DesignationService() {
@@ -26,6 +24,9 @@ public final class DesignationService {
         if (!withinRange(player, first) || !withinRange(player, second)) {
             return Result.REJECTED;
         }
+        if (!DesignationLimits.isAllowed(first, second)) {
+            return Result.TOO_LARGE;
+        }
 
         int minX = Math.min(first.getX(), second.getX());
         int minY = Math.min(first.getY(), second.getY());
@@ -33,15 +34,6 @@ public final class DesignationService {
         int maxX = Math.max(first.getX(), second.getX());
         int maxY = Math.max(first.getY(), second.getY());
         int maxZ = Math.max(first.getZ(), second.getZ());
-
-        int sizeX = maxX - minX + 1;
-        int sizeY = maxY - minY + 1;
-        int sizeZ = maxZ - minZ + 1;
-        long volume = (long) sizeX * sizeY * sizeZ;
-        if (sizeX > MAX_AXIS_LENGTH || sizeY > MAX_AXIS_LENGTH || sizeZ > MAX_AXIS_LENGTH
-                || volume > MAX_BLOCKS_PER_REQUEST) {
-            return Result.TOO_LARGE;
-        }
 
         ServerLevel level = player.serverLevel();
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
