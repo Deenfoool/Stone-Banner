@@ -1,6 +1,7 @@
 package dev.stonebanner.client.control;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.CameraSpace;
 import dev.stonebanner.control.ControlMode;
@@ -24,12 +25,12 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.Optional;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 
-/** One entry point for player intent. Mouse control currently supplies Move and Stop commands. */
+/** Client-side executor for player commands. The command model itself is shared with future Citizen AI. */
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, value = Dist.CLIENT)
 public final class PlayerCommandController {
     private static final double ARRIVAL_DISTANCE = 0.55D;
@@ -49,15 +50,10 @@ public final class PlayerCommandController {
 
     public static void moveTo(BlockHitResult hit) {
         Direction face = hit.getDirection();
-        BlockPos requestedTarget;
-        if (face == Direction.UP) {
-            requestedTarget = hit.getBlockPos().above();
-        } else {
-            requestedTarget = hit.getBlockPos().relative(face);
-        }
-        selectedEntityId = null;
-        pendingAction = PendingAction.NONE;
-        createPath(requestedTarget);
+        BlockPos requestedTarget = face == Direction.UP
+                ? hit.getBlockPos().above()
+                : hit.getBlockPos().relative(face);
+        issue(new ActorCommand.MoveTo(requestedTarget));
     }
 
     public static void contextAction(Entity entity) {
@@ -66,23 +62,71 @@ public final class PlayerCommandController {
             return;
         }
 
-        selectedEntityId = entity.getId();
-        pendingAction = entity instanceof Monster ? PendingAction.ATTACK
-                : entity instanceof AbstractVillager ? PendingAction.INTERACT
-                : PendingAction.NONE;
-        facePlayerToward(minecraft.player, entity);
+        ActorCommand.EntityActionType action = entity instanceof Monster
+                ? ActorCommand.EntityActionType.ATTACK
+                : entity instanceof AbstractVillager
+                ? ActorCommand.EntityActionType.INTERACT
+                : ActorCommand.EntityActionType.SELECT;
+        issue(new ActorCommand.EntityAction(entity.getId(), action));
+    }
 
+    public static void stop() {
+        issue(new ActorCommand.Stop());
+    }
+
+    /** Executes player intent without exposing mouse/input details to the command model. */
+    public static void issue(ActorCommand command) {
+        if (command == null) {
+            return;
+        }
+        if (command instanceof ActorCommand.Stop) {
+            stopInternal();
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) {
+            return;
+        }
+
+        if (command instanceof ActorCommand.MoveTo moveTo) {
+            selectedEntityId = null;
+            pendingAction = PendingAction.NONE;
+            createPath(moveTo.target());
+            return;
+        }
+
+        if (command instanceof ActorCommand.EntityAction entityAction) {
+            Entity entity = minecraft.level.getEntity(entityAction.entityId());
+            if (entity == null || !entity.isAlive() || entity == minecraft.player) {
+                return;
+            }
+            issueEntityAction(minecraft.player, entity, entityAction.action());
+        }
+    }
+
+    private static void issueEntityAction(Player player, Entity entity, ActorCommand.EntityActionType action) {
+        selectedEntityId = entity.getId();
+        if (action == ActorCommand.EntityActionType.ATTACK) {
+            pendingAction = PendingAction.ATTACK;
+        } else if (action == ActorCommand.EntityActionType.INTERACT) {
+            pendingAction = PendingAction.INTERACT;
+        } else {
+            pendingAction = PendingAction.NONE;
+        }
+
+        facePlayerToward(player, entity);
         if (pendingAction == PendingAction.NONE) {
             clearPath();
             status = CommandStatus.TARGET_SELECTED;
             return;
         }
-        if (!executePendingActionIfInRange(minecraft.player, entity)) {
+        if (!executePendingActionIfInRange(player, entity)) {
             createPath(BlockPos.containing(entity.position()));
         }
     }
 
-    public static void stop() {
+    private static void stopInternal() {
         path.clear();
         destination = null;
         selectedEntityId = null;
