@@ -5,6 +5,7 @@ import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayDeque;
@@ -128,19 +129,20 @@ public final class CitizenCommandController {
             followRepathCooldown--;
         }
 
-        tickPath(CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING);
-        activeCommand = follow;
+        if (tickPath(CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING)) {
+            activeCommand = follow;
+        }
     }
 
-    private void tickPath(CitizenBrainState state, CommandStatus movingStatus) {
+    private boolean tickPath(CitizenBrainState state, CommandStatus movingStatus) {
         BlockPos next = path.peekFirst();
         if (next == null) {
             if (state == CitizenBrainState.FOLLOW) {
                 status = CommandStatus.FOLLOWING;
-                return;
+                return true;
             }
             completeMove();
-            return;
+            return true;
         }
 
         Vec3 waypoint = BlockPathfinder.waypoint(owner.level(), next);
@@ -151,17 +153,24 @@ public final class CitizenCommandController {
                 if (state == CitizenBrainState.FOLLOW) {
                     owner.getNavigation().stop();
                     status = CommandStatus.FOLLOWING;
-                    return;
+                    return true;
                 }
                 completeMove();
-                return;
+                return true;
             }
             waypoint = BlockPathfinder.waypoint(owner.level(), next);
         }
 
         if (navigationRefreshCooldown <= 0 || owner.getNavigation().isDone()) {
             double injuryAdjustedSpeed = MOVE_SPEED * owner.citizenData().health().movementMultiplier();
-            owner.getNavigation().moveTo(waypoint.x, waypoint.y, waypoint.z, injuryAdjustedSpeed);
+            // The custom route is made of adjacent blocks. Vanilla's coordinate overload uses accuracy 1,
+            // which treats the next adjacent block as already reached and leaves the mob standing still.
+            Path segment = owner.getNavigation().createPath(next, 0);
+            if (segment == null || !segment.canReach()
+                    || !owner.getNavigation().moveTo(segment, injuryAdjustedSpeed)) {
+                failMove();
+                return false;
+            }
             navigationRefreshCooldown = MOVE_REFRESH_TICKS;
         } else {
             navigationRefreshCooldown--;
@@ -170,6 +179,7 @@ public final class CitizenCommandController {
         status = movingStatus;
         movementState = state;
         owner.setBrainState(state);
+        return true;
     }
 
     private boolean rebuildPath(BlockPos target, CitizenBrainState state, CommandStatus movingStatus) {
@@ -218,6 +228,17 @@ public final class CitizenCommandController {
         followRepathCooldown = 0;
         movementState = CitizenBrainState.IDLE;
         status = CommandStatus.IDLE;
+        owner.setBrainState(CitizenBrainState.IDLE);
+    }
+
+    private void failMove() {
+        activeCommand = null;
+        path.clear();
+        owner.getNavigation().stop();
+        navigationRefreshCooldown = 0;
+        followRepathCooldown = 0;
+        movementState = CitizenBrainState.IDLE;
+        status = CommandStatus.UNREACHABLE;
         owner.setBrainState(CitizenBrainState.IDLE);
     }
 
