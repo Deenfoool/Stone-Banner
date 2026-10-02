@@ -3,15 +3,20 @@ package dev.stonebanner.network;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
+import dev.stonebanner.network.packet.ExcavationPlanSnapshotPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.SetWorkPriorityPacket;
 import dev.stonebanner.network.packet.StopCitizenPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
-/** Shared packet channel for client-to-server Stone & Banner commands. */
+import java.util.List;
+
+/** Shared packet channel for Stone & Banner gameplay commands and compact state snapshots. */
 public final class StoneBannerNetwork {
     private static final String PROTOCOL_VERSION = "2";
 
@@ -62,6 +67,13 @@ public final class StoneBannerNetwork {
                 SetWorkPriorityPacket::decode,
                 SetWorkPriorityPacket::handle
         );
+        CHANNEL.registerMessage(
+                nextPacketId++,
+                ExcavationPlanSnapshotPacket.class,
+                ExcavationPlanSnapshotPacket::encode,
+                ExcavationPlanSnapshotPacket::decode,
+                ExcavationPlanSnapshotPacket::handle
+        );
     }
 
     public static void sendMoveCitizen(int entityId, BlockPos target) {
@@ -78,5 +90,15 @@ public final class StoneBannerNetwork {
 
     public static void sendWorkPriority(int entityId, int workTypeId, int priorityCode) {
         CHANNEL.sendToServer(new SetWorkPriorityPacket(entityId, workTypeId, priorityCode));
+    }
+
+    public static void sendExcavationSnapshot(
+            ServerPlayer player,
+            List<ExcavationPlanSnapshotPacket.PlanSnapshot> plans
+    ) {
+        CHANNEL.send(
+                PacketDistributor.PLAYER.with(player),
+                new ExcavationPlanSnapshotPacket(plans)
+        );
     }
 }
