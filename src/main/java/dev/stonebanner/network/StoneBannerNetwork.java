@@ -16,7 +16,7 @@ public final class StoneBannerNetwork {
     private static final String PROTOCOL_VERSION = "1";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(StoneAndBanner.MOD_ID, "main"),
+            ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
             PROTOCOL_VERSION::equals

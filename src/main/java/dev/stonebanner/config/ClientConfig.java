@@ -58,10 +58,5 @@ public final class ClientConfig {
 
     public static void setControlMode(ControlMode mode) {
         CONTROL_MODE.set(mode);
-        save();
-    }
-
-    public static void save() {
-        SPEC.save();
     }
 }

@@ -90,7 +90,6 @@ public final class RpgCameraController {
                 MIN_DISTANCE,
                 MAX_DISTANCE
         );
-        ClientConfig.CAMERA_DISTANCE.set(targetDistance);
         saveCountdown = SAVE_DELAY_TICKS;
         event.setCanceled(true);
     }
@@ -186,7 +185,6 @@ public final class RpgCameraController {
             player.yRotO = lastPlayerYaw;
             player.xRotO = lastPlayerPitch;
 
-            ClientConfig.CAMERA_PITCH.set((double) cameraPitch);
             saveCountdown = SAVE_DELAY_TICKS;
         }
 
@@ -211,7 +209,6 @@ public final class RpgCameraController {
         initializeOrientationIfNeeded(minecraft.player);
         cameraYaw = Mth.wrapDegrees(cameraYaw - (float) dragX * 0.45F);
         cameraPitch = Mth.clamp(cameraPitch + (float) dragY * 0.45F, MIN_PITCH, MAX_PITCH);
-        ClientConfig.CAMERA_PITCH.set((double) cameraPitch);
         saveCountdown = SAVE_DELAY_TICKS;
     }
 
@@ -221,7 +218,6 @@ public final class RpgCameraController {
         }
         ensureInitialized();
         targetDistance = Mth.clamp(targetDistance - scrollDelta * ZOOM_STEP, MIN_DISTANCE, MAX_DISTANCE);
-        ClientConfig.CAMERA_DISTANCE.set(targetDistance);
         saveCountdown = SAVE_DELAY_TICKS;
     }
 
@@ -242,7 +238,12 @@ public final class RpgCameraController {
 
         saveCountdown--;
         if (saveCountdown == 0) {
-            ClientConfig.save();
+            if (Double.compare(ClientConfig.CAMERA_DISTANCE.get(), targetDistance) != 0) {
+                ClientConfig.CAMERA_DISTANCE.set(targetDistance);
+            }
+            if (Double.compare(ClientConfig.CAMERA_PITCH.get(), cameraPitch) != 0) {
+                ClientConfig.CAMERA_PITCH.set((double) cameraPitch);
+            }
         }
     }
 }

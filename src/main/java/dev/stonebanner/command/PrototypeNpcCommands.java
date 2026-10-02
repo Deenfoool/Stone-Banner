@@ -57,7 +57,7 @@ public final class PrototypeNpcCommands {
                                                                 context.getSource(),
                                                                 EntityArgument.getEntity(context, "npc"),
                                                                 EntityArgument.getEntity(context, "target")
-                                                        ))))
+                                                        )))))
                                 .then(Commands.literal("stop")
                                         .then(Commands.argument("npc", EntityArgument.entity())
                                                 .executes(context -> stop(

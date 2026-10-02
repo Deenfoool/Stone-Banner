@@ -12,9 +12,9 @@ import net.minecraft.resources.ResourceLocation;
 /** Minecraft-native Steve/Alex renderer for Human NPCs. */
 public final class HumanNpcRenderer extends HumanoidMobRenderer<HumanNpcEntity, PlayerModel<HumanNpcEntity>> {
     private static final ResourceLocation STEVE_TEXTURE =
-            new ResourceLocation("minecraft", "textures/entity/player/wide/steve.png");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/player/wide/steve.png");
     private static final ResourceLocation ALEX_TEXTURE =
-            new ResourceLocation("minecraft", "textures/entity/player/slim/alex.png");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/player/slim/alex.png");
 
     private final PlayerModel<HumanNpcEntity> wideModel;
     private final PlayerModel<HumanNpcEntity> slimModel;
