@@ -42,7 +42,7 @@ public final class DesignationService {
             int targets = ExcavationPlanData.forLevel(level).createVertical(level, first, second);
             return targets == 0
                     ? new Outcome(Status.NO_TARGETS, 0)
-                    : new Outcome(Status.APPLIED, targets);
+                    : new Outcome(Status.PLANNED, targets);
         }
 
         int affected = 0;
@@ -95,6 +95,7 @@ public final class DesignationService {
 
     public enum Status {
         APPLIED,
+        PLANNED,
         NO_TARGETS,
         TOO_LARGE,
         REJECTED
