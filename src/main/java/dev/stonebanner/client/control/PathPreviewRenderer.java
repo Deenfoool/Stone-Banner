@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.config.ClientConfig;
+import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -38,8 +39,11 @@ public final class PathPreviewRenderer {
         Vec3 hoveredLocation = WorldCursor.hoveredLocation().orElse(null);
         Entity selectedEntity = PlayerCommandController.selectedEntity().orElse(null);
         Entity selectedCitizen = CitizenSelectionController.selected().orElse(null);
+        boolean hasDesignationPreview = DesignationController.dragStart().isPresent()
+                && DesignationController.dragEnd().isPresent();
         if (path.isEmpty() && destination == null && hoveredEntity == null
-                && selectedEntity == null && selectedCitizen == null && hoveredLocation == null) {
+                && selectedEntity == null && selectedCitizen == null && hoveredLocation == null
+                && !hasDesignationPreview) {
             return;
         }
 
@@ -115,7 +119,48 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
+        renderDesignationPreview(poses, lines);
         poses.popPose();
         buffers.endBatch(RenderType.lines());
+    }
+
+    private static void renderDesignationPreview(PoseStack poses, VertexConsumer lines) {
+        BlockPos first = DesignationController.dragStart().orElse(null);
+        BlockPos second = DesignationController.dragEnd().orElse(null);
+        DesignationType type = DesignationController.activeType().orElse(null);
+        if (first == null || second == null || type == null) {
+            return;
+        }
+
+        int minX = Math.min(first.getX(), second.getX());
+        int minY = Math.min(first.getY(), second.getY());
+        int minZ = Math.min(first.getZ(), second.getZ());
+        int maxX = Math.max(first.getX(), second.getX()) + 1;
+        int maxY = Math.max(first.getY(), second.getY()) + 1;
+        int maxZ = Math.max(first.getZ(), second.getZ()) + 1;
+        AABB box = new AABB(minX, minY, minZ, maxX, maxY, maxZ).inflate(0.01D);
+
+        float red;
+        float green;
+        float blue;
+        switch (type) {
+            case CHOP -> {
+                red = 0.42F;
+                green = 0.90F;
+                blue = 0.35F;
+            }
+            case MINE -> {
+                red = 0.90F;
+                green = 0.70F;
+                blue = 0.30F;
+            }
+            case CANCEL -> {
+                red = 1.0F;
+                green = 0.35F;
+                blue = 0.35F;
+            }
+            default -> throw new IllegalStateException("Unexpected designation type: " + type);
+        }
+        LevelRenderer.renderLineBox(poses, lines, box, red, green, blue, 1.0F);
     }
 }
