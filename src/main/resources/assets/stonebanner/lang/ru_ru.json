@@ -53,6 +53,7 @@
   "hud.stonebanner.npc.now": "Сейчас:",
 
   "hud.stonebanner.alerts": "События",
+  "hud.stonebanner.alert.excavation_hazard": "%s выработок остановлено: вода или лава",
   "hud.stonebanner.alert.danger": "Непосредственная опасность",
   "hud.stonebanner.alert.low_health": "%s тяжело ранен",
   "hud.stonebanner.alert.hunger": "%s критически голоден",
