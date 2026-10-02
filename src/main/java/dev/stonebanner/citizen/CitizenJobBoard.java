@@ -70,6 +70,10 @@ public final class CitizenJobBoard {
         return List.copyOf(result);
     }
 
+    public Collection<CitizenJob> snapshot() {
+        return entries.values().stream().map(entry -> entry.job).toList();
+    }
+
     public Optional<CitizenJob> job(long jobId) {
         Entry entry = entries.get(jobId);
         return entry == null ? Optional.empty() : Optional.of(entry.job);
@@ -116,6 +120,15 @@ public final class CitizenJobBoard {
 
     public void remove(long jobId) {
         entries.remove(jobId);
+    }
+
+    public int removeAt(BlockPos target) {
+        if (target == null) {
+            return 0;
+        }
+        int before = entries.size();
+        entries.entrySet().removeIf(entry -> entry.getValue().job.target().equals(target));
+        return before - entries.size();
     }
 
     public int size() {
