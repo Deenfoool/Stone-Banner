@@ -42,6 +42,13 @@ public final class PrototypeWorkCommands {
                                                         BlockPosArgument.getLoadedBlockPos(context, "pos"),
                                                         context.getSource()
                                                 ))))
+                                .then(Commands.literal("cancel")
+                                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                                .executes(context -> cancelAt(
+                                                        context.getSource().getLevel(),
+                                                        BlockPosArgument.getLoadedBlockPos(context, "pos"),
+                                                        context.getSource()
+                                                ))))
                                 .then(Commands.literal("count")
                                         .executes(context -> {
                                             int count = CitizenJobBoard.forLevel(context.getSource().getLevel()).size();
@@ -93,5 +100,18 @@ public final class PrototypeWorkCommands {
                 false
         );
         return 1;
+    }
+
+    private static int cancelAt(ServerLevel level, BlockPos target, CommandSourceStack source) {
+        int removed = CitizenJobBoard.forLevel(level).removeAt(target);
+        if (removed == 0) {
+            source.sendFailure(Component.literal("No Citizen jobs at " + target.toShortString()));
+            return 0;
+        }
+        source.sendSuccess(
+                () -> Component.literal("Cancelled " + removed + " Citizen job(s) at " + target.toShortString()),
+                false
+        );
+        return removed;
     }
 }
