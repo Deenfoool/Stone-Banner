@@ -33,7 +33,8 @@ public final class DesignationController {
             activeType = switch (activeType) {
                 case CHOP -> DesignationType.MINE;
                 case MINE -> DesignationType.EXCAVATE;
-                case EXCAVATE -> DesignationType.CLEAR;
+                case EXCAVATE -> DesignationType.TUNNEL;
+                case TUNNEL -> DesignationType.CLEAR;
                 case CLEAR -> DesignationType.CANCEL;
                 case CANCEL -> null;
             };
