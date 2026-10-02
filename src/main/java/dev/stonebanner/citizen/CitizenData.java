@@ -16,11 +16,13 @@ public final class CitizenData {
     private static final String TAG_SKILLS = "Skills";
     private static final String TAG_WORK_PRIORITIES = "WorkPriorities";
     private static final String TAG_NEEDS = "Needs";
+    private static final String TAG_HEALTH = "Health";
 
     private CitizenProfession profession = CitizenProfession.UNEMPLOYED;
     private final EnumMap<CitizenSkill, Integer> skills = new EnumMap<>(CitizenSkill.class);
     private final EnumMap<WorkType, WorkPriority> workPriorities = new EnumMap<>(WorkType.class);
     private final CitizenNeeds needs = new CitizenNeeds();
+    private final CitizenHealth health = new CitizenHealth();
     private boolean skillsInitialized;
 
     public CitizenData() {
@@ -43,6 +45,10 @@ public final class CitizenData {
 
     public CitizenNeeds needs() {
         return needs;
+    }
+
+    public CitizenHealth health() {
+        return health;
     }
 
     public int skill(CitizenSkill skill) {
@@ -104,6 +110,7 @@ public final class CitizenData {
         }
         root.put(TAG_WORK_PRIORITIES, priorityTag);
         root.put(TAG_NEEDS, needs.save());
+        root.put(TAG_HEALTH, health.save());
         return root;
     }
 
@@ -132,6 +139,9 @@ public final class CitizenData {
 
         if (root.contains(TAG_NEEDS, Tag.TAG_COMPOUND)) {
             needs.load(root.getCompound(TAG_NEEDS));
+        }
+        if (root.contains(TAG_HEALTH, Tag.TAG_COMPOUND)) {
+            health.load(root.getCompound(TAG_HEALTH));
         }
     }
 

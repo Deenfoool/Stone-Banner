@@ -157,7 +157,8 @@ public final class CitizenCommandController {
         }
 
         if (navigationRefreshCooldown <= 0 || owner.getNavigation().isDone()) {
-            owner.getNavigation().moveTo(waypoint.x, waypoint.y, waypoint.z, MOVE_SPEED);
+            double injuryAdjustedSpeed = MOVE_SPEED * owner.citizenData().health().movementMultiplier();
+            owner.getNavigation().moveTo(waypoint.x, waypoint.y, waypoint.z, injuryAdjustedSpeed);
             navigationRefreshCooldown = MOVE_REFRESH_TICKS;
         } else {
             navigationRefreshCooldown--;
