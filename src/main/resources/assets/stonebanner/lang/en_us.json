@@ -26,8 +26,10 @@
   "screen.stonebanner.none": "none",
   "screen.stonebanner.work.hint": "LMB a cell: 1 → 2 → 3 → 4 → X",
   "screen.stonebanner.work.citizen": "Citizen",
-  "screen.stonebanner.inventory.pending": "Citizen inventory is not connected yet.",
-  "screen.stonebanner.inventory.pending_detail": "Real NPC items will appear here when personal storage is implemented.",
+  "screen.stonebanner.inventory.loading": "Loading inventory...",
+  "screen.stonebanner.inventory.personal": "Personal inventory",
+  "screen.stonebanner.inventory.real_items": "These are real Minecraft items.",
+  "screen.stonebanner.inventory.food_hint": "A hungry Citizen automatically eats suitable food from these slots.",
 
   "hud.stonebanner.tactical.hint": "Left click: move  •  G: designations  •  Right click: stop  •  Middle drag: rotate",
   "hud.stonebanner.tactical.moving": "Moving — %s route nodes  •  Right click to stop",
@@ -53,6 +55,7 @@
   "hud.stonebanner.npc.now": "Now:",
 
   "hud.stonebanner.alerts": "Alerts",
+  "hud.stonebanner.alert.excavation_hazard": "%s excavations paused: water or lava",
   "hud.stonebanner.alert.danger": "Immediate danger",
   "hud.stonebanner.alert.low_health": "%s is badly hurt",
   "hud.stonebanner.alert.hunger": "%s is critically hungry",

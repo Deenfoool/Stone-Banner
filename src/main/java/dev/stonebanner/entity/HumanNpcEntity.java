@@ -199,13 +199,26 @@ public class HumanNpcEntity extends PathfinderMob {
             return;
         }
 
-        if (decision == CitizenBrainState.EAT || decision == CitizenBrainState.SLEEP) {
+        if (decision == CitizenBrainState.EAT) {
             if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
                 if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
                     workController.interrupt(true);
                 }
                 commandController.stop();
-                setBrainState(decision);
+                setBrainState(CitizenBrainState.EAT);
+                citizenData.inventory().consumeFood(this)
+                        .ifPresent(consumption -> needs.eat(consumption.hungerRelief()));
+            }
+            return;
+        }
+
+        if (decision == CitizenBrainState.SLEEP) {
+            if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
+                if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
+                    workController.interrupt(true);
+                }
+                commandController.stop();
+                setBrainState(CitizenBrainState.SLEEP);
             }
             return;
         }

@@ -19,6 +19,7 @@ public final class CitizenData {
     private static final String TAG_NEEDS = "Needs";
     private static final String TAG_HEALTH = "Health";
     private static final String TAG_HOME = "Home";
+    private static final String TAG_INVENTORY = "Inventory";
 
     private CitizenProfession profession = CitizenProfession.UNEMPLOYED;
     private CitizenParticipation participation = CitizenParticipation.LOCAL_HELPER;
@@ -27,6 +28,7 @@ public final class CitizenData {
     private final CitizenNeeds needs = new CitizenNeeds();
     private final CitizenHealth health = new CitizenHealth();
     private final CitizenHome home = new CitizenHome();
+    private final CitizenInventory inventory = new CitizenInventory();
     private boolean skillsInitialized;
 
     public CitizenData() {
@@ -65,6 +67,10 @@ public final class CitizenData {
 
     public CitizenHome home() {
         return home;
+    }
+
+    public CitizenInventory inventory() {
+        return inventory;
     }
 
     public boolean canTravelTo(net.minecraft.core.BlockPos target) {
@@ -133,6 +139,7 @@ public final class CitizenData {
         root.put(TAG_NEEDS, needs.save());
         root.put(TAG_HEALTH, health.save());
         root.put(TAG_HOME, home.save());
+        root.put(TAG_INVENTORY, inventory.save());
         return root;
     }
 
@@ -168,6 +175,11 @@ public final class CitizenData {
         }
         if (root.contains(TAG_HOME, Tag.TAG_COMPOUND)) {
             home.load(root.getCompound(TAG_HOME));
+        }
+        if (root.contains(TAG_INVENTORY, Tag.TAG_COMPOUND)) {
+            inventory.load(root.getCompound(TAG_INVENTORY));
+        } else {
+            inventory.clear();
         }
     }
 
