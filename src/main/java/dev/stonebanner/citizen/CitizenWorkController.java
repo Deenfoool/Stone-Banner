@@ -247,10 +247,11 @@ public final class CitizenWorkController {
     }
 
     private boolean isOccupiedByOtherCitizen(ServerLevel level, BlockPos target) {
-        AABB blockVolume = new AABB(target);
+        // Inflate slightly so an NPC standing exactly on the block's top face is treated as occupying it.
+        AABB safetyVolume = new AABB(target).inflate(0.05D);
         return !level.getEntitiesOfClass(
                 HumanNpcEntity.class,
-                blockVolume,
+                safetyVolume,
                 npc -> npc != owner && npc.isAlive()
         ).isEmpty();
     }
