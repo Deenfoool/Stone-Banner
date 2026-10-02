@@ -1,8 +1,11 @@
 package dev.stonebanner.client.control;
 
+import dev.stonebanner.designation.DesignationLimits;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.network.StoneBannerNetwork;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 
 import java.util.Optional;
 
@@ -63,6 +66,21 @@ public final class DesignationController {
         update(pos);
         BlockPos first = dragStart;
         BlockPos second = dragEnd == null ? dragStart : dragEnd;
+        if (!DesignationLimits.isAllowed(first, second)) {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.player != null) {
+                minecraft.player.displayClientMessage(
+                        Component.translatable(
+                                "message.stonebanner.designation.too_large",
+                                DesignationLimits.MAX_BLOCKS_PER_REQUEST,
+                                DesignationLimits.MAX_AXIS_LENGTH
+                        ),
+                        true
+                );
+            }
+            clearDrag();
+            return false;
+        }
         StoneBannerNetwork.sendDesignation(activeType, first, second);
         clearDrag();
         return true;
@@ -81,13 +99,11 @@ public final class DesignationController {
     }
 
     public static long previewVolume() {
-        if (dragStart == null || dragEnd == null) {
-            return 0L;
-        }
-        long sizeX = Math.abs((long) dragStart.getX() - dragEnd.getX()) + 1L;
-        long sizeY = Math.abs((long) dragStart.getY() - dragEnd.getY()) + 1L;
-        long sizeZ = Math.abs((long) dragStart.getZ() - dragEnd.getZ()) + 1L;
-        return sizeX * sizeY * sizeZ;
+        return DesignationLimits.volume(dragStart, dragEnd);
+    }
+
+    public static boolean previewAllowed() {
+        return dragStart == null || dragEnd == null || DesignationLimits.isAllowed(dragStart, dragEnd);
     }
 
     private static void clearDrag() {
