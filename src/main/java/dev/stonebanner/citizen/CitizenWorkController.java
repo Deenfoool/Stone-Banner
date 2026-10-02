@@ -1,0 +1,253 @@
+package dev.stonebanner.citizen;
+
+import dev.stonebanner.entity.HumanNpcEntity;
+import dev.stonebanner.navigation.BlockPathfinder;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Executes jobs chosen by CitizenJobPlanner.
+ *
+ * Work discovery is intentionally throttled. Physical job producers publish work to CitizenJobBoard;
+ * this controller only reserves, travels, performs and completes a chosen job.
+ */
+public final class CitizenWorkController {
+    private static final int ACQUIRE_INTERVAL_TICKS = 20;
+    private static final double WORK_RANGE_SQR = 2.75D * 2.75D;
+    private static final double FORESTRY_BASE_WORK = 60.0D;
+
+    private final HumanNpcEntity owner;
+    private CitizenJob currentJob;
+    private WorkPhase phase = WorkPhase.IDLE;
+    private int acquireCooldown;
+    private double workProgress;
+
+    public CitizenWorkController(HumanNpcEntity owner) {
+        this.owner = owner;
+    }
+
+    public void tick() {
+        if (owner.level().isClientSide || !(owner.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        if (currentJob == null) {
+            tickAcquire(serverLevel);
+            return;
+        }
+
+        CitizenJobBoard board = CitizenJobBoard.forLevel(serverLevel);
+        if (board.job(currentJob.id()).isEmpty()) {
+            clearLocalState();
+            return;
+        }
+        board.touch(currentJob.id(), owner.getUUID(), serverLevel.getGameTime());
+
+        if (CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())) {
+            interrupt(true);
+            return;
+        }
+
+        if (!owner.citizenData().canTravelTo(currentJob.target())) {
+            interrupt(true);
+            return;
+        }
+
+        if (!isJobStillValid(serverLevel, currentJob)) {
+            board.remove(currentJob.id());
+            owner.commandController().stop();
+            clearLocalState();
+            return;
+        }
+
+        if (phase == WorkPhase.TRAVELLING) {
+            tickTravelling(serverLevel);
+        } else if (phase == WorkPhase.WORKING) {
+            tickWorking(serverLevel);
+        }
+    }
+
+    private void tickAcquire(ServerLevel level) {
+        if (acquireCooldown > 0) {
+            acquireCooldown--;
+            return;
+        }
+        acquireCooldown = ACQUIRE_INTERVAL_TICKS;
+
+        if (owner.commandController().hasActiveCommand()
+                || owner.brainState() != CitizenBrainState.IDLE
+                || CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())) {
+            return;
+        }
+
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        List<CitizenJob> candidates = board.availableJobs(owner.getUUID(), level.getGameTime()).stream()
+                .filter(job -> owner.citizenData().canTravelTo(job.target()))
+                .filter(job -> isJobStillValid(level, job))
+                .toList();
+
+        Optional<CitizenJob> selected = CitizenJobPlanner.choose(owner.citizenData(), owner.blockPosition(), candidates);
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        CitizenJob job = selected.get();
+        if (!board.reserve(job.id(), owner.getUUID(), level.getGameTime())) {
+            return;
+        }
+
+        BlockPos approach = findApproachPosition(level, job.target()).orElse(null);
+        if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+            board.release(job.id(), owner.getUUID());
+            return;
+        }
+
+        currentJob = job;
+        phase = WorkPhase.TRAVELLING;
+        workProgress = 0.0D;
+    }
+
+    private void tickTravelling(ServerLevel level) {
+        if (isWithinWorkRange(currentJob.target())) {
+            owner.commandController().stop();
+            phase = WorkPhase.WORKING;
+            owner.setBrainState(CitizenBrainState.WORK);
+            return;
+        }
+
+        if (!owner.commandController().hasActiveCommand()) {
+            BlockPos approach = findApproachPosition(level, currentJob.target()).orElse(null);
+            if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                interrupt(false);
+            }
+        }
+    }
+
+    private void tickWorking(ServerLevel level) {
+        if (!isWithinWorkRange(currentJob.target())) {
+            BlockPos approach = findApproachPosition(level, currentJob.target()).orElse(null);
+            if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                interrupt(false);
+                return;
+            }
+            phase = WorkPhase.TRAVELLING;
+            return;
+        }
+
+        owner.setBrainState(CitizenBrainState.WORK);
+        owner.getLookControl().setLookAt(
+                currentJob.target().getX() + 0.5D,
+                currentJob.target().getY() + 0.5D,
+                currentJob.target().getZ() + 0.5D
+        );
+        if (owner.tickCount % 10 == 0) {
+            owner.swing(InteractionHand.MAIN_HAND);
+        }
+
+        double efficiency = owner.citizenData().health().workEfficiencyMultiplier();
+        workProgress += Math.max(0.20D, efficiency);
+        if (workProgress < requiredWork(currentJob)) {
+            return;
+        }
+
+        completeCurrentJob(level);
+    }
+
+    private void completeCurrentJob(ServerLevel level) {
+        CitizenJob job = currentJob;
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        boolean completed = switch (job.workType()) {
+            case FORESTRY -> level.destroyBlock(job.target(), true, owner);
+            default -> false;
+        };
+
+        if (completed) {
+            board.complete(job.id(), owner.getUUID());
+        } else if (!isJobStillValid(level, job)) {
+            board.remove(job.id());
+        } else {
+            board.release(job.id(), owner.getUUID());
+        }
+
+        clearLocalState();
+        owner.setBrainState(CitizenBrainState.IDLE);
+        acquireCooldown = 5;
+    }
+
+    public void interrupt(boolean stopMovement) {
+        if (owner.level() instanceof ServerLevel serverLevel && currentJob != null) {
+            CitizenJobBoard.forLevel(serverLevel).release(currentJob.id(), owner.getUUID());
+        }
+        clearLocalState();
+        if (stopMovement) {
+            owner.commandController().stop();
+        }
+    }
+
+    public boolean hasActiveJob() {
+        return currentJob != null;
+    }
+
+    public Optional<CitizenJob> currentJob() {
+        return Optional.ofNullable(currentJob);
+    }
+
+    public WorkPhase phase() {
+        return phase;
+    }
+
+    private boolean isWithinWorkRange(BlockPos target) {
+        Vec3 center = Vec3.atCenterOf(target);
+        return owner.distanceToSqr(center.x, center.y, center.z) <= WORK_RANGE_SQR;
+    }
+
+    private Optional<BlockPos> findApproachPosition(ServerLevel level, BlockPos target) {
+        ArrayList<BlockPos> candidates = new ArrayList<>();
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos side = target.relative(direction);
+            for (int yOffset : new int[]{0, -1, 1}) {
+                BlockPos candidate = side.offset(0, yOffset, 0);
+                if (BlockPathfinder.isWalkable(level, candidate)) {
+                    candidates.add(candidate.immutable());
+                }
+            }
+        }
+
+        return candidates.stream()
+                .min(Comparator.comparingDouble(pos -> owner.distanceToSqr(Vec3.atCenterOf(pos))));
+    }
+
+    private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
+        if (job.workType() == WorkType.FORESTRY) {
+            BlockState state = level.getBlockState(job.target());
+            return state.is(BlockTags.LOGS);
+        }
+        return false;
+    }
+
+    private static double requiredWork(CitizenJob job) {
+        return job.workType() == WorkType.FORESTRY ? FORESTRY_BASE_WORK : Double.POSITIVE_INFINITY;
+    }
+
+    private void clearLocalState() {
+        currentJob = null;
+        phase = WorkPhase.IDLE;
+        workProgress = 0.0D;
+    }
+
+    public enum WorkPhase {
+        IDLE,
+        TRAVELLING,
+        WORKING
+    }
+}
