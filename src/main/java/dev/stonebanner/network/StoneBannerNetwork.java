@@ -4,6 +4,7 @@ import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
+import dev.stonebanner.network.packet.SetWorkPriorityPacket;
 import dev.stonebanner.network.packet.StopCitizenPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -54,6 +55,13 @@ public final class StoneBannerNetwork {
                 DesignationAreaPacket::decode,
                 DesignationAreaPacket::handle
         );
+        CHANNEL.registerMessage(
+                nextPacketId++,
+                SetWorkPriorityPacket.class,
+                SetWorkPriorityPacket::encode,
+                SetWorkPriorityPacket::decode,
+                SetWorkPriorityPacket::handle
+        );
     }
 
     public static void sendMoveCitizen(int entityId, BlockPos target) {
@@ -66,5 +74,9 @@ public final class StoneBannerNetwork {
 
     public static void sendDesignation(DesignationType type, BlockPos first, BlockPos second) {
         CHANNEL.sendToServer(new DesignationAreaPacket(type, first, second));
+    }
+
+    public static void sendWorkPriority(int entityId, int workTypeId, int priorityCode) {
+        CHANNEL.sendToServer(new SetWorkPriorityPacket(entityId, workTypeId, priorityCode));
     }
 }
