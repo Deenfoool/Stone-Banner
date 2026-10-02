@@ -4,7 +4,6 @@ import dev.stonebanner.citizen.CitizenNeeds;
 import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
-import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.ChatFormatting;
