@@ -48,4 +48,12 @@ class CameraSpaceTest {
         assertEquals(0.6F, world.left(), EPSILON);
         assertEquals(0.8F, world.forward(), EPSILON);
     }
+
+    @Test
+    void convertsCardinalWorldDirectionsToMinecraftYaw() {
+        assertEquals(0.0F, CameraSpace.yawForWorldDirection(0.0D, 1.0D), EPSILON);
+        assertEquals(-90.0F, CameraSpace.yawForWorldDirection(1.0D, 0.0D), EPSILON);
+        assertEquals(90.0F, CameraSpace.yawForWorldDirection(-1.0D, 0.0D), EPSILON);
+        assertEquals(-180.0F, CameraSpace.yawForWorldDirection(0.0D, -1.0D), EPSILON);
+    }
 }

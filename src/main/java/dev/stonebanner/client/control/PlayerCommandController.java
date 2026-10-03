@@ -281,6 +281,7 @@ public final class PlayerCommandController {
             worldX = 0.0D;
             worldZ = 0.0D;
         }
+        facePlayerTowardDirection(player, worldX, worldZ);
         CameraSpace.MovementVector movement = CameraSpace.worldToLocal(worldX, worldZ, player.getYRot());
 
         input.leftImpulse = Mth.clamp(movement.left(), -1.0F, 1.0F);
@@ -442,9 +443,20 @@ public final class PlayerCommandController {
     private static void facePlayerToward(Player player, Entity target) {
         double deltaX = target.getX() - player.getX();
         double deltaZ = target.getZ() - player.getZ();
-        float yaw = (float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0F;
-        player.setYRot(Mth.wrapDegrees(yaw));
-        player.yRotO = player.getYRot();
+        facePlayerTowardDirection(player, deltaX, deltaZ);
+    }
+
+    private static void facePlayerTowardDirection(Player player, double worldX, double worldZ) {
+        if (worldX * worldX + worldZ * worldZ <= 1.0E-8D) {
+            return;
+        }
+        float yaw = CameraSpace.yawForWorldDirection(worldX, worldZ);
+        player.setYRot(yaw);
+        player.yRotO = yaw;
+        player.yBodyRot = yaw;
+        player.yBodyRotO = yaw;
+        player.setYHeadRot(yaw);
+        player.yHeadRotO = yaw;
     }
 
     private static void clearPath() {

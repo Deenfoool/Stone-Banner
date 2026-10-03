@@ -26,6 +26,18 @@ public final class CameraSpace {
         );
     }
 
+    /** Converts a horizontal world direction into Minecraft's yaw convention. */
+    public static float yawForWorldDirection(double worldX, double worldZ) {
+        float yaw = (float) Math.toDegrees(Math.atan2(worldZ, worldX)) - 90.0F;
+        float wrapped = yaw % 360.0F;
+        if (wrapped >= 180.0F) {
+            wrapped -= 360.0F;
+        } else if (wrapped < -180.0F) {
+            wrapped += 360.0F;
+        }
+        return wrapped;
+    }
+
     public record MovementVector(float left, float forward) {
     }
 }
