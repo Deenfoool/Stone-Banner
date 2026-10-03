@@ -3,6 +3,7 @@ package dev.stonebanner.citizen;
 import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
+import dev.stonebanner.navigation.LadderMovement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -206,6 +207,24 @@ public final class CitizenCommandController {
             return recoverMove(state, movingStatus);
         }
 
+        Optional<Direction> ladderSupport = climbDirection(next);
+        if (ladderSupport.isPresent()) {
+            owner.getNavigation().stop();
+            navigationRefreshCooldown = 0;
+            Vec3 velocity = LadderMovement.citizenVelocity(
+                    owner.position(),
+                    waypoint,
+                    ladderSupport.get(),
+                    owner.citizenData().health().movementMultiplier()
+            );
+            owner.setDeltaMovement(velocity);
+            owner.getLookControl().setLookAt(waypoint.x, waypoint.y + owner.getEyeHeight(), waypoint.z);
+            status = movingStatus;
+            movementState = state;
+            owner.setBrainState(state);
+            return true;
+        }
+
         if (navigationRefreshCooldown <= 0 || owner.getNavigation().isDone()) {
             double injuryAdjustedSpeed = MOVE_SPEED * owner.citizenData().health().movementMultiplier();
             // The custom route is made of adjacent blocks. Vanilla's coordinate overload uses accuracy 1,
@@ -224,6 +243,14 @@ public final class CitizenCommandController {
         movementState = state;
         owner.setBrainState(state);
         return true;
+    }
+
+    private Optional<Direction> climbDirection(BlockPos next) {
+        BlockPos current = owner.blockPosition();
+        return BlockPathfinder.climbDirection(owner.level(), next)
+                .or(() -> BlockPathfinder.climbDirection(owner.level(), current))
+                .or(() -> BlockPathfinder.climbDirection(owner.level(), current.below()))
+                .or(() -> BlockPathfinder.climbDirection(owner.level(), next.below()));
     }
 
     private boolean handleControlledIronDoor(BlockPos doorPos, CitizenBrainState state, CommandStatus movingStatus) {

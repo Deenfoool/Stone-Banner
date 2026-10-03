@@ -6,6 +6,7 @@ import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.CameraSpace;
 import dev.stonebanner.control.ControlMode;
 import dev.stonebanner.navigation.BlockPathfinder;
+import dev.stonebanner.navigation.LadderMovement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.Input;
@@ -265,12 +266,14 @@ public final class PlayerCommandController {
         double horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         double worldX;
         double worldZ;
-        if (climbing && horizontalDistance < 0.08D) {
+        if (climbing) {
             Direction climbDirection = BlockPathfinder.climbDirection(level, nextNode)
                     .or(() -> BlockPathfinder.climbDirection(level, BlockPos.containing(player.position())))
+                    .or(() -> BlockPathfinder.climbDirection(level, BlockPos.containing(player.position()).below()))
                     .orElse(Direction.NORTH);
-            worldX = climbDirection.getStepX();
-            worldZ = climbDirection.getStepZ();
+            Vec3 climbHorizontal = LadderMovement.horizontalDirection(player.position(), moveTarget, climbDirection);
+            worldX = climbHorizontal.x;
+            worldZ = climbHorizontal.z;
         } else if (horizontalDistance > 1.0E-4D) {
             worldX = deltaX / horizontalDistance;
             worldZ = deltaZ / horizontalDistance;

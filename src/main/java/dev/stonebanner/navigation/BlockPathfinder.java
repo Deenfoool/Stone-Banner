@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.LeverBlock;
+import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -205,14 +206,14 @@ public final class BlockPathfinder {
     /** Direction to press while climbing: toward the block supporting the ladder. */
     public static Optional<Direction> climbDirection(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.hasProperty(net.minecraft.world.level.block.LadderBlock.FACING)) {
-            return Optional.of(state.getValue(net.minecraft.world.level.block.LadderBlock.FACING).getOpposite());
+        if (state.hasProperty(LadderBlock.FACING)) {
+            return Optional.of(state.getValue(LadderBlock.FACING).getOpposite());
         }
         return Optional.empty();
     }
 
     private static List<BlockPos> neighbors(Level level, BlockPos current, BlockPos start) {
-        List<BlockPos> result = new ArrayList<>(7);
+        List<BlockPos> result = new ArrayList<>(8);
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
             BlockPos horizontal = current.relative(direction);
             BlockPos neighbor = firstWalkable(level, horizontal, horizontal.above(), horizontal.below());
@@ -223,10 +224,12 @@ public final class BlockPathfinder {
                     && !level.getBlockState(current.above(2)).getCollisionShape(level, current.above(2)).isEmpty()) {
                 continue;
             }
-            result.add(neighbor);
+            addUnique(result, neighbor);
         }
         addClimbNeighbor(level, current, current.above(), start, result);
         addClimbNeighbor(level, current, current.below(), start, result);
+        addLadderTopExit(level, current, start, result);
+        addLadderTopEntry(level, current, start, result);
         return result;
     }
 
@@ -238,6 +241,46 @@ public final class BlockPathfinder {
                 || !isWalkable(level, candidate)) {
             return;
         }
+        addUnique(result, candidate);
+    }
+
+    /**
+     * The final ladder step is diagonal: up from the last ladder block and onto the upper face of
+     * its supporting block. Keeping this edge explicit prevents actors from stopping in mid-air
+     * above the ladder or repeatedly rebuilding the same otherwise-valid route.
+     */
+    private static void addLadderTopExit(Level level, BlockPos current, BlockPos start, List<BlockPos> result) {
+        BlockState state = level.getBlockState(current);
+        if (!state.hasProperty(LadderBlock.FACING) || isClimbable(level, current.above())) {
+            return;
+        }
+
+        BlockPos exitFeet = ladderTopExit(current, state.getValue(LadderBlock.FACING));
+        if (Math.abs(exitFeet.getY() - start.getY()) <= MAX_VERTICAL_RANGE && isWalkable(level, exitFeet)) {
+            addUnique(result, exitFeet);
+        }
+    }
+
+    /** Reverse edge for stepping from an upper landing down onto the final ladder block. */
+    private static void addLadderTopEntry(Level level, BlockPos current, BlockPos start, List<BlockPos> result) {
+        for (Direction direction : HORIZONTAL_DIRECTIONS) {
+            BlockPos ladder = current.below().relative(direction);
+            BlockState state = level.getBlockState(ladder);
+            if (!state.hasProperty(LadderBlock.FACING)
+                    || !ladderTopExit(ladder, state.getValue(LadderBlock.FACING)).equals(current)
+                    || Math.abs(ladder.getY() - start.getY()) > MAX_VERTICAL_RANGE
+                    || !isWalkable(level, ladder)) {
+                continue;
+            }
+            addUnique(result, ladder);
+        }
+    }
+
+    static BlockPos ladderTopExit(BlockPos ladder, Direction facing) {
+        return ladder.above().relative(facing.getOpposite()).immutable();
+    }
+
+    private static void addUnique(List<BlockPos> result, BlockPos candidate) {
         BlockPos immutable = candidate.immutable();
         if (!result.contains(immutable)) {
             result.add(immutable);
