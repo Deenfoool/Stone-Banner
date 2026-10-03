@@ -5,6 +5,7 @@ import dev.stonebanner.client.ClientRuntime;
 import dev.stonebanner.client.camera.RpgCameraController;
 import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
+import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.client.control.WorldCursor;
 import dev.stonebanner.client.hud.StoneBannerHudRenderer;
@@ -24,10 +25,6 @@ import java.util.Optional;
 
 /** Transparent, non-pausing input layer used while tactical mouse control is active. */
 public final class TacticalControlScreen extends Screen {
-    private static final int CITIZEN_CARD_X = 8;
-    private static final int CITIZEN_CARD_WIDTH = 210;
-    private static final int CITIZEN_CARD_HEIGHT = 151;
-
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public TacticalControlScreen() {
@@ -113,16 +110,54 @@ public final class TacticalControlScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             HumanNpcEntity selected = CitizenSelectionController.selected().orElse(null);
-            int cardY = Math.max(44, height - CITIZEN_CARD_HEIGHT - 40);
-            if (selected != null
-                    && mouseX >= CITIZEN_CARD_X && mouseX < CITIZEN_CARD_X + CITIZEN_CARD_WIDTH
-                    && mouseY >= cardY && mouseY < cardY + CITIZEN_CARD_HEIGHT) {
-                minecraft.setScreen(new CitizenDetailsScreen(
-                        this,
-                        selected.getId(),
-                        CitizenDetailsScreen.Tab.OVERVIEW
-                ));
-                return true;
+            StoneBannerHudRenderer.HudAction hudAction = StoneBannerHudRenderer.actionAt(
+                    mouseX, mouseY, width, height, selected != null
+            );
+            switch (hudAction) {
+                case CONSTRUCTION -> {
+                    DesignationController.cycleMode();
+                    CitizenSelectionController.clear();
+                    PlayerCommandController.stop();
+                    return true;
+                }
+                case OPEN_WORK -> {
+                    minecraft.setScreen(new CitizenDetailsScreen(
+                            this,
+                            selected.getId(),
+                            CitizenDetailsScreen.Tab.WORK
+                    ));
+                    return true;
+                }
+                case TOGGLE_CITIZEN -> {
+                    StoneBannerHudRenderer.toggleCitizenPanel();
+                    return true;
+                }
+                case OPEN_CITIZEN -> {
+                    minecraft.setScreen(new CitizenDetailsScreen(
+                            this,
+                            selected.getId(),
+                            CitizenDetailsScreen.Tab.OVERVIEW
+                    ));
+                    return true;
+                }
+                case TIME_PAUSE -> {
+                    GameSpeedController.setSpeed(GameSpeedController.Speed.PAUSED);
+                    return true;
+                }
+                case TIME_NORMAL -> {
+                    GameSpeedController.setSpeed(GameSpeedController.Speed.NORMAL);
+                    return true;
+                }
+                case TIME_DOUBLE -> {
+                    GameSpeedController.setSpeed(GameSpeedController.Speed.DOUBLE);
+                    return true;
+                }
+                case TIME_TRIPLE -> {
+                    GameSpeedController.setSpeed(GameSpeedController.Speed.TRIPLE);
+                    return true;
+                }
+                case NONE -> {
+                }
             }
         }
 

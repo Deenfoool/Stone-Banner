@@ -53,6 +53,16 @@
   "hud.stonebanner.npc.fatigue": "Fatigue",
   "hud.stonebanner.npc.danger": "Danger",
   "hud.stonebanner.npc.now": "Now:",
+  "hud.stonebanner.npc.expand": "[+]",
+  "hud.stonebanner.npc.collapse": "[−]",
+  "hud.stonebanner.npc.details": "Info",
+
+  "hud.stonebanner.menu.construction": "Construction",
+  "hud.stonebanner.menu.work": "Work",
+  "hud.stonebanner.menu.history": "History",
+  "hud.stonebanner.menu.research": "Research",
+  "hud.stonebanner.time.pause": "Pause",
+  "hud.stonebanner.time.start": "Start",
 
   "hud.stonebanner.alerts": "Alerts",
   "hud.stonebanner.alert.excavation_hazard": "%s excavations paused: water or lava",

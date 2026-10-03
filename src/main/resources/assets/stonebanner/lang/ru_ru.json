@@ -53,6 +53,16 @@
   "hud.stonebanner.npc.fatigue": "Усталость",
   "hud.stonebanner.npc.danger": "Опасность",
   "hud.stonebanner.npc.now": "Сейчас:",
+  "hud.stonebanner.npc.expand": "[+]",
+  "hud.stonebanner.npc.collapse": "[−]",
+  "hud.stonebanner.npc.details": "Досье",
+
+  "hud.stonebanner.menu.construction": "Строительство",
+  "hud.stonebanner.menu.work": "Работы",
+  "hud.stonebanner.menu.history": "История",
+  "hud.stonebanner.menu.research": "Исследование",
+  "hud.stonebanner.time.pause": "Пауза",
+  "hud.stonebanner.time.start": "Старт",
 
   "hud.stonebanner.alerts": "События",
   "hud.stonebanner.alert.excavation_hazard": "%s выработок остановлено: вода или лава",

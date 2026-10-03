@@ -4,6 +4,7 @@ import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.ControlMode;
 import dev.stonebanner.client.control.PlayerCommandController;
+import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.client.screen.TacticalControlScreen;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
@@ -25,6 +26,7 @@ public final class ClientRuntime {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
+        GameSpeedController.maintain(minecraft);
         if (minecraft.player == null || minecraft.level == null) {
             return;
         }
