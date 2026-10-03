@@ -28,6 +28,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
@@ -48,6 +49,8 @@ import java.util.Comparator;
  */
 public class HumanNpcEntity extends PathfinderMob {
     public static final int MVP_SKIN_POOL_SIZE = 32;
+    /** Normal Citizen travel pace, calibrated to stay close to the player's regular walking speed. */
+    public static final double BASE_MOVEMENT_SPEED = 0.34D;
 
     private static final String TAG_IDENTITY_INITIALIZED = "IdentityInitialized";
     private static final String TAG_VARIANT_SEED = "VariantSeed";
@@ -100,7 +103,7 @@ public class HumanNpcEntity extends PathfinderMob {
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0D)
-                .add(Attributes.MOVEMENT_SPEED, 0.10D)
+                .add(Attributes.MOVEMENT_SPEED, BASE_MOVEMENT_SPEED)
                 .add(Attributes.FOLLOW_RANGE, 32.0D);
     }
 
@@ -388,6 +391,12 @@ public class HumanNpcEntity extends PathfinderMob {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        // Older worlds persisted the prototype's 0.10 base speed in entity NBT. Reset only the base
+        // value here; temporary attribute modifiers and the injury multiplier continue to work.
+        AttributeInstance movementSpeed = getAttribute(Attributes.MOVEMENT_SPEED);
+        if (movementSpeed != null) {
+            movementSpeed.setBaseValue(BASE_MOVEMENT_SPEED);
+        }
 
         boolean hasIdentity = tag.getBoolean(TAG_IDENTITY_INITIALIZED)
                 || tag.contains(TAG_VARIANT_SEED, Tag.TAG_INT)
