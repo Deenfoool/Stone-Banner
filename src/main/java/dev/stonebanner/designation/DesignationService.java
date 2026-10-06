@@ -17,6 +17,11 @@ public final class DesignationService {
     }
 
     public static Outcome apply(ServerPlayer player, DesignationType type, BlockPos first, BlockPos second) {
+        return apply(player, type, first, second, ExcavationAccessMode.AUTO);
+    }
+
+    public static Outcome apply(ServerPlayer player, DesignationType type, BlockPos first, BlockPos second,
+                                ExcavationAccessMode accessMode) {
         if (player == null || type == null || first == null || second == null) {
             return new Outcome(Status.REJECTED, 0);
         }
@@ -40,7 +45,12 @@ public final class DesignationService {
         ExcavationPlanData excavationPlans = ExcavationPlanData.forLevel(level);
 
         if (type == DesignationType.EXCAVATE) {
-            int targets = excavationPlans.createVertical(level, first, second);
+            ExcavationAccessMode resolvedAccess = accessMode == null ? ExcavationAccessMode.AUTO : accessMode;
+            if (resolvedAccess == ExcavationAccessMode.RAMP
+                    && (maxX - minX + 1 < 2 || maxZ - minZ + 1 < 2)) {
+                return new Outcome(Status.INVALID_ACCESS, 0);
+            }
+            int targets = excavationPlans.createVertical(level, first, second, resolvedAccess);
             return targets == 0
                     ? new Outcome(Status.NO_TARGETS, 0)
                     : new Outcome(Status.PLANNED, targets);
@@ -107,6 +117,7 @@ public final class DesignationService {
         TUNNEL_PLANNED,
         NO_TARGETS,
         TOO_LARGE,
+        INVALID_ACCESS,
         REJECTED
     }
 }
