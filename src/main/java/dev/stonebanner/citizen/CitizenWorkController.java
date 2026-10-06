@@ -24,21 +24,21 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Executes jobs chosen by CitizenJobPlanner and the first physical storage delivery loop.
+ * Executes jobs chosen by CitizenJobPlanner and physical storage delivery.
  *
- * <p>Work discovery is intentionally throttled. Physical job producers publish work to CitizenJobBoard;
- * this controller reserves, travels, performs and completes a chosen job. Fresh drops created by that work
- * are picked into marked slots of the Citizen's real inventory and carried to registered real containers.</p>
+ * <p>Physical work creates real ItemEntity drops. A worker with HAULING enabled may pick up its fresh drops;
+ * any remainder becomes a persistent HAULING job that another Citizen can collect. Carried work cargo lives
+ * in marked slots of the Citizen's real persistent inventory and is physically delivered to registered storage.</p>
  */
 public final class CitizenWorkController {
     private static final int ACQUIRE_INTERVAL_TICKS = 20;
     private static final int UNSAFE_EGRESS_RETRY_TICKS = 40;
     private static final int CARGO_RETRY_TICKS = 40;
     private static final double WORK_RANGE_SQR = 2.75D * 2.75D;
-    private static final double DROP_SCAN_RADIUS = 1.5D;
     private static final double STORAGE_SEARCH_RADIUS = 64.0D;
     private static final double FORESTRY_BASE_WORK = 60.0D;
     private static final double CLEARING_BASE_WORK = 20.0D;
+    private static final double HAUL_PICKUP_WORK = 6.0D;
     private static final double MINING_BASE_WORK_PER_HARDNESS = 40.0D;
 
     private final HumanNpcEntity owner;
@@ -129,7 +129,10 @@ public final class CitizenWorkController {
                 board.remove(job.id());
                 continue;
             }
-            if (findApproachPosition(level, job.target()).isEmpty()) {
+            if (!isJobActionable(level, job)) {
+                continue;
+            }
+            if (findJobApproachPosition(level, job).isEmpty()) {
                 continue;
             }
             candidates.add(job);
@@ -145,7 +148,7 @@ public final class CitizenWorkController {
             return;
         }
 
-        BlockPos approach = findApproachPosition(level, job.target()).orElse(null);
+        BlockPos approach = findJobApproachPosition(level, job).orElse(null);
         if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
             board.release(job.id(), owner.getUUID());
             return;
@@ -165,7 +168,7 @@ public final class CitizenWorkController {
         }
 
         if (!owner.commandController().hasActiveCommand()) {
-            BlockPos approach = findApproachPosition(level, currentJob.target()).orElse(null);
+            BlockPos approach = findJobApproachPosition(level, currentJob).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                 interrupt(false);
             }
@@ -174,7 +177,7 @@ public final class CitizenWorkController {
 
     private void tickWorking(ServerLevel level) {
         if (!isWithinWorkRange(currentJob.target())) {
-            BlockPos approach = findApproachPosition(level, currentJob.target()).orElse(null);
+            BlockPos approach = findJobApproachPosition(level, currentJob).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                 interrupt(false);
                 return;
@@ -195,6 +198,11 @@ public final class CitizenWorkController {
 
         workProgress += workRate(currentJob);
         if (workProgress < requiredWork(level, currentJob)) {
+            return;
+        }
+
+        if (currentJob.workType() == WorkType.HAULING) {
+            completeHaulingPickup(level);
             return;
         }
 
@@ -332,7 +340,10 @@ public final class CitizenWorkController {
         };
 
         if (completed) {
-            collectNewWorkDrops(level, job.target(), itemEntitiesBefore);
+            if (owner.citizenData().workPriority(WorkType.HAULING) != WorkPriority.DISABLED) {
+                collectNewWorkDrops(level, job.target(), itemEntitiesBefore);
+            }
+            DroppedItemHauling.publishIfNeeded(level, job.target());
             if (job.workType() == WorkType.MINING && excavationPlans != null) {
                 ExcavationOreDiscovery.scanNewlyExposed(level, excavationPlans, job.target());
             }
@@ -348,11 +359,28 @@ public final class CitizenWorkController {
         acquireCooldown = 5;
     }
 
+    private void completeHaulingPickup(ServerLevel level) {
+        CitizenJob job = currentJob;
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        int pickedUp = DroppedItemHauling.collectInto(level, job.target(), owner.citizenData().inventory());
+        if (pickedUp > 0) {
+            board.complete(job.id(), owner.getUUID());
+            DroppedItemHauling.publishIfNeeded(level, job.target());
+        } else if (!DroppedItemHauling.hasDroppedItems(level, job.target())) {
+            board.remove(job.id());
+        } else {
+            board.release(job.id(), owner.getUUID());
+        }
+        clearLocalState();
+        owner.setBrainState(CitizenBrainState.IDLE);
+        acquireCooldown = 5;
+    }
+
     private Set<UUID> nearbyItemEntityIds(ServerLevel level, BlockPos target) {
         HashSet<UUID> ids = new HashSet<>();
         for (ItemEntity itemEntity : level.getEntitiesOfClass(
                 ItemEntity.class,
-                new AABB(target).inflate(DROP_SCAN_RADIUS),
+                new AABB(target).inflate(DroppedItemHauling.SCAN_RADIUS),
                 ItemEntity::isAlive
         )) {
             ids.add(itemEntity.getUUID());
@@ -364,7 +392,7 @@ public final class CitizenWorkController {
         CitizenInventory inventory = owner.citizenData().inventory();
         for (ItemEntity itemEntity : level.getEntitiesOfClass(
                 ItemEntity.class,
-                new AABB(target).inflate(DROP_SCAN_RADIUS),
+                new AABB(target).inflate(DroppedItemHauling.SCAN_RADIUS),
                 ItemEntity::isAlive
         )) {
             if (itemEntitiesBefore.contains(itemEntity.getUUID())) {
@@ -424,6 +452,13 @@ public final class CitizenWorkController {
         return owner.distanceToSqr(center.x, center.y, center.z) <= WORK_RANGE_SQR;
     }
 
+    private Optional<BlockPos> findJobApproachPosition(ServerLevel level, CitizenJob job) {
+        if (job.workType() == WorkType.HAULING && BlockPathfinder.isWalkable(level, job.target())) {
+            return Optional.of(job.target().immutable());
+        }
+        return findApproachPosition(level, job.target());
+    }
+
     private Optional<BlockPos> findApproachPosition(ServerLevel level, BlockPos target) {
         ArrayList<BlockPos> candidates = new ArrayList<>();
         for (Direction direction : Direction.Plane.HORIZONTAL) {
@@ -450,7 +485,29 @@ public final class CitizenWorkController {
         ).isEmpty();
     }
 
+    private boolean isJobActionable(ServerLevel level, CitizenJob job) {
+        if (job.workType() != WorkType.HAULING) {
+            return true;
+        }
+        ItemStack firstDrop = DroppedItemHauling.firstStack(level, job.target()).orElse(null);
+        if (firstDrop == null) {
+            return false;
+        }
+        BlockPos storageTarget = StorageData.forLevel(level).nearestAcceptingContainer(
+                level,
+                job.target(),
+                firstDrop,
+                STORAGE_SEARCH_RADIUS
+        ).orElse(null);
+        return storageTarget != null
+                && owner.citizenData().canTravelTo(storageTarget)
+                && findApproachPosition(level, storageTarget).isPresent();
+    }
+
     private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
+        if (job.workType() == WorkType.HAULING) {
+            return DroppedItemHauling.hasDroppedItems(level, job.target());
+        }
         return WorkTargetRules.isValid(job.workType(), level, job.target());
     }
 
@@ -469,6 +526,9 @@ public final class CitizenWorkController {
         }
         if (job.workType() == WorkType.CLEARING) {
             return CLEARING_BASE_WORK;
+        }
+        if (job.workType() == WorkType.HAULING) {
+            return HAUL_PICKUP_WORK;
         }
         if (job.workType() == WorkType.MINING) {
             float hardness = level.getBlockState(job.target()).getDestroySpeed(level, job.target());
