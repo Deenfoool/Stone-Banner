@@ -5,6 +5,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -118,6 +119,39 @@ public final class CitizenInventory {
             remainder.shrink(moved);
         }
         return remainder;
+    }
+
+    public int countPersonalItem(Item item) {
+        if (item == null) {
+            return 0;
+        }
+        int total = 0;
+        for (int index = 0; index < SLOT_COUNT; index++) {
+            ItemStack stack = slots.get(index);
+            if (!haulCargo[index] && !stack.isEmpty() && stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /** Removes up to {@code amount} from personal (non-haul) slots and returns the real removed stack. */
+    public ItemStack removePersonalItem(Item item, int amount) {
+        if (item == null || amount <= 0) {
+            return ItemStack.EMPTY;
+        }
+        for (int index = 0; index < SLOT_COUNT; index++) {
+            ItemStack stack = slots.get(index);
+            if (haulCargo[index] || stack.isEmpty() || !stack.is(item)) {
+                continue;
+            }
+            ItemStack removed = stack.split(Math.min(amount, stack.getCount()));
+            if (stack.isEmpty()) {
+                slots.set(index, ItemStack.EMPTY);
+            }
+            return removed;
+        }
+        return ItemStack.EMPTY;
     }
 
     public boolean hasHaulCargo() {
