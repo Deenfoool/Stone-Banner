@@ -26,6 +26,12 @@ public final class DesignationController {
         return Optional.ofNullable(activeType);
     }
 
+    /** Selects an exact designation tool from HUD buttons instead of forcing the user to cycle through tools. */
+    public static void activate(DesignationType type) {
+        activeType = type;
+        clearDrag();
+    }
+
     public static void cycleMode() {
         if (activeType == null) {
             activeType = DesignationType.CHOP;
