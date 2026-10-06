@@ -5,7 +5,8 @@ package dev.stonebanner.client.hud;
  *
  * <p>The centre of the game view is deliberately protected: strategic information stays on the top edge,
  * the selected Citizen lives in the lower-left corner, simulation controls/minimap live in the lower-right,
- * and the main command dock occupies only the remaining lower-centre space.</p>
+ * and the command dock uses only the remaining lower-centre space. The player's real 1-9 hotbar is always
+ * the lowest row; command tabs and their contextual tools can collapse above it.</p>
  */
 public final class StoneBannerHudLayout {
     public static final int SCREEN_MARGIN = 6;
@@ -22,11 +23,13 @@ public final class StoneBannerHudLayout {
 
     public static final int BOTTOM_DOCK_MAX_WIDTH = 680;
     public static final int BOTTOM_DOCK_MIN_WIDTH = 360;
-    public static final int BOTTOM_DOCK_EXPANDED_HEIGHT = 96;
-    public static final int BOTTOM_DOCK_COLLAPSED_HEIGHT = 18;
-    public static final int BOTTOM_TAB_HEIGHT = 36;
+    public static final int BOTTOM_DOCK_EXPANDED_HEIGHT = 142;
+    public static final int BOTTOM_DOCK_COLLAPSED_HEIGHT = 42;
+    public static final int BOTTOM_TAB_HEIGHT = 34;
     public static final int BOTTOM_TOGGLE_WIDTH = 48;
     public static final int BOTTOM_TOGGLE_HEIGHT = 15;
+    public static final int HOTBAR_HEIGHT = 34;
+    public static final int HOTBAR_SLOTS = 9;
 
     public static final int ALERT_WIDTH = 250;
 
@@ -104,7 +107,7 @@ public final class StoneBannerHudLayout {
     public static Rect bottomToggle(int screenWidth, int screenHeight, boolean expanded) {
         Rect dock = bottomDock(screenWidth, screenHeight, expanded);
         int x = dock.x() + (dock.width() - BOTTOM_TOGGLE_WIDTH) / 2;
-        int y = expanded ? Math.max(0, dock.y() - BOTTOM_TOGGLE_HEIGHT + 2) : dock.y() + 1;
+        int y = Math.max(0, dock.y() - BOTTOM_TOGGLE_HEIGHT + 2);
         return new Rect(x, y, BOTTOM_TOGGLE_WIDTH, BOTTOM_TOGGLE_HEIGHT);
     }
 
@@ -121,19 +124,40 @@ public final class StoneBannerHudLayout {
         return new Rect(start + index * (width + gap), dock.y() + 5, width, BOTTOM_TAB_HEIGHT);
     }
 
+    /** Context row used by the selected command tab. Currently Orders owns these six slots. */
     public static Rect bottomTool(int screenWidth, int screenHeight, int index, int count) {
         if (count <= 0 || index < 0 || index >= count) {
-            throw new IllegalArgumentException("Tool index must be inside the toolbar");
+            throw new IllegalArgumentException("Tool index must be inside the command row");
         }
         Rect dock = bottomDock(screenWidth, screenHeight, true);
+        Rect hotbar = hotbarArea(screenWidth, screenHeight, true);
         int gap = 3;
         int y = dock.y() + BOTTOM_TAB_HEIGHT + 10;
-        int height = Math.max(1, dock.y() + dock.height() - y - 5);
+        int height = Math.max(1, hotbar.y() - y - 4);
         int available = dock.width() - 10 - gap * (count - 1);
         int width = Math.max(1, available / count);
         int used = width * count + gap * (count - 1);
         int start = dock.x() + (dock.width() - used) / 2;
         return new Rect(start + index * (width + gap), y, width, height);
+    }
+
+    public static Rect hotbarArea(int screenWidth, int screenHeight, boolean expanded) {
+        Rect dock = bottomDock(screenWidth, screenHeight, expanded);
+        return new Rect(dock.x() + 5, dock.y() + dock.height() - HOTBAR_HEIGHT - 3,
+                Math.max(1, dock.width() - 10), HOTBAR_HEIGHT);
+    }
+
+    public static Rect hotbarSlot(int screenWidth, int screenHeight, boolean expanded, int index) {
+        if (index < 0 || index >= HOTBAR_SLOTS) {
+            throw new IllegalArgumentException("Hotbar index must be between 0 and 8");
+        }
+        Rect area = hotbarArea(screenWidth, screenHeight, expanded);
+        int gap = 2;
+        int maxSlot = 34;
+        int slot = Math.max(1, Math.min(maxSlot, (area.width() - gap * (HOTBAR_SLOTS - 1)) / HOTBAR_SLOTS));
+        int used = slot * HOTBAR_SLOTS + gap * (HOTBAR_SLOTS - 1);
+        int start = area.x() + Math.max(0, (area.width() - used) / 2);
+        return new Rect(start + index * (slot + gap), area.y(), slot, area.height());
     }
 
     public static Rect alerts(int screenWidth, int lineCount) {
