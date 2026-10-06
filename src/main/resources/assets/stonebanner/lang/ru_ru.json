@@ -48,6 +48,7 @@
   "hud.stonebanner.designation.step.length": "Длина",
   "hud.stonebanner.designation.step.width": "Ширина",
   "hud.stonebanner.designation.step.depth": "Глубина",
+  "hud.stonebanner.excavation.ladders": "Лестницы: нужно %s • на складе %s",
 
   "hud.stonebanner.top.settlement": "Поселение",
   "hud.stonebanner.top.not_founded": "не основано",
