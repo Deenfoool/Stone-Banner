@@ -39,6 +39,10 @@
   "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены",
   "hud.stonebanner.tactical.npc_selected": "Выбран NPC: %s [%s]  •  ЛКМ по земле: отправить  •  ПКМ: стоп/снять выбор",
   "hud.stonebanner.designation.selection_size": "Область: %s × %s × %s — примерно %s блоков",
+  "hud.stonebanner.designation.selection_step": "%s/3 • %s",
+  "hud.stonebanner.designation.step.length": "Длина",
+  "hud.stonebanner.designation.step.width": "Ширина",
+  "hud.stonebanner.designation.step.depth": "Глубина",
 
   "hud.stonebanner.top.settlement": "Поселение",
   "hud.stonebanner.top.not_founded": "не основано",
