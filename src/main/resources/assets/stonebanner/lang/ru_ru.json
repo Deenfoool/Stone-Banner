@@ -6,6 +6,7 @@
   "control_mode.stonebanner.tactical": "Тактический / мышь",
   "control_mode.stonebanner.hybrid": "Гибридный",
   "message.stonebanner.control_mode": "Режим управления: %s",
+  "message.stonebanner.ore_discovered": "Обнаружена рудная жила: %s на %s, %s, %s (видимых блоков: %s). Расширь область добычи, чтобы начать разработку.",
   "message.stonebanner.designation.too_large": "Слишком большая область: максимум %s блоков и %s блоков по одной оси",
   "message.stonebanner.designation.applied": "Назначение создано: %s задач",
   "message.stonebanner.designation.excavation_planned": "План выемки создан: %s блоков, добыча пойдёт слоями сверху вниз",
