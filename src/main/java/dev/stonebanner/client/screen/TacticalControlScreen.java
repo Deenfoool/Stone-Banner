@@ -16,6 +16,7 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -117,10 +118,24 @@ public final class TacticalControlScreen extends Screen {
                 case CONSUME -> {
                     return true;
                 }
-                case BOTTOM_BUILD -> {
-                    DesignationController.activate(DesignationType.CHOP);
-                    CitizenSelectionController.clear();
-                    PlayerCommandController.stop();
+                case TAB_BUILD -> {
+                    selectManagementTab(0);
+                    return true;
+                }
+                case TAB_ORDERS -> {
+                    selectManagementTab(1);
+                    return true;
+                }
+                case TAB_ZONES -> {
+                    selectManagementTab(2);
+                    return true;
+                }
+                case TAB_RESEARCH -> {
+                    selectManagementTab(3);
+                    return true;
+                }
+                case TAB_CRAFTING -> {
+                    selectManagementTab(4);
                     return true;
                 }
                 case TOGGLE_BOTTOM_DOCK -> {
@@ -173,6 +188,11 @@ public final class TacticalControlScreen extends Screen {
                 }
                 case DESIGNATE_CANCEL -> {
                     activateDesignation(DesignationType.CANCEL);
+                    return true;
+                }
+                case HOTBAR_1, HOTBAR_2, HOTBAR_3, HOTBAR_4, HOTBAR_5,
+                     HOTBAR_6, HOTBAR_7, HOTBAR_8, HOTBAR_9 -> {
+                    selectHotbarSlot(StoneBannerHudRenderer.hotbarIndex(hudAction));
                     return true;
                 }
                 case TIME_PAUSE -> {
@@ -241,16 +261,28 @@ public final class TacticalControlScreen extends Screen {
     }
 
     private void openCitizen(HumanNpcEntity selected, CitizenDetailsScreen.Tab tab) {
-        if (selected == null) {
-            return;
-        }
+        if (selected == null) return;
         minecraft.setScreen(new CitizenDetailsScreen(this, selected.getId(), tab));
     }
 
+    private void selectManagementTab(int index) {
+        StoneBannerHudRenderer.selectBottomTab(index);
+        if (index != 1) {
+            DesignationController.deactivate();
+        }
+    }
+
     private static void activateDesignation(DesignationType type) {
+        StoneBannerHudRenderer.selectBottomTab(1);
         DesignationController.activate(type);
         CitizenSelectionController.clear();
         PlayerCommandController.stop();
+    }
+
+    private void selectHotbarSlot(int slot) {
+        if (slot < 0 || slot >= 9 || minecraft.player == null) return;
+        minecraft.player.getInventory().selected = slot;
+        minecraft.player.connection.send(new ServerboundSetCarriedItemPacket(slot));
     }
 
     @Override
@@ -298,12 +330,17 @@ public final class TacticalControlScreen extends Screen {
             minecraft.setScreen(new PauseScreen(true));
             return true;
         }
+        if (keyCode >= GLFW.GLFW_KEY_1 && keyCode <= GLFW.GLFW_KEY_9) {
+            selectHotbarSlot(keyCode - GLFW.GLFW_KEY_1);
+            return true;
+        }
         if (ClientKeyMappings.CYCLE_CONTROL_MODE.matches(keyCode, scanCode)) {
             DesignationController.deactivate();
             ClientRuntime.cycleControlMode(minecraft);
             return true;
         }
         if (ClientKeyMappings.CYCLE_DESIGNATION_MODE.matches(keyCode, scanCode)) {
+            StoneBannerHudRenderer.selectBottomTab(1);
             DesignationController.cycleMode();
             CitizenSelectionController.clear();
             PlayerCommandController.stop();
