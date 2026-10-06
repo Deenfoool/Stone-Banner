@@ -51,6 +51,7 @@ Version: `0.1.0-alpha.9`.
 - World-cursor projection uses the camera's updated orientation vectors and rendered FOV.
 - A small world-space marker shows the exact ray impact point before clicking.
 - Camera settings persist in `config/stonebanner-client.toml`.
+- Excavation safety queries require an exact route through the access structure to an exterior cell, avoiding the block being mined and ladder attachments that would be removed. Verification of this change is pending; see the roadmap.
 
 The pathfinder now has prototype handling for stairs, bottom slabs, water, wooden doors, ladders,
 trapdoors and open iron doors. Closed iron access still requires a player-operated redstone mechanism.

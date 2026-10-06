@@ -1,6 +1,10 @@
 package dev.stonebanner.designation;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +21,7 @@ class ExcavationEgressSafetyTest {
         BlockPos target = new BlockPos(10, 63, 10);
         BlockPos workerFeet = target.above();
 
-        assertFalse(ExcavationEgressSafety.routeSurvivesRemoval(workerFeet, target, List.of()));
+        assertFalse(ExcavationEgressSafety.nodeSurvivesRemoval(workerFeet, target, pos -> Blocks.AIR.defaultBlockState()));
     }
 
     @Test
@@ -30,12 +34,30 @@ class ExcavationEgressSafetyTest {
                 new BlockPos(11, 64, 10)
         );
 
-        assertFalse(ExcavationEgressSafety.routeSurvivesRemoval(workerFeet, target, route));
-        assertTrue(ExcavationEgressSafety.routeSurvivesRemoval(
-                workerFeet,
-                target,
-                List.of(new BlockPos(8, 64, 9), new BlockPos(9, 64, 9), new BlockPos(10, 64, 9))
-        ));
+        assertFalse(route.stream().allMatch(node -> ExcavationEgressSafety.nodeSurvivesRemoval(
+                node, target, pos -> Blocks.AIR.defaultBlockState())));
+        assertTrue(ExcavationEgressSafety.nodeSurvivesRemoval(workerFeet, target,
+                pos -> Blocks.AIR.defaultBlockState()));
+    }
+
+    @Test
+    void attachedLadderProvidesExitWhenGroundBelowItIsMined() {
+        BlockPos target = new BlockPos(10, 63, 10);
+        BlockState ladder = Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.EAST);
+        assertTrue(ExcavationEgressSafety.nodeSurvivesRemoval(target.above(), target, pos -> ladder));
+        assertFalse(ExcavationEgressSafety.nodeSurvivesRemoval(target, target, pos -> ladder));
+    }
+
+    @Test
+    void miningLadderAttachmentInvalidatesEscapeNodeInEveryOrientation() {
+        BlockPos ladderPos = new BlockPos(10, 64, 10);
+        for (Direction facing : Direction.Plane.HORIZONTAL) {
+            BlockState ladder = Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, facing);
+            BlockPos attachment = ladderPos.relative(facing.getOpposite());
+            assertFalse(ExcavationEgressSafety.nodeSurvivesRemoval(ladderPos, attachment, pos -> ladder));
+            assertTrue(ExcavationEgressSafety.nodeSurvivesRemoval(
+                    ladderPos, ladderPos.relative(facing), pos -> ladder));
+        }
     }
 
     @Test
