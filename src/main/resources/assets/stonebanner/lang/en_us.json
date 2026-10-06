@@ -6,6 +6,7 @@
   "control_mode.stonebanner.tactical": "Tactical / Mouse",
   "control_mode.stonebanner.hybrid": "Hybrid",
   "message.stonebanner.control_mode": "Control mode: %s",
+  "message.stonebanner.ore_discovered": "Ore vein discovered: %s at %s, %s, %s (%s visible blocks). Expand the mining area to extract it.",
   "message.stonebanner.designation.too_large": "Designation is too large: max %s blocks and %s blocks per axis",
   "message.stonebanner.designation.applied": "Designation applied: %s job(s)",
   "message.stonebanner.designation.excavation_planned": "Excavation planned: %s blocks, mining will proceed top-down by layer",
