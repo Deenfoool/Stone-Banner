@@ -3,6 +3,7 @@ package dev.stonebanner.designation;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,9 +16,8 @@ import java.util.Optional;
  *
  * <p>The check intentionally uses the current world state and rejects a route if it relies on the block being
  * removed or on the block directly above it. Vertical quarries use their reserved perimeter ramp as the
- * long-distance egress invariant, so deep quarries are not limited by the normal short-range A* vertical bound.
- * Tunnels still validate a real route back through their entrance face. The check is only applied to mining
- * jobs that belong to the currently exposed slice of an excavation plan.</p>
+ * long-distance egress invariant. Narrow shafts may instead use a continuous line of real vanilla ladders.
+ * Tunnels validate a real route back through their entrance face.</p>
  */
 public final class ExcavationEgressSafety {
     private static final int MAX_EGRESS_CANDIDATES = 16;
@@ -25,13 +25,7 @@ public final class ExcavationEgressSafety {
     private ExcavationEgressSafety() {
     }
 
-    /**
-     * Server-authoritative reason why a plan can or cannot expose its current slice.
-     *
-     * <p>A narrow vertical strip has no valid perimeter ramp and therefore explicitly waits for the future
-     * ladder access mode. A normal quarry with a damaged or obstructed reserved ramp reports BLOCKED.
-     * Horizontal tunnels keep their section-ordering path guard and are READY at plan level.</p>
-     */
+    /** Server-authoritative reason why a plan can or cannot expose its current slice. */
     static ExcavationAccessStatus currentSliceAccessStatus(ServerLevel level, ExcavationPlanData.PlanView plan) {
         if (level == null || plan == null) {
             return ExcavationAccessStatus.NO_PATH;
@@ -39,9 +33,13 @@ public final class ExcavationEgressSafety {
         if (plan.modeCode() != 0 || plan.currentSlice() == plan.maxY()) {
             return ExcavationAccessStatus.READY;
         }
+
         if (rampSupportAtY(plan, plan.currentSlice()) == null) {
-            return ExcavationAccessStatus.NEEDS_LADDER;
+            return hasCompleteLadderAccess(level, plan)
+                    ? ExcavationAccessStatus.READY
+                    : ExcavationAccessStatus.NEEDS_LADDER;
         }
+
         return rampChainIntact(level, plan, plan.currentSlice())
                 ? ExcavationAccessStatus.READY
                 : ExcavationAccessStatus.BLOCKED;
@@ -70,7 +68,9 @@ public final class ExcavationEgressSafety {
             return true;
         }
 
-        if (!routeSurvivesRemoval(workerFeet, target, List.of())) {
+        boolean standingOnLadderAboveTarget = workerFeet.equals(target.above())
+                && level.getBlockState(workerFeet).is(Blocks.LADDER);
+        if (!standingOnLadderAboveTarget && !routeSurvivesRemoval(workerFeet, target, List.of())) {
             ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.BLOCKED);
             return false;
         }
@@ -81,7 +81,10 @@ public final class ExcavationEgressSafety {
                 ExcavationAccessNotifier.update(level, plan, sliceStatus);
                 return false;
             }
-            boolean safe = canReachReservedRamp(level, plan, workerFeet, target);
+
+            boolean safe = rampSupportAtY(plan, target.getY()) == null
+                    ? canReachLadderExit(level, plan, workerFeet, target)
+                    : canReachReservedRamp(level, plan, workerFeet, target);
             ExcavationAccessNotifier.update(
                     level,
                     plan,
@@ -173,6 +176,59 @@ public final class ExcavationEgressSafety {
         }
         index -= sizeX - 1;
         return new BlockPos(plan.minX(), y, plan.maxZ() - 1 - index);
+    }
+
+    /** Deterministic ladder column used by narrow shafts until explicit access placement UI is added. */
+    static BlockPos ladderAccessAtY(ExcavationPlanData.PlanView plan, int y) {
+        return new BlockPos(plan.minX(), y, plan.minZ());
+    }
+
+    /** Number of already-open shaft cells that require ladders before the current slice can be worked. */
+    static int requiredLadderCount(ExcavationPlanData.PlanView plan) {
+        if (plan == null || plan.modeCode() != 0 || plan.currentSlice() >= plan.maxY()) {
+            return 0;
+        }
+        return plan.maxY() - plan.currentSlice();
+    }
+
+    private static boolean hasCompleteLadderAccess(ServerLevel level, ExcavationPlanData.PlanView plan) {
+        int required = requiredLadderCount(plan);
+        if (required <= 0) {
+            return true;
+        }
+        for (int y = plan.maxY(); y > plan.currentSlice(); y--) {
+            BlockPos ladder = ladderAccessAtY(plan, y);
+            if (!level.hasChunkAt(ladder) || !level.getBlockState(ladder).is(Blocks.LADDER)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean canReachLadderExit(ServerLevel level, ExcavationPlanData.PlanView plan,
+                                              BlockPos workerFeet, BlockPos target) {
+        if (!hasCompleteLadderAccess(level, plan)) {
+            return false;
+        }
+
+        BlockPos landing = ladderAccessAtY(plan, plan.currentSlice() + 1);
+        if (workerFeet.equals(landing)) {
+            return level.getBlockState(landing).is(Blocks.LADDER);
+        }
+
+        Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, landing);
+        if (route.isEmpty()) {
+            return false;
+        }
+        for (BlockPos node : route.get()) {
+            if (node.equals(target)) {
+                return false;
+            }
+            if (node.equals(target.above()) && !level.getBlockState(node).is(Blocks.LADDER)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean canReachReservedRamp(ServerLevel level, ExcavationPlanData.PlanView plan,
