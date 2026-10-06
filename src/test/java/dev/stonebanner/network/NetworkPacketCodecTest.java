@@ -3,6 +3,7 @@ package dev.stonebanner.network;
 import dev.stonebanner.citizen.WorkPriority;
 import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.SetWorkPriorityPacket;
@@ -50,11 +51,12 @@ class NetworkPacketCodecTest {
     }
 
     @Test
-    void designationPacketRoundTrips() {
+    void designationPacketRoundTripsWithAccessMode() {
         DesignationAreaPacket source = new DesignationAreaPacket(
-                DesignationType.CLEAR,
+                DesignationType.EXCAVATE,
                 new BlockPos(-4, 60, -8),
-                new BlockPos(9, 75, 11)
+                new BlockPos(9, 75, 11),
+                ExcavationAccessMode.LADDERS
         );
         FriendlyByteBuf buffer = buffer();
 
@@ -64,13 +66,16 @@ class NetworkPacketCodecTest {
     }
 
     @Test
-    void unknownDesignationIdSafelyDecodesAsCancel() {
+    void unknownDesignationAndAccessIdsDecodeSafely() {
         FriendlyByteBuf buffer = buffer();
         buffer.writeVarInt(999);
         buffer.writeBlockPos(BlockPos.ZERO);
         buffer.writeBlockPos(BlockPos.ZERO);
+        buffer.writeVarInt(999);
 
-        assertEquals(DesignationType.CANCEL, DesignationAreaPacket.decode(buffer).type());
+        DesignationAreaPacket decoded = DesignationAreaPacket.decode(buffer);
+        assertEquals(DesignationType.CANCEL, decoded.type());
+        assertEquals(ExcavationAccessMode.AUTO, decoded.accessMode());
     }
 
     private static FriendlyByteBuf buffer() {
