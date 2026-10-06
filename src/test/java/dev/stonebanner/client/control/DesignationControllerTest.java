@@ -27,6 +27,10 @@ class DesignationControllerTest {
 
         DesignationController.updatePreview(new BlockPos(15, 75, 14));
         assertEquals(new BlockPos(15, 70, 14), DesignationController.selectionEnd().orElseThrow());
+        var footprint = DesignationController.previewDimensions().orElseThrow();
+        assertEquals(6, footprint.sizeX());
+        assertEquals(1, footprint.sizeY());
+        assertEquals(5, footprint.sizeZ());
 
         assertTrue(DesignationController.click(new BlockPos(15, 75, 14)));
         assertEquals(2, DesignationController.completedClicks());
@@ -34,6 +38,10 @@ class DesignationControllerTest {
 
         DesignationController.updatePreview(new BlockPos(99, 64, 99));
         assertEquals(new BlockPos(15, 64, 14), DesignationController.selectionEnd().orElseThrow());
+        var volume = DesignationController.previewDimensions().orElseThrow();
+        assertEquals(6, volume.sizeX());
+        assertEquals(7, volume.sizeY());
+        assertEquals(5, volume.sizeZ());
 
         assertTrue(DesignationController.undoSelectionStep());
         assertEquals(1, DesignationController.completedClicks());
