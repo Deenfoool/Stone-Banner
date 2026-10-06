@@ -2,6 +2,7 @@ package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.CitizenInventorySnapshotPacket;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
 import dev.stonebanner.network.packet.ExcavationPlanSnapshotPacket;
@@ -22,7 +23,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "4";
+    private static final String PROTOCOL_VERSION = "5";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -110,7 +111,12 @@ public final class StoneBannerNetwork {
     }
 
     public static void sendDesignation(DesignationType type, BlockPos first, BlockPos second) {
-        CHANNEL.sendToServer(new DesignationAreaPacket(type, first, second));
+        sendDesignation(type, first, second, ExcavationAccessMode.AUTO);
+    }
+
+    public static void sendDesignation(DesignationType type, BlockPos first, BlockPos second,
+                                       ExcavationAccessMode accessMode) {
+        CHANNEL.sendToServer(new DesignationAreaPacket(type, first, second, accessMode));
     }
 
     public static void sendWorkPriority(int entityId, int workTypeId, int priorityCode) {
