@@ -102,7 +102,8 @@ public final class DesignationController {
 
     /**
      * Rewinds exactly one completed click. Returns false when there is no selection step to undo.
-     * Two RMB presses after two LMB clicks therefore return 2 -> 1 -> 0 without disabling the tool.
+     * Two RMB presses after two LMB clicks therefore return 2 -> 1 -> 0 without disabling the tool;
+     * a further RMB at step 0 may be interpreted by the input layer as leaving the designation tool.
      */
     public static boolean undoSelectionStep() {
         if (footprintCorner != null) {
