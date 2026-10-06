@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExcavationEgressSafetyTest {
@@ -49,6 +51,35 @@ class ExcavationEgressSafetyTest {
                 pos.getX() < plan.minX() || pos.getX() > plan.maxX()
                         || pos.getZ() < plan.minZ() || pos.getZ() > plan.maxZ()
         ));
+    }
+
+    @Test
+    void deepVerticalRampRemainsAContinuousDescendingPerimeterChain() {
+        ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
+                10, 5, 20,
+                14, 60, 24,
+                0, -1
+        );
+
+        BlockPos previous = ExcavationEgressSafety.rampSupportAtY(plan, plan.maxY());
+        for (int y = plan.maxY() - 1; y >= plan.minY(); y--) {
+            BlockPos current = ExcavationEgressSafety.rampSupportAtY(plan, y);
+            assertEquals(1,
+                    Math.abs(previous.getX() - current.getX()) + Math.abs(previous.getZ() - current.getZ()));
+            assertEquals(previous.getY() - 1, current.getY());
+            previous = current;
+        }
+    }
+
+    @Test
+    void oneBlockWideVerticalStripHasNoFakeRamp() {
+        ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
+                10, 30, 20,
+                10, 45, 24,
+                0, -1
+        );
+
+        assertNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
     }
 
     @Test
