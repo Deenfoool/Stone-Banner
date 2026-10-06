@@ -2,6 +2,7 @@ package dev.stonebanner.client.hud;
 
 import dev.stonebanner.client.control.ExcavationOverlayState;
 import dev.stonebanner.client.control.StorageSummaryState;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.ExcavationPlanSnapshotPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -12,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
-/** Compact contextual ladder status for narrow vertical excavation plans. */
+/** Compact contextual ladder status for vertical excavation plans that actually use ladder access. */
 public final class ExcavationLadderStatusHud {
     private static final ItemStack LADDER_ICON = new ItemStack(Items.LADDER);
     private static final int TEXT = 0xFFF4F1E8;
@@ -39,7 +40,7 @@ public final class ExcavationLadderStatusHud {
         Component text = Component.translatable("hud.stonebanner.excavation.ladders", missing, stock);
         int width = Math.min(250, Math.max(145, font.width(text) + 34));
         int x = 8;
-        int y = 100;
+        int y = 106;
 
         graphics.fill(x, y, x + width, y + 24, PANEL);
         graphics.renderOutline(x, y, width, 24, BORDER);
@@ -53,7 +54,7 @@ public final class ExcavationLadderStatusHud {
         }
         int missing = 0;
         for (ExcavationPlanSnapshotPacket.PlanSnapshot plan : ExcavationOverlayState.plans()) {
-            if (!isNarrowVertical(plan)) {
+            if (!usesLadderAccess(plan)) {
                 continue;
             }
             int total = Math.max(0, plan.max().getY() - plan.min().getY());
@@ -70,8 +71,15 @@ public final class ExcavationLadderStatusHud {
         return missing;
     }
 
-    private static boolean isNarrowVertical(ExcavationPlanSnapshotPacket.PlanSnapshot plan) {
+    static boolean usesLadderAccess(ExcavationPlanSnapshotPacket.PlanSnapshot plan) {
         if (plan == null || plan.modeCode() != 0) {
+            return false;
+        }
+        ExcavationAccessMode mode = ExcavationAccessMode.byId(plan.accessModeCode());
+        if (mode == ExcavationAccessMode.LADDERS) {
+            return true;
+        }
+        if (mode == ExcavationAccessMode.RAMP) {
             return false;
         }
         int sizeX = plan.max().getX() - plan.min().getX() + 1;
