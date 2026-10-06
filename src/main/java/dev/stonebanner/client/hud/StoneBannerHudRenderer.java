@@ -7,6 +7,7 @@ import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.ExcavationOverlayState;
 import dev.stonebanner.client.control.GameSpeedController;
+import dev.stonebanner.client.control.TunnelExtensionController;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.entity.HumanNpcEntity;
@@ -215,8 +216,10 @@ public final class StoneBannerHudRenderer {
 
             if (activeBottomTab == BottomTab.ORDERS) {
                 DesignationType[] tools = orderTools();
-                boolean showAccessMode = DesignationController.activeType().orElse(null) == DesignationType.EXCAVATE;
-                int slotCount = tools.length + (showAccessMode ? 1 : 0);
+                DesignationType activeType = DesignationController.activeType().orElse(null);
+                boolean showAccessMode = activeType == DesignationType.EXCAVATE;
+                boolean showExtend = activeType == DesignationType.TUNNEL || TunnelExtensionController.isActive();
+                int slotCount = tools.length + ((showAccessMode || showExtend) ? 1 : 0);
                 for (int i = 0; i < tools.length; i++) {
                     if (StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, slotCount)
                             .contains(mouseX, mouseY)) {
@@ -227,6 +230,11 @@ public final class StoneBannerHudRenderer {
                         && StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, tools.length, slotCount)
                         .contains(mouseX, mouseY)) {
                     return HudAction.CYCLE_EXCAVATION_ACCESS;
+                }
+                if (showExtend
+                        && StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, tools.length, slotCount)
+                        .contains(mouseX, mouseY)) {
+                    return HudAction.EXTEND_TUNNEL;
                 }
             }
             return HudAction.CONSUME;
@@ -451,7 +459,8 @@ public final class StoneBannerHudRenderer {
         DesignationType[] tools = orderTools();
         DesignationType activeType = DesignationController.activeType().orElse(null);
         boolean showAccessMode = activeType == DesignationType.EXCAVATE;
-        int slotCount = tools.length + (showAccessMode ? 1 : 0);
+        boolean showExtend = activeType == DesignationType.TUNNEL || TunnelExtensionController.isActive();
+        int slotCount = tools.length + ((showAccessMode || showExtend) ? 1 : 0);
         for (int i = 0; i < tools.length; i++) {
             DesignationType tool = tools[i];
             StoneBannerHudLayout.Rect bounds = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, slotCount);
@@ -474,6 +483,18 @@ public final class StoneBannerHudRenderer {
                             Component.translatable("excavation_access.stonebanner." + mode.serializedName())
                     ),
                     true
+            );
+        } else if (showExtend) {
+            StoneBannerHudLayout.Rect extendBounds = StoneBannerHudLayout.bottomTool(
+                    screenWidth, screenHeight, tools.length, slotCount
+            );
+            toolButton(
+                    graphics,
+                    font,
+                    extendBounds,
+                    TUNNEL_ICON,
+                    Component.translatable("hud.stonebanner.excavation.extend"),
+                    TunnelExtensionController.isActive()
             );
         }
 
@@ -816,6 +837,7 @@ public final class StoneBannerHudRenderer {
         DESIGNATE_CLEAR,
         DESIGNATE_CANCEL,
         CYCLE_EXCAVATION_ACCESS,
+        EXTEND_TUNNEL,
         HOTBAR_1,
         HOTBAR_2,
         HOTBAR_3,
