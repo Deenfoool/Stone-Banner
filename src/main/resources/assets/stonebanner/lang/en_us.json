@@ -317,5 +317,11 @@
   "delivery.stonebanner.player_command": "Following direct order",
   "screen.stonebanner.citizen.cargo": "Carried cargo",
   "screen.stonebanner.citizen.delivery": "Delivery",
-  "hud.stonebanner.cargo": "Cargo: %s · %s"
+  "hud.stonebanner.cargo": "Cargo: %s · %s",
+  "work_block.stonebanner.none": "Work available",
+  "work_block.stonebanner.no_path": "No path to work",
+  "work_block.stonebanner.occupied": "Worksite occupied",
+  "work_block.stonebanner.ore_permission": "Ore approval required",
+  "work_block.stonebanner.unsafe_exit": "Unsafe escape route",
+  "screen.stonebanner.citizen.work_block": "Work blocked"
 }

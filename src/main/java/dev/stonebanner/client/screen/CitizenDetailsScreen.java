@@ -145,6 +145,9 @@ public final class CitizenDetailsScreen extends Screen {
         line = keyValue(graphics, x, line, "screen.stonebanner.citizen.current_work",
                 work == null ? Component.translatable("screen.stonebanner.none")
                         : Component.translatable("work_type.stonebanner." + work.serializedName()));
+        if (citizen.hudWorkBlockReason() != dev.stonebanner.citizen.WorkBlockReason.NONE) {
+            line = keyValue(graphics, x, line, "screen.stonebanner.citizen.work_block", Component.translatable(citizen.hudWorkBlockReason().key()));
+        }
         if (citizen.hudCargoCount() > 0) {
             line = keyValue(graphics, x, line, "screen.stonebanner.citizen.cargo", Component.literal(Integer.toString(citizen.hudCargoCount())));
             line = keyValue(graphics, x, line, "screen.stonebanner.citizen.delivery", Component.translatable(citizen.hudDeliveryStatus().key()));
@@ -376,7 +379,7 @@ public final class CitizenDetailsScreen extends Screen {
         graphics.drawString(font, Component.translatable(key), x, y, MUTED);
         int available = Math.max(35, Math.min(PANEL_WIDTH, width - 24) - 187);
         graphics.drawString(font, font.plainSubstrByWidth(value.getString(), available), x + 155, y, TEXT);
-        return y + Math.min(22, Math.max(12, (Math.min(PANEL_HEIGHT, height - 24) - 88) / 8));
+        return y + Math.min(22, Math.max(12, (Math.min(PANEL_HEIGHT, height - 24) - 88) / 9));
     }
 
     private void drawMiniBar(GuiGraphics graphics, int x, int y, int width, int value, int max) {

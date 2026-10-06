@@ -61,6 +61,11 @@ public final class ExcavationEgressSafety {
         }
 
         Optional<ExcavationPlanData.PlanView> planResult = plans.activePlanFor(target);
+        // Physical self-support is protected even for ordinary MINE jobs outside excavation plans.
+        if (!nodeSurvivesRemoval(workerFeet, target, level::getBlockState)) {
+            planResult.ifPresent(plan -> ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.BLOCKED));
+            return false;
+        }
         if (planResult.isEmpty()) {
             return true;
         }
@@ -68,11 +73,6 @@ public final class ExcavationEgressSafety {
         ExcavationPlanData.PlanView plan = planResult.get();
         if (!insideWorkVolume(plan, workerFeet)) {
             return true;
-        }
-
-        if (!nodeSurvivesRemoval(workerFeet, target, level::getBlockState)) {
-            ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.BLOCKED);
-            return false;
         }
 
         if (plan.modeCode() == 0) {

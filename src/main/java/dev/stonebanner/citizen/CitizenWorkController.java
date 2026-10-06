@@ -54,6 +54,11 @@ public final class CitizenWorkController {
     private int acquireCooldown;
     private double workProgress;
 
+    private WorkBlockReason blockReason = WorkBlockReason.NONE;
+    private long blockReasonUntil;
+    public WorkBlockReason blockReason() { return blockReason; }
+    public void clearBlockReason() { blockReason = WorkBlockReason.NONE; blockReasonUntil = 0; }
+    private void blocked(WorkBlockReason reason) { blockReason = reason; blockReasonUntil = owner.level().getGameTime() + 120; }
     private CargoPhase cargoPhase = CargoPhase.IDLE;
     private dev.stonebanner.storage.DeliveryStatus deliveryStatus = dev.stonebanner.storage.DeliveryStatus.IDLE;
     private final java.util.Map<BlockPos, Long> failedCargoStorages = new java.util.HashMap<>();
@@ -77,6 +82,7 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (currentJob == null && serverLevel.getGameTime() >= blockReasonUntil) clearBlockReason();
         if (currentJob == null && owner.citizenData().inventory().hasHaulCargo()) {
             tickCargoDelivery(serverLevel);
             return;
@@ -142,6 +148,7 @@ public final class CitizenWorkController {
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         List<CitizenJob> candidates = new ArrayList<>();
         for (CitizenJob job : board.availableJobs(owner.getUUID(), level.getGameTime())) {
+            if (!job.canBeDoneBy(owner.citizenData())) continue;
             if (!owner.citizenData().canTravelTo(job.target())) {
                 continue;
             }
@@ -153,12 +160,14 @@ public final class CitizenWorkController {
                     && ExcavationPlanData.forLevel(level).containsActiveTarget(job.target())
                     && OreDiscoveryData.forLevel(level).at(job.target())
                         .map(finding -> !finding.approved()).orElse(false)) {
+                blocked(WorkBlockReason.ORE_PERMISSION);
                 continue;
             }
             if (!isJobActionable(level, job)) {
                 continue;
             }
             if (!isLadderBuildJob(level, job) && findJobApproachPosition(level, job).isEmpty()) {
+                blocked(WorkBlockReason.NO_PATH);
                 continue;
             }
             candidates.add(job);
@@ -184,9 +193,11 @@ public final class CitizenWorkController {
         BlockPos approach = findJobApproachPosition(level, job).orElse(null);
         if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
             board.release(job.id(), owner.getUUID());
+            blocked(WorkBlockReason.NO_PATH);
             return;
         }
 
+        clearBlockReason();
         currentJob = job;
         phase = WorkPhase.TRAVELLING;
         workProgress = 0.0D;
@@ -199,15 +210,16 @@ public final class CitizenWorkController {
                 ||CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
                 ||!owner.citizenData().canTravelTo(job.target())||!isJobStillValid(level,job)||!isJobActionable(level,job))return false;
         var approach=findJobApproachPosition(level,job).orElse(null);
-        if(approach==null)return false;
+        if(approach==null){blocked(WorkBlockReason.NO_PATH);return false;}
         var board=CitizenJobBoard.forLevel(level);
         if(!board.reserve(job.id(),owner.getUUID(),level.getGameTime()))return false;
         interrupt(false);
-        if(!owner.commandController().issueSystemMove(approach,CitizenBrainState.WORK)){board.release(job.id(),owner.getUUID());return false;}
-        currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
+        if(!owner.commandController().issueSystemMove(approach,CitizenBrainState.WORK)){board.release(job.id(),owner.getUUID());blocked(WorkBlockReason.NO_PATH);return false;}
+        clearBlockReason();currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
     }
 
     private boolean beginLadderBuild(ServerLevel level, CitizenJob job) {
+        clearBlockReason();
         CitizenInventory inventory = owner.citizenData().inventory();
         currentJob = job;
         phase = WorkPhase.TRAVELLING;
@@ -362,7 +374,7 @@ public final class CitizenWorkController {
         if (!owner.commandController().hasActiveCommand()) {
             BlockPos approach = findJobApproachPosition(level, currentJob).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
-                interrupt(false);
+                interrupt(false); blocked(WorkBlockReason.NO_PATH);
             }
         }
     }
@@ -371,13 +383,16 @@ public final class CitizenWorkController {
         if (!isWithinWorkRange(currentJob.target())) {
             BlockPos approach = findJobApproachPosition(level, currentJob).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
-                interrupt(false);
+                interrupt(false); blocked(WorkBlockReason.NO_PATH);
                 return;
             }
             phase = WorkPhase.TRAVELLING;
             return;
         }
 
+        if (isDestructiveWork() && (workProgress == 0 || blockReason != WorkBlockReason.NONE)
+                && !destructionPermitted(level)) return;
+        clearBlockReason();
         owner.setBrainState(CitizenBrainState.WORK);
         owner.getLookControl().setLookAt(
                 currentJob.target().getX() + 0.5D,
@@ -398,27 +413,29 @@ public final class CitizenWorkController {
             return;
         }
 
-        if (currentJob.workType() == WorkType.MINING) {
-            if (isOccupiedByOtherCitizen(level, currentJob.target())) {
-                return;
-            }
-            ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
-            if (plans.containsActiveTarget(currentJob.target())
-                    && !ExcavationOreDiscovery.mayMine(level, currentJob.target())) {
-                deferUnsafeExcavation(level);
-                return;
-            }
-            if (!ExcavationEgressSafety.canSafelyMine(
-                    level,
-                    plans,
-                    owner.blockPosition(),
-                    currentJob.target()
-            )) {
-                deferUnsafeExcavation(level);
-                return;
-            }
-        }
+        if (isDestructiveWork() && !destructionPermitted(level)) return;
         completeCurrentJob(level);
+    }
+
+    /** Checked before solid-block work starts, after a pause, and immediately before destruction. */
+    private boolean isDestructiveWork() {
+        return currentJob.workType() == WorkType.MINING || currentJob.workType() == WorkType.FORESTRY
+                || currentJob.workType() == WorkType.CLEARING && !owner.level().getBlockState(currentJob.target())
+                    .getCollisionShape(owner.level(), currentJob.target()).isEmpty();
+    }
+
+    private boolean destructionPermitted(ServerLevel level) {
+        if (isOccupiedByOtherLivingEntity(level, currentJob.target())) {
+            blocked(WorkBlockReason.OCCUPIED); return false;
+        }
+        ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+        if (plans.containsActiveTarget(currentJob.target()) && !ExcavationOreDiscovery.mayMine(level, currentJob.target())) {
+            blocked(WorkBlockReason.ORE_PERMISSION); deferUnsafeExcavation(level); return false;
+        }
+        if (!ExcavationEgressSafety.canSafelyMine(level, plans, owner.blockPosition(), currentJob.target())) {
+            blocked(WorkBlockReason.UNSAFE_EXIT); deferUnsafeExcavation(level); return false;
+        }
+        clearBlockReason(); return true;
     }
 
     private void tickCargoDelivery(ServerLevel level) {
@@ -742,13 +759,10 @@ public final class CitizenWorkController {
                 .min(Comparator.comparingDouble(pos -> owner.distanceToSqr(Vec3.atCenterOf(pos))));
     }
 
-    private boolean isOccupiedByOtherCitizen(ServerLevel level, BlockPos target) {
-        AABB safetyVolume = new AABB(target).inflate(0.05D);
-        return !level.getEntitiesOfClass(
-                HumanNpcEntity.class,
-                safetyVolume,
-                npc -> npc != owner && npc.isAlive()
-        ).isEmpty();
+    private boolean isOccupiedByOtherLivingEntity(ServerLevel level, BlockPos target) {
+        AABB safetyVolume = WorkSiteSafety.occupiedVolume(target, level.getBlockState(target).getCollisionShape(level, target));
+        return !level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, safetyVolume,
+                entity -> entity != owner && entity.isAlive() && !entity.isSpectator()).isEmpty();
     }
 
     private boolean isJobActionable(ServerLevel level, CitizenJob job) {

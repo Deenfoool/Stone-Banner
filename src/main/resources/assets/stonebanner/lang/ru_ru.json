@@ -317,5 +317,11 @@
   "delivery.stonebanner.player_command": "Выполняет прямой приказ",
   "screen.stonebanner.citizen.cargo": "Переносимый груз",
   "screen.stonebanner.citizen.delivery": "Доставка",
-  "hud.stonebanner.cargo": "Груз: %s · %s"
+  "hud.stonebanner.cargo": "Груз: %s · %s",
+  "work_block.stonebanner.none": "Работа доступна",
+  "work_block.stonebanner.no_path": "Нет пути к работе",
+  "work_block.stonebanner.occupied": "Участок занят существом",
+  "work_block.stonebanner.ore_permission": "Нужно разрешение на руду",
+  "work_block.stonebanner.unsafe_exit": "Небезопасный выход",
+  "screen.stonebanner.citizen.work_block": "Остановка работы"
 }

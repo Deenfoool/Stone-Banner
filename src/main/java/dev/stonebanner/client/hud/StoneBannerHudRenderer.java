@@ -403,6 +403,10 @@ public final class StoneBannerHudRenderer {
                     Component.translatable(npc.hudDeliveryStatus().key())).getString();
             graphics.drawString(font, font.plainSubstrByWidth(delivery, card.width() - 16), card.x() + 8, card.y() + 52, MUTED, false);
         }
+        if (citizenPanelExpanded && npc.hudCargoCount() == 0 && npc.hudWorkBlockReason() != dev.stonebanner.citizen.WorkBlockReason.NONE) {
+            String reason = Component.translatable(npc.hudWorkBlockReason().key()).getString();
+            graphics.drawString(font, font.plainSubstrByWidth(reason, card.width() - 16), card.x() + 8, card.y() + 52, 0xFFE7C46A, false);
+        }
         int toggleX = card.x() + card.width() - 27;
         inset(graphics, toggleX, card.y() + 5, 22, 22, true);
         graphics.drawCenteredString(font, citizenPanelExpanded ? "−" : "+", toggleX + 11, card.y() + 12, ACCENT);
