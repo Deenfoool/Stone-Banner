@@ -79,6 +79,9 @@ public final class TacticalControlScreen extends Screen {
                             ((BlockHitResult) hit).getBlockPos().getY(),
                             ((BlockHitResult) hit).getBlockPos().getZ()
                     );
+            if (hit instanceof BlockHitResult block && minecraft.level != null
+                    && minecraft.level.getBlockState(block.getBlockPos()).getBlock() instanceof net.minecraft.world.level.block.BannerBlock)
+                targetLabel = Component.translatable("community.stonebanner.tactical_hint");
             graphics.drawString(font, targetLabel, 8, 58, 0xFFD8D2C8);
         });
 
@@ -326,6 +329,12 @@ public final class TacticalControlScreen extends Screen {
                     }
                 } else {
                     BlockHitResult blockHit = (BlockHitResult) hit;
+                    if (minecraft.level != null && minecraft.level.getBlockState(blockHit.getBlockPos()).getBlock()
+                            instanceof net.minecraft.world.level.block.BannerBlock) {
+                        dev.stonebanner.network.StoneBannerNetwork.sendBannerAction(blockHit.getBlockPos(),
+                                dev.stonebanner.settlement.BannerCommunityService.Action.OPEN, "", -1);
+                        return;
+                    }
                     if (!CitizenSelectionController.moveSelected(blockHit)) {
                         PlayerCommandController.moveTo(blockHit);
                     }

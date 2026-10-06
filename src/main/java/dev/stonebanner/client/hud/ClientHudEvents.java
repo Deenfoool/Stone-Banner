@@ -20,6 +20,12 @@ public final class ClientHudEvents {
             return;
         }
 
+        if (minecraft.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit
+                && minecraft.level.getBlockState(hit.getBlockPos()).getBlock() instanceof net.minecraft.world.level.block.BannerBlock) {
+            event.getGuiGraphics().drawCenteredString(minecraft.font,
+                    net.minecraft.network.chat.Component.translatable("community.stonebanner.interact_hint"),
+                    event.getWindow().getGuiScaledWidth() / 2, event.getWindow().getGuiScaledHeight() - 65, 0xFFE7C46A);
+        }
         OreDiscoveryHud.render(event.getGuiGraphics(), minecraft,
                 event.getWindow().getGuiScaledWidth(), event.getWindow().getGuiScaledHeight());
         StoneBannerHudRenderer.render(

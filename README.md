@@ -20,7 +20,7 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.10`.
+Version: `0.1.0-alpha.11`.
 
 - Forge project foundation and dedicated client configuration.
 - Action, tactical, and hybrid control modes.
@@ -61,3 +61,13 @@ The pathfinder now has prototype handling for stairs, bottom slabs, water, woode
 trapdoors and open iron doors. Closed iron access still requires a player-operated redstone mechanism.
 Combat currently delegates one contextual attack to vanilla Minecraft; the custom real-time combat
 system and settlement simulation are later roadmap stages.
+
+## Основание лагеря через баннер
+
+Любой напольный ванильный баннер остаётся декором при установке. Нажмите ПКМ пустой рукой, выберите «Основать лагерь», введите имя и подтвердите. Shift обходит меню; в Tactical меню открывается нажатием на баннер. Цвет и узор не влияют на основание.
+
+Один лагерь на игрока в измерении получает территорию 3×3 чанка, без пересечения с другими общинами и рядом с деревнями. Разрушение флага сохраняет общину и жителей. Поставьте другой баннер внутри прежних границ и подтвердите назначение центром: территория и дома не перемещаются.
+
+Для прототипа поселения нужны минимум один принятый NPC с ролью `SETTLER`, кровать каждому жителю и игроку, зарегистрированный склад и по четыре съедобных предмета на человека. Выберите переселенца в Tactical и примите через меню знамени. Учитываются только загруженные кровати, реальные предметы и сущности; зарегистрированные жители вне загруженных чанков тоже включены в требуемые запасы. Полная вербовка через репутацию ещё не реализована.
+
+В текущем прототипе склад регистрируется операторской командой `/stonebanner storage add X Y Z`; роль переселенца задаётся командой `/stonebanner npc participation <npc> settler`. Игровые найм и регистрация склада через интерфейс остаются в роадмапе.

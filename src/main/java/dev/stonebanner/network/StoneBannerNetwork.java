@@ -1,6 +1,9 @@
 package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.network.packet.BannerCommunityActionPacket;
+import dev.stonebanner.network.packet.BannerCommunitySnapshotPacket;
+import dev.stonebanner.settlement.BannerCommunityService;
 import dev.stonebanner.network.packet.OreDiscoverySnapshotPacket;
 import dev.stonebanner.network.packet.OreDiscoveryActionPacket;
 import dev.stonebanner.designation.DesignationType;
@@ -26,7 +29,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "7";
+    private static final String PROTOCOL_VERSION = "8";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -47,6 +50,12 @@ public final class StoneBannerNetwork {
         }
         registered = true;
 
+        CHANNEL.registerMessage(nextPacketId++, BannerCommunityActionPacket.class,
+                BannerCommunityActionPacket::encode, BannerCommunityActionPacket::decode, BannerCommunityActionPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++, BannerCommunitySnapshotPacket.class,
+                BannerCommunitySnapshotPacket::encode, BannerCommunitySnapshotPacket::decode, BannerCommunitySnapshotPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(nextPacketId++, OreDiscoverySnapshotPacket.class,
                 OreDiscoverySnapshotPacket::encode, OreDiscoverySnapshotPacket::decode,
                 OreDiscoverySnapshotPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
@@ -116,6 +125,13 @@ public final class StoneBannerNetwork {
                 StorageSummaryPacket::decode,
                 StorageSummaryPacket::handle
         );
+    }
+
+    public static void sendBannerAction(BlockPos pos, BannerCommunityService.Action action, String name, int entityId) {
+        CHANNEL.sendToServer(new BannerCommunityActionPacket(pos, action, name, entityId));
+    }
+    public static void sendBannerCommunity(ServerPlayer player, BannerCommunitySnapshotPacket snapshot) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), snapshot);
     }
 
     public static void sendOreAction(long id, boolean approve) {
