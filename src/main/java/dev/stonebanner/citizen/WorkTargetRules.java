@@ -21,6 +21,7 @@ public final class WorkTargetRules {
         }
         BlockState state = level.getBlockState(pos);
         return !state.isAir()
+                && !state.is(Blocks.LADDER)
                 && !state.is(BlockTags.LOGS)
                 && !isClearingState(state)
                 && !state.getCollisionShape(level, pos).isEmpty()
