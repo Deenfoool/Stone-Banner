@@ -7,6 +7,7 @@ import dev.stonebanner.client.control.CitizenSelectionController;
 import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.client.control.PlayerCommandController;
+import dev.stonebanner.client.control.TunnelExtensionController;
 import dev.stonebanner.client.control.WorldCursor;
 import dev.stonebanner.client.hud.ExcavationLadderStatusHud;
 import dev.stonebanner.client.hud.StoneBannerHudRenderer;
@@ -50,6 +51,11 @@ public final class TacticalControlScreen extends Screen {
             hoveredTarget.filter(BlockHitResult.class::isInstance)
                     .map(BlockHitResult.class::cast)
                     .ifPresent(hit -> DesignationController.updatePreview(hit.getBlockPos()));
+        }
+        if (TunnelExtensionController.isActive() && TunnelExtensionController.hasSelectedPlan()) {
+            hoveredTarget.filter(BlockHitResult.class::isInstance)
+                    .map(BlockHitResult.class::cast)
+                    .ifPresent(hit -> TunnelExtensionController.updatePreview(hit.getBlockPos()));
         }
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
@@ -115,9 +121,32 @@ public final class TacticalControlScreen extends Screen {
                     false
             );
         }
+
+        if (TunnelExtensionController.isActive()) {
+            Component extensionHint;
+            int extensionColor;
+            if (TunnelExtensionController.hasSelectedPlan()) {
+                long planId = TunnelExtensionController.selectedPlan().map(plan -> plan.id()).orElse(0L);
+                extensionHint = Component.translatable(
+                        "hud.stonebanner.excavation.extend.endpoint",
+                        planId,
+                        TunnelExtensionController.previewLength()
+                );
+                extensionColor = TunnelExtensionController.previewAllowed() ? 0xFFE7C46A : 0xFFFF6868;
+            } else {
+                extensionHint = Component.translatable("hud.stonebanner.excavation.extend.select_plan");
+                extensionColor = 0xFFE7C46A;
+            }
+            graphics.drawString(font, extensionHint, 8, 70, extensionColor, false);
+        }
     }
 
     private int cursorColor() {
+        if (TunnelExtensionController.isActive()) {
+            return !TunnelExtensionController.hasSelectedPlan() || TunnelExtensionController.previewAllowed()
+                    ? 0xFFAD7AF0
+                    : 0xFFFF6868;
+        }
         DesignationType type = DesignationController.activeType().orElse(null);
         if (type != null) {
             return DesignationController.previewAllowed() ? designationColor(type) : 0xFFFF6868;
@@ -224,6 +253,10 @@ public final class TacticalControlScreen extends Screen {
                     DesignationController.cycleExcavationAccessMode();
                     return true;
                 }
+                case EXTEND_TUNNEL -> {
+                    activateTunnelExtension();
+                    return true;
+                }
                 case HOTBAR_1, HOTBAR_2, HOTBAR_3, HOTBAR_4, HOTBAR_5,
                      HOTBAR_6, HOTBAR_7, HOTBAR_8, HOTBAR_9 -> {
                     selectHotbarSlot(StoneBannerHudRenderer.hotbarIndex(hudAction));
@@ -262,6 +295,18 @@ public final class TacticalControlScreen extends Screen {
             return true;
         }
 
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && TunnelExtensionController.isActive()) {
+            hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+            BlockHitResult hit = hoveredTarget.filter(BlockHitResult.class::isInstance)
+                    .map(BlockHitResult.class::cast)
+                    .orElse(null);
+            if (hit != null) {
+                TunnelExtensionController.updatePreview(hit.getBlockPos());
+                TunnelExtensionController.click(hit.getBlockPos());
+            }
+            return true;
+        }
+
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
             hoveredTarget.ifPresent(hit -> {
@@ -288,6 +333,12 @@ public final class TacticalControlScreen extends Screen {
                 }
                 return true;
             }
+            if (TunnelExtensionController.isActive()) {
+                if (!TunnelExtensionController.undoSelectionStep()) {
+                    TunnelExtensionController.deactivate();
+                }
+                return true;
+            }
             if (!CitizenSelectionController.stopAndClear()) {
                 PlayerCommandController.stop();
             }
@@ -305,12 +356,22 @@ public final class TacticalControlScreen extends Screen {
         StoneBannerHudRenderer.selectBottomTab(index);
         if (index != 1) {
             DesignationController.deactivate();
+            TunnelExtensionController.deactivate();
         }
     }
 
     private static void activateDesignation(DesignationType type) {
         StoneBannerHudRenderer.selectBottomTab(1);
+        TunnelExtensionController.deactivate();
         DesignationController.activate(type);
+        CitizenSelectionController.clear();
+        PlayerCommandController.stop();
+    }
+
+    private static void activateTunnelExtension() {
+        StoneBannerHudRenderer.selectBottomTab(1);
+        DesignationController.deactivate();
+        TunnelExtensionController.activate();
         CitizenSelectionController.clear();
         PlayerCommandController.stop();
     }
@@ -353,11 +414,13 @@ public final class TacticalControlScreen extends Screen {
         }
         if (ClientKeyMappings.CYCLE_CONTROL_MODE.matches(keyCode, scanCode)) {
             DesignationController.deactivate();
+            TunnelExtensionController.deactivate();
             ClientRuntime.cycleControlMode(minecraft);
             return true;
         }
         if (ClientKeyMappings.CYCLE_DESIGNATION_MODE.matches(keyCode, scanCode)) {
             StoneBannerHudRenderer.selectBottomTab(1);
+            TunnelExtensionController.deactivate();
             DesignationController.cycleMode();
             CitizenSelectionController.clear();
             PlayerCommandController.stop();
