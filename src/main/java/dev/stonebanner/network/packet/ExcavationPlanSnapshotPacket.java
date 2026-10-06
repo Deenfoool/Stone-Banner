@@ -29,6 +29,7 @@ public record ExcavationPlanSnapshotPacket(List<PlanSnapshot> plans) {
             buffer.writeBlockPos(plan.min());
             buffer.writeBlockPos(plan.max());
             buffer.writeByte(plan.modeCode());
+            buffer.writeByte(plan.accessModeCode());
             buffer.writeInt(plan.currentSlice());
             buffer.writeByte(plan.step());
             buffer.writeBoolean(plan.hazardPaused());
@@ -46,6 +47,7 @@ public record ExcavationPlanSnapshotPacket(List<PlanSnapshot> plans) {
                     buffer.readVarLong(),
                     buffer.readBlockPos(),
                     buffer.readBlockPos(),
+                    buffer.readByte(),
                     buffer.readByte(),
                     buffer.readInt(),
                     buffer.readByte(),
@@ -70,6 +72,7 @@ public record ExcavationPlanSnapshotPacket(List<PlanSnapshot> plans) {
             BlockPos min,
             BlockPos max,
             int modeCode,
+            int accessModeCode,
             int currentSlice,
             int step,
             boolean hazardPaused
