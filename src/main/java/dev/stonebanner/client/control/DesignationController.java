@@ -60,9 +60,7 @@ public final class DesignationController {
         clearSelection();
     }
 
-    /**
-     * Advances the current selection by one click. The third click submits the completed volume.
-     */
+    /** Advances the current selection by one click. The third click submits the completed volume. */
     public static boolean click(BlockPos pos) {
         if (activeType == null || pos == null) {
             return false;
