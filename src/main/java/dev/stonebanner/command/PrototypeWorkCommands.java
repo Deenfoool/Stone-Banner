@@ -1,5 +1,7 @@
 package dev.stonebanner.command;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.LongArgumentType;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.citizen.CitizenJobBoard;
 import dev.stonebanner.citizen.CitizenSkill;
@@ -16,7 +18,7 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/** Temporary commands for smoke-testing the job system before the Designation UI is fully mature. */
+/** Temporary commands for smoke-testing the job/excavation systems while the matching management UI matures. */
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID)
 public final class PrototypeWorkCommands {
     private PrototypeWorkCommands() {
@@ -56,6 +58,15 @@ public final class PrototypeWorkCommands {
                                                         BlockPosArgument.getLoadedBlockPos(context, "pos"),
                                                         context.getSource()
                                                 ))))
+                                .then(Commands.literal("extend")
+                                        .then(Commands.argument("planId", LongArgumentType.longArg(1L))
+                                                .then(Commands.argument("blocks", IntegerArgumentType.integer(1, 64))
+                                                        .executes(context -> extendTunnel(
+                                                                context.getSource().getLevel(),
+                                                                LongArgumentType.getLong(context, "planId"),
+                                                                IntegerArgumentType.getInteger(context, "blocks"),
+                                                                context.getSource()
+                                                        )))))
                                 .then(Commands.literal("count")
                                         .executes(context -> {
                                             int count = CitizenJobBoard.forLevel(context.getSource().getLevel()).size();
@@ -66,20 +77,53 @@ public final class PrototypeWorkCommands {
                                             return count;
                                         }))
                                 .then(Commands.literal("plans")
-                                        .executes(context -> {
-                                            ServerLevel level = context.getSource().getLevel();
-                                            ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
-                                            int count = plans.activePlanCount();
-                                            int paused = plans.hazardPausedPlanCount(level);
-                                            context.getSource().sendSuccess(
-                                                    () -> Component.literal("Active excavation plans: " + count
-                                                            + " (hazard-paused: " + paused + ")"),
-                                                    false
-                                            );
-                                            return count;
-                                        }))
+                                        .executes(context -> listPlans(
+                                                context.getSource().getLevel(),
+                                                context.getSource()
+                                        )))
                         )
         );
+    }
+
+    private static int listPlans(ServerLevel level, CommandSourceStack source) {
+        ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+        int count = plans.activePlanCount();
+        int paused = plans.hazardPausedPlanCount(level);
+        source.sendSuccess(
+                () -> Component.literal("Active excavation plans: " + count + " (hazard-paused: " + paused + ")"),
+                false
+        );
+        for (ExcavationPlanData.PlanSummary plan : plans.summaries()) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "#" + plan.id() + " " + plan.mode()
+                                    + " " + plan.min().toShortString() + " -> " + plan.max().toShortString()
+                                    + " front=" + plan.currentSlice() + " step=" + plan.step()
+                                    + " access=" + plan.accessMode().serializedName()
+                    ),
+                    false
+            );
+        }
+        return count;
+    }
+
+    private static int extendTunnel(ServerLevel level, long planId, int blocks, CommandSourceStack source) {
+        ExcavationPlanData.ExtensionResult result = ExcavationPlanData.forLevel(level)
+                .extendTunnel(level, planId, blocks);
+        if (result.status() != ExcavationPlanData.ExtensionStatus.EXTENDED) {
+            source.sendFailure(Component.literal(
+                    "Tunnel #" + planId + " was not extended: " + result.status().name().toLowerCase()
+            ));
+            return 0;
+        }
+        source.sendSuccess(
+                () -> Component.literal(
+                        "Extended tunnel #" + planId + " by " + blocks
+                                + " block(s); new mineable targets: " + result.addedTargets()
+                ),
+                false
+        );
+        return 1;
     }
 
     private static int publishForestry(ServerLevel level, BlockPos target, CommandSourceStack source) {
