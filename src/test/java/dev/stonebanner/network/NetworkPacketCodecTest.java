@@ -5,6 +5,7 @@ import dev.stonebanner.citizen.WorkType;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
+import dev.stonebanner.network.packet.ExtendExcavationPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.SetWorkPriorityPacket;
 import dev.stonebanner.network.packet.StopCitizenPacket;
@@ -63,6 +64,16 @@ class NetworkPacketCodecTest {
         DesignationAreaPacket.encode(source, buffer);
 
         assertEquals(source, DesignationAreaPacket.decode(buffer));
+    }
+
+    @Test
+    void tunnelExtensionPacketRoundTrips() {
+        ExtendExcavationPacket source = new ExtendExcavationPacket(77L, 18);
+        FriendlyByteBuf buffer = buffer();
+
+        ExtendExcavationPacket.encode(source, buffer);
+
+        assertEquals(source, ExtendExcavationPacket.decode(buffer));
     }
 
     @Test
