@@ -11,7 +11,8 @@ import java.util.WeakHashMap;
  * Runtime-only transition tracker for excavation access problems.
  *
  * <p>Reconciliation runs repeatedly while a plan is paused, so notifications are emitted only when the
- * status changes. READY clears the remembered problem, allowing a later obstruction to notify again.</p>
+ * status changes. Returning to READY reports recovery once and clears the remembered problem, allowing a
+ * later obstruction to notify again.</p>
  */
 final class ExcavationAccessNotifier {
     private static final Map<ServerLevel, Map<PlanKey, ExcavationAccessStatus>> LAST_PROBLEMS = new WeakHashMap<>();
@@ -28,7 +29,10 @@ final class ExcavationAccessNotifier {
         Map<PlanKey, ExcavationAccessStatus> levelProblems = LAST_PROBLEMS.computeIfAbsent(level, ignored -> new HashMap<>());
 
         if (status == ExcavationAccessStatus.READY) {
-            levelProblems.remove(key);
+            ExcavationAccessStatus previous = levelProblems.remove(key);
+            if (previous != null) {
+                broadcast(level, Component.translatable(status.translationKey()));
+            }
             return;
         }
 
@@ -36,9 +40,7 @@ final class ExcavationAccessNotifier {
         if (previous == status) {
             return;
         }
-
-        Component message = Component.translatable(status.translationKey());
-        level.players().forEach(player -> player.displayClientMessage(message, true));
+        broadcast(level, Component.translatable(status.translationKey()));
     }
 
     static void clear(ServerLevel level, ExcavationPlanData.PlanView plan) {
@@ -49,6 +51,10 @@ final class ExcavationAccessNotifier {
         if (levelProblems != null) {
             levelProblems.remove(PlanKey.from(plan));
         }
+    }
+
+    private static void broadcast(ServerLevel level, Component message) {
+        level.players().forEach(player -> player.displayClientMessage(message, true));
     }
 
     private record PlanKey(
