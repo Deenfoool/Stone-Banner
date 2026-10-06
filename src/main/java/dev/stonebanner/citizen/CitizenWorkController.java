@@ -123,8 +123,6 @@ public final class CitizenWorkController {
         }
         acquireCooldown = ACQUIRE_INTERVAL_TICKS;
 
-        // Excavation is a job producer: only the currently exposed quarry/tunnel slice is published.
-        // Reconciliation is globally throttled inside the SavedData, so many workers stay cheap.
         ExcavationPlanData.forLevel(level).reconcileIfDue(level);
 
         if (owner.commandController().hasActiveCommand()
@@ -187,7 +185,7 @@ public final class CitizenWorkController {
         workProgress = 0.0D;
 
         if (inventory.countPersonalItem(Items.LADDER) > 0) {
-            BlockPos approach = findApproachPosition(level, job.target()).orElse(null);
+            BlockPos approach = findLadderSiteApproach(level, job.target()).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                 clearLocalState();
                 return false;
@@ -275,7 +273,7 @@ public final class CitizenWorkController {
                 return;
             }
 
-            BlockPos approach = findApproachPosition(level, task.target()).orElse(null);
+            BlockPos approach = findLadderSiteApproach(level, task.target()).orElse(null);
             if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                 deferCurrentJob(level);
                 return;
@@ -288,7 +286,7 @@ public final class CitizenWorkController {
         if (ladderBuildPhase == LadderBuildPhase.TO_SITE) {
             if (!isWithinWorkRange(task.target())) {
                 if (!owner.commandController().hasActiveCommand()) {
-                    BlockPos approach = findApproachPosition(level, task.target()).orElse(null);
+                    BlockPos approach = findLadderSiteApproach(level, task.target()).orElse(null);
                     if (approach == null
                             || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                         deferCurrentJob(level);
@@ -635,6 +633,14 @@ public final class CitizenWorkController {
         return findApproachPosition(level, job.target());
     }
 
+    private Optional<BlockPos> findLadderSiteApproach(ServerLevel level, BlockPos target) {
+        BlockPos existingLadderAbove = target.above();
+        if (BlockPathfinder.isWalkable(level, existingLadderAbove)) {
+            return Optional.of(existingLadderAbove.immutable());
+        }
+        return findApproachPosition(level, target);
+    }
+
     private Optional<BlockPos> findApproachPosition(ServerLevel level, BlockPos target) {
         ArrayList<BlockPos> candidates = new ArrayList<>();
         for (Direction direction : Direction.Plane.HORIZONTAL) {
@@ -652,7 +658,6 @@ public final class CitizenWorkController {
     }
 
     private boolean isOccupiedByOtherCitizen(ServerLevel level, BlockPos target) {
-        // Inflate slightly so an NPC standing exactly on the block's top face is treated as occupying it.
         AABB safetyVolume = new AABB(target).inflate(0.05D);
         return !level.getEntitiesOfClass(
                 HumanNpcEntity.class,
@@ -686,7 +691,7 @@ public final class CitizenWorkController {
                 return false;
             }
             if (owner.citizenData().inventory().countPersonalItem(Items.LADDER) > 0) {
-                return findApproachPosition(level, task.target()).isPresent();
+                return findLadderSiteApproach(level, task.target()).isPresent();
             }
             BlockPos source = StorageData.forLevel(level).nearestContainerWithItem(
                     level,
@@ -697,7 +702,7 @@ public final class CitizenWorkController {
             return source != null
                     && owner.citizenData().canTravelTo(source)
                     && findApproachPosition(level, source).isPresent()
-                    && findApproachPosition(level, task.target()).isPresent();
+                    && findLadderSiteApproach(level, task.target()).isPresent();
         }
         return true;
     }
