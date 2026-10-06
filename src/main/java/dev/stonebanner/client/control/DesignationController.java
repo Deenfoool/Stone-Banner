@@ -117,7 +117,7 @@ public final class DesignationController {
 
     public static Optional<BlockPos> selectionEnd() {
         if (firstCorner == null) return Optional.empty();
-        return Optional.ofNullable(hoverCorner == null ? firstCorner : hoverCorner);
+        return Optional.of(hoverCorner == null ? firstCorner : hoverCorner);
     }
 
     public static Optional<DesignationLimits.Dimensions> previewDimensions() {
