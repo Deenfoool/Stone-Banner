@@ -8,6 +8,7 @@ import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.ExcavationOverlayState;
 import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -98,6 +99,7 @@ public final class StoneBannerHudRenderer {
     private static final ItemStack TUNNEL_ICON = new ItemStack(Items.RAIL);
     private static final ItemStack CLEAR_ICON = new ItemStack(Items.SHEARS);
     private static final ItemStack CANCEL_ICON = new ItemStack(Items.BARRIER);
+    private static final ItemStack ACCESS_ICON = new ItemStack(Items.LADDER);
     private static final ItemStack CLOCK_ICON = new ItemStack(Items.CLOCK);
     private static final ItemStack MAP_ICON = new ItemStack(Items.FILLED_MAP);
 
@@ -213,11 +215,18 @@ public final class StoneBannerHudRenderer {
 
             if (activeBottomTab == BottomTab.ORDERS) {
                 DesignationType[] tools = orderTools();
+                boolean showAccessMode = DesignationController.activeType().orElse(null) == DesignationType.EXCAVATE;
+                int slotCount = tools.length + (showAccessMode ? 1 : 0);
                 for (int i = 0; i < tools.length; i++) {
-                    if (StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, tools.length)
+                    if (StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, slotCount)
                             .contains(mouseX, mouseY)) {
                         return designationAction(tools[i]);
                     }
+                }
+                if (showAccessMode
+                        && StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, tools.length, slotCount)
+                        .contains(mouseX, mouseY)) {
+                    return HudAction.CYCLE_EXCAVATION_ACCESS;
                 }
             }
             return HudAction.CONSUME;
@@ -441,18 +450,37 @@ public final class StoneBannerHudRenderer {
     private static void renderOrdersRow(GuiGraphics graphics, Font font, int screenWidth, int screenHeight) {
         DesignationType[] tools = orderTools();
         DesignationType activeType = DesignationController.activeType().orElse(null);
+        boolean showAccessMode = activeType == DesignationType.EXCAVATE;
+        int slotCount = tools.length + (showAccessMode ? 1 : 0);
         for (int i = 0; i < tools.length; i++) {
             DesignationType tool = tools[i];
-            StoneBannerHudLayout.Rect bounds = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, tools.length);
+            StoneBannerHudLayout.Rect bounds = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, i, slotCount);
             toolButton(graphics, font, bounds, designationIcon(tool),
                     Component.translatable("designation.stonebanner." + tool.serializedName()), tool == activeType);
         }
 
-        // Visual hierarchy: resource orders | excavation orders | control.
-        StoneBannerHudLayout.Rect resourceEnd = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 2, tools.length);
-        StoneBannerHudLayout.Rect excavationStart = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 3, tools.length);
-        StoneBannerHudLayout.Rect excavationEnd = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 4, tools.length);
-        StoneBannerHudLayout.Rect controlStart = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 5, tools.length);
+        if (showAccessMode) {
+            ExcavationAccessMode mode = DesignationController.excavationAccessMode();
+            StoneBannerHudLayout.Rect accessBounds = StoneBannerHudLayout.bottomTool(
+                    screenWidth, screenHeight, tools.length, slotCount
+            );
+            toolButton(
+                    graphics,
+                    font,
+                    accessBounds,
+                    ACCESS_ICON,
+                    Component.translatable(
+                            "hud.stonebanner.excavation.access",
+                            Component.translatable("excavation_access.stonebanner." + mode.serializedName())
+                    ),
+                    true
+            );
+        }
+
+        StoneBannerHudLayout.Rect resourceEnd = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 2, slotCount);
+        StoneBannerHudLayout.Rect excavationStart = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 3, slotCount);
+        StoneBannerHudLayout.Rect excavationEnd = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 4, slotCount);
+        StoneBannerHudLayout.Rect controlStart = StoneBannerHudLayout.bottomTool(screenWidth, screenHeight, 5, slotCount);
         int firstDivider = (resourceEnd.x() + resourceEnd.width() + excavationStart.x()) / 2;
         int secondDivider = (excavationEnd.x() + excavationEnd.width() + controlStart.x()) / 2;
         int dividerY = resourceEnd.y() + 3;
@@ -787,6 +815,7 @@ public final class StoneBannerHudRenderer {
         DESIGNATE_TUNNEL,
         DESIGNATE_CLEAR,
         DESIGNATE_CANCEL,
+        CYCLE_EXCAVATION_ACCESS,
         HOTBAR_1,
         HOTBAR_2,
         HOTBAR_3,
