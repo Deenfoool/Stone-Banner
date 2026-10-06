@@ -16,16 +16,10 @@ public final class DesignationController {
     private static BlockPos footprintCorner;
     private static BlockPos hoverCorner;
 
-    private DesignationController() {
-    }
+    private DesignationController() {}
 
-    public static boolean isActive() {
-        return activeType != null;
-    }
-
-    public static Optional<DesignationType> activeType() {
-        return Optional.ofNullable(activeType);
-    }
+    public static boolean isActive() { return activeType != null; }
+    public static Optional<DesignationType> activeType() { return Optional.ofNullable(activeType); }
 
     public static void activate(DesignationType type) {
         activeType = type;
@@ -33,18 +27,15 @@ public final class DesignationController {
     }
 
     public static void cycleMode() {
-        if (activeType == null) {
-            activeType = DesignationType.CHOP;
-        } else {
-            activeType = switch (activeType) {
-                case CHOP -> DesignationType.MINE;
-                case MINE -> DesignationType.EXCAVATE;
-                case EXCAVATE -> DesignationType.TUNNEL;
-                case TUNNEL -> DesignationType.CLEAR;
-                case CLEAR -> DesignationType.CANCEL;
-                case CANCEL -> null;
-            };
-        }
+        if (activeType == null) activeType = DesignationType.CHOP;
+        else activeType = switch (activeType) {
+            case CHOP -> DesignationType.MINE;
+            case MINE -> DesignationType.EXCAVATE;
+            case EXCAVATE -> DesignationType.TUNNEL;
+            case TUNNEL -> DesignationType.CLEAR;
+            case CLEAR -> DesignationType.CANCEL;
+            case CANCEL -> null;
+        };
         clearSelection();
     }
 
@@ -94,9 +85,7 @@ public final class DesignationController {
         return false;
     }
 
-    public static boolean hasSelectionInProgress() {
-        return firstCorner != null;
-    }
+    public static boolean hasSelectionInProgress() { return firstCorner != null; }
 
     public static int completedClicks() {
         if (footprintCorner != null) return 2;
@@ -111,9 +100,7 @@ public final class DesignationController {
         };
     }
 
-    public static Optional<BlockPos> selectionStart() {
-        return Optional.ofNullable(firstCorner);
-    }
+    public static Optional<BlockPos> selectionStart() { return Optional.ofNullable(firstCorner); }
 
     public static Optional<BlockPos> selectionEnd() {
         if (firstCorner == null) return Optional.empty();
@@ -160,15 +147,8 @@ public final class DesignationController {
 
     public enum SelectionStep {
         LENGTH("length"), WIDTH("width"), DEPTH("depth");
-
         private final String serializedName;
-
-        SelectionStep(String serializedName) {
-            this.serializedName = serializedName;
-        }
-
-        public String serializedName() {
-            return serializedName;
-        }
+        SelectionStep(String serializedName) { this.serializedName = serializedName; }
+        public String serializedName() { return serializedName; }
     }
 }
