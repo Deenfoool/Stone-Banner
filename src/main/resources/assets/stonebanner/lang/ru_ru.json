@@ -6,7 +6,6 @@
   "control_mode.stonebanner.tactical": "Тактический / мышь",
   "control_mode.stonebanner.hybrid": "Гибридный",
   "message.stonebanner.control_mode": "Режим управления: %s",
-  "message.stonebanner.ore_discovered": "Обнаружена рудная жила: %s на %s, %s, %s (видимых блоков: %s). Расширь область добычи, чтобы начать разработку.",
   "message.stonebanner.excavation_access.ready": "Доступ к выработке восстановлен",
   "message.stonebanner.excavation_access.no_path": "Выработка остановлена: нет безопасного пути наружу",
   "message.stonebanner.excavation_access.needs_ladder": "Выработка остановлена: нужен лестничный доступ",
@@ -41,7 +40,6 @@
   "screen.stonebanner.inventory.personal": "Личный инвентарь",
   "screen.stonebanner.inventory.real_items": "Здесь хранятся реальные предметы Minecraft.",
   "screen.stonebanner.inventory.food_hint": "Голодный Citizen автоматически ест подходящую еду отсюда.",
-
   "hud.stonebanner.tactical.hint": "ЛКМ: идти  •  G: назначения  •  ПКМ: стоп  •  Средняя кнопка: вращать камеру",
   "hud.stonebanner.tactical.moving": "Персонаж идёт — точек маршрута: %s  •  ПКМ для остановки",
   "hud.stonebanner.tactical.unreachable": "Безопасный маршрут не найден",
@@ -62,7 +60,6 @@
   "excavation_access.stonebanner.auto": "Авто",
   "excavation_access.stonebanner.ramp": "Спуск",
   "excavation_access.stonebanner.ladders": "Лестницы",
-
   "hud.stonebanner.top.settlement": "Поселение",
   "hud.stonebanner.top.not_founded": "не основано",
   "hud.stonebanner.top.population": "Нас.",
@@ -75,7 +72,6 @@
   "hud.stonebanner.weather.clear": "Ясно",
   "hud.stonebanner.weather.rain": "Дождь",
   "hud.stonebanner.weather.thunder": "Гроза",
-
   "hud.stonebanner.npc.health": "Здоровье",
   "hud.stonebanner.npc.hunger": "Голод",
   "hud.stonebanner.npc.fatigue": "Усталость",
@@ -84,7 +80,6 @@
   "hud.stonebanner.npc.expand": "[+]",
   "hud.stonebanner.npc.collapse": "[−]",
   "hud.stonebanner.npc.details": "Досье",
-
   "hud.stonebanner.menu.build": "Строить",
   "hud.stonebanner.menu.orders": "Приказы",
   "hud.stonebanner.menu.zones": "Зоны",
@@ -95,14 +90,12 @@
   "hud.stonebanner.menu.history": "История",
   "hud.stonebanner.time.pause": "Пауза",
   "hud.stonebanner.time.start": "Старт",
-
   "hud.stonebanner.alerts": "События",
   "hud.stonebanner.alert.excavation_hazard": "%s выработок остановлено: вода или лава",
   "hud.stonebanner.alert.danger": "Непосредственная опасность",
   "hud.stonebanner.alert.low_health": "%s тяжело ранен",
   "hud.stonebanner.alert.hunger": "%s критически голоден",
   "hud.stonebanner.alert.fatigue": "%s истощён",
-
   "hud.stonebanner.context.drag": "Тяни ЛКМ: область",
   "hud.stonebanner.context.next_tool": "G: следующий",
   "hud.stonebanner.context.exit": "ПКМ: выйти",
@@ -114,7 +107,6 @@
   "hud.stonebanner.context.designations": "G: работы",
   "hud.stonebanner.context.control_mode": "V: режим",
   "hud.stonebanner.context.camera": "СКМ: камера",
-
   "profession.stonebanner.unemployed": "Без профессии",
   "profession.stonebanner.farmer": "Фермер",
   "profession.stonebanner.lumberjack": "Лесоруб",
@@ -123,26 +115,22 @@
   "profession.stonebanner.craftsman": "Ремесленник",
   "profession.stonebanner.trader": "Торговец",
   "profession.stonebanner.guard": "Стражник",
-
   "skill.stonebanner.agriculture": "Земледелие",
   "skill.stonebanner.mining": "Горное дело",
   "skill.stonebanner.construction": "Строительство",
   "skill.stonebanner.crafting": "Ремесло",
   "skill.stonebanner.combat": "Бой",
-
   "body_part.stonebanner.head": "Голова",
   "body_part.stonebanner.torso": "Торс",
   "body_part.stonebanner.left_arm": "Левая рука",
   "body_part.stonebanner.right_arm": "Правая рука",
   "body_part.stonebanner.left_leg": "Левая нога",
   "body_part.stonebanner.right_leg": "Правая нога",
-
   "injury.stonebanner.normal": "Норма",
   "injury.stonebanner.wounded": "Ранение",
   "injury.stonebanner.heavy_wound": "Тяжёлое ранение",
   "injury.stonebanner.fracture": "Перелом",
   "injury.stonebanner.missing": "Отсутствует",
-
   "brain_state.stonebanner.idle": "Ожидает",
   "brain_state.stonebanner.move": "Идёт",
   "brain_state.stonebanner.follow": "Следует",
@@ -154,7 +142,6 @@
   "brain_state.stonebanner.travel": "Путешествует",
   "brain_state.stonebanner.migrate": "Переселяется",
   "brain_state.stonebanner.return_home": "Возвращается домой",
-
   "work_type.stonebanner.emergency": "Экстренная работа",
   "work_type.stonebanner.treatment": "Помощь раненым",
   "work_type.stonebanner.farming": "Земледелие",
@@ -166,7 +153,6 @@
   "work_type.stonebanner.hauling": "Переноска",
   "work_type.stonebanner.trading": "Торговля",
   "work_type.stonebanner.guard": "Охрана",
-
   "work_short.stonebanner.emergency": "Срч",
   "work_short.stonebanner.treatment": "Леч",
   "work_short.stonebanner.farming": "Ферм",
@@ -178,12 +164,29 @@
   "work_short.stonebanner.hauling": "Пер",
   "work_short.stonebanner.trading": "Торг",
   "work_short.stonebanner.guard": "Охр",
-
   "designation.stonebanner.chop": "Рубить",
   "designation.stonebanner.mine": "Добывать",
   "designation.stonebanner.excavate": "Объёмная выемка",
   "designation.stonebanner.tunnel": "Тоннель",
   "designation.stonebanner.clear": "Расчистить",
   "designation.stonebanner.cancel": "Отменить",
-  "entity.stonebanner.human_npc": "Человек"
+  "entity.stonebanner.human_npc": "Человек",
+  "ore.stonebanner.discovered": "Обнаружена рудная жила",
+  "ore.stonebanner.details": "Открыто блоков: %s · %s, %s, %s",
+  "ore.stonebanner.waiting": "Добыча ожидает разрешения",
+  "ore.stonebanner.allowed_zone": "Разрешено в пределах зоны добычи",
+  "ore.stonebanner.approve": "Разрешить добычу",
+  "ore.stonebanner.show": "Показать жилу",
+  "ore.stonebanner.focus": "Перейти к жиле",
+  "ore.stonebanner.hide": "Скрыть",
+  "ore.stonebanner.journal": "Обнаруженные жилы",
+  "ore.stonebanner.return": "Вернуться к герою",
+  "ore.stonebanner.empty": "Пока нет обнаруженных жил",
+  "ore.stonebanner.too_far": "Жила слишком далеко для приказа",
+  "ore.stonebanner.approved": "Добыча разведанных блоков в текущей зоне разрешена",
+  "ore.stonebanner.expand_zone": "Разрешение сохранено. Расширьте зону добычи до жилы.",
+  "ore.stonebanner.unloaded": "Участок не загружен. Подойдите ближе к жиле.",
+  "ore.stonebanner.open_hint": "Журнал находок: %s",
+  "key.stonebanner.ore_journal": "Журнал обнаруженных жил",
+  "ore.stonebanner.focus_hint": "Камера у жилы · Вернуться: журнал %s"
 }

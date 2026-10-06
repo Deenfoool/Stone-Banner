@@ -212,6 +212,12 @@ public final class ExcavationPlanData extends SavedData {
         return new ExtensionResult(ExtensionStatus.EXTENDED, addedTargets);
     }
 
+    /** Whether a target belongs to an active designated volume, including its future slices. */
+    public boolean containsActiveTarget(BlockPos target) {
+        return target != null && plans.values().stream()
+                .anyMatch(plan -> plan.currentSliceInsideBounds() && plan.contains(target));
+    }
+
     /**
      * Exposes immutable geometry only for a target in the currently active slice.
      * Runtime safety code uses this instead of reaching into persistent plan internals.

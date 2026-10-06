@@ -30,11 +30,16 @@ public final class ClientKeyMappings {
             CATEGORY
     );
 
+    public static final KeyMapping ORE_JOURNAL = new KeyMapping(
+            "key.stonebanner.ore_journal", KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
+
     private ClientKeyMappings() {
     }
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(ORE_JOURNAL);
         event.register(CYCLE_CONTROL_MODE);
         event.register(CYCLE_DESIGNATION_MODE);
     }

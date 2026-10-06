@@ -1,6 +1,8 @@
 package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.network.packet.OreDiscoverySnapshotPacket;
+import dev.stonebanner.network.packet.OreDiscoveryActionPacket;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.CitizenInventorySnapshotPacket;
@@ -24,7 +26,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "6";
+    private static final String PROTOCOL_VERSION = "7";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -45,6 +47,12 @@ public final class StoneBannerNetwork {
         }
         registered = true;
 
+        CHANNEL.registerMessage(nextPacketId++, OreDiscoverySnapshotPacket.class,
+                OreDiscoverySnapshotPacket::encode, OreDiscoverySnapshotPacket::decode,
+                OreDiscoverySnapshotPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextPacketId++, OreDiscoveryActionPacket.class,
+                OreDiscoveryActionPacket::encode, OreDiscoveryActionPacket::decode,
+                OreDiscoveryActionPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(
                 nextPacketId++,
                 MoveCitizenPacket.class,
@@ -108,6 +116,14 @@ public final class StoneBannerNetwork {
                 StorageSummaryPacket::decode,
                 StorageSummaryPacket::handle
         );
+    }
+
+    public static void sendOreAction(long id, boolean approve) {
+        CHANNEL.sendToServer(new OreDiscoveryActionPacket(id, approve));
+    }
+
+    public static void sendOreFindings(ServerPlayer player, List<OreDiscoverySnapshotPacket.Finding> findings) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OreDiscoverySnapshotPacket(findings));
     }
 
     public static void sendMoveCitizen(int entityId, BlockPos target) {

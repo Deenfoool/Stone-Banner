@@ -1,11 +1,14 @@
 package dev.stonebanner.designation;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ExcavationPlanDataTest {
     @Test
@@ -28,6 +31,10 @@ class ExcavationPlanDataTest {
 
         ExcavationPlanData loaded = ExcavationPlanData.load(root);
         assertEquals(1, loaded.activePlanCount());
+        assertTrue(loaded.containsActiveTarget(new BlockPos(3, 24, 5)));
+        assertTrue(loaded.containsActiveTarget(new BlockPos(3, 20, 5)));
+        assertFalse(loaded.containsActiveTarget(new BlockPos(6, 24, 5)));
+        assertFalse(loaded.containsActiveTarget(null));
 
         CompoundTag saved = loaded.save(new CompoundTag());
         assertEquals(9L, saved.getLong("NextId"));

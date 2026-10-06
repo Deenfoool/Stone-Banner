@@ -4,6 +4,7 @@ import dev.stonebanner.designation.ExcavationEgressSafety;
 import dev.stonebanner.designation.ExcavationLadderAutomation;
 import dev.stonebanner.designation.ExcavationLadderTaskData;
 import dev.stonebanner.designation.ExcavationOreDiscovery;
+import dev.stonebanner.designation.OreDiscoveryData;
 import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
@@ -139,6 +140,12 @@ public final class CitizenWorkController {
             }
             if (!isJobStillValid(level, job)) {
                 board.remove(job.id());
+                continue;
+            }
+            if (job.workType() == WorkType.MINING
+                    && ExcavationPlanData.forLevel(level).containsActiveTarget(job.target())
+                    && OreDiscoveryData.forLevel(level).at(job.target())
+                        .map(finding -> !finding.approved()).orElse(false)) {
                 continue;
             }
             if (!isJobActionable(level, job)) {
@@ -374,6 +381,11 @@ public final class CitizenWorkController {
                 return;
             }
             ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+            if (plans.containsActiveTarget(currentJob.target())
+                    && !ExcavationOreDiscovery.mayMine(level, currentJob.target())) {
+                deferUnsafeExcavation(level);
+                return;
+            }
             if (!ExcavationEgressSafety.canSafelyMine(
                     level,
                     plans,

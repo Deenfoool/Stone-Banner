@@ -20,6 +20,8 @@ public final class ClientHudEvents {
             return;
         }
 
+        OreDiscoveryHud.render(event.getGuiGraphics(), minecraft,
+                event.getWindow().getGuiScaledWidth(), event.getWindow().getGuiScaledHeight());
         StoneBannerHudRenderer.render(
                 event.getGuiGraphics(),
                 minecraft,

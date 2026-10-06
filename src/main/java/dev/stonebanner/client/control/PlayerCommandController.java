@@ -1,5 +1,6 @@
 package dev.stonebanner.client.control;
 
+import dev.stonebanner.client.camera.RpgCameraController;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.config.ClientConfig;
@@ -185,6 +186,8 @@ public final class PlayerCommandController {
             return;
         }
 
+        if (event.getInput().forwardImpulse != 0 || event.getInput().leftImpulse != 0)
+            RpgCameraController.clearFocus();
         if (ClientConfig.controlMode() != ControlMode.TACTICAL) {
             return;
         }

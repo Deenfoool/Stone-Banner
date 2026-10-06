@@ -36,6 +36,34 @@ public final class RpgCameraController {
     private static float lastPlayerPitch;
     private static boolean rotatingCamera;
     private static int saveCountdown;
+    private static Vec3 focusTarget;
+    private static Vec3 focusAnchor;
+    private static Vec3 previousFocusAnchor;
+
+    public static void focusOn(net.minecraft.core.BlockPos pos) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null || !mc.level.hasChunkAt(pos)) return;
+        initializeOrientationIfNeeded(mc.player);
+        focusAnchor = mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        previousFocusAnchor = focusAnchor;
+        // Focus the exposed face, not a point inside ore or the roof of a narrow tunnel.
+        Vec3 center = Vec3.atCenterOf(pos);
+        Vec3 look = new Vec3(mc.gameRenderer.getMainCamera().getLookVector());
+        double bestScore = -Double.MAX_VALUE;
+        Vec3 target = center;
+        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+            var neighbor = pos.relative(direction);
+            if (!mc.level.hasChunkAt(neighbor)
+                    || !mc.level.getBlockState(neighbor).getCollisionShape(mc.level, neighbor).isEmpty()) continue;
+            Vec3 offset = new Vec3(direction.getStepX(), direction.getStepY(), direction.getStepZ());
+            double score = -look.dot(offset);
+            if (score > bestScore) { bestScore = score; target = center.add(offset.scale(.6)); }
+        }
+        focusTarget = target;
+    }
+    public static boolean hasFocus() { return focusTarget != null; }
+    public static void clearFocus() { focusTarget = null; focusAnchor = null; previousFocusAnchor = null; }
+
 
     private RpgCameraController() {
     }
@@ -46,6 +74,12 @@ public final class RpgCameraController {
             return;
         }
 
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null || trackedPlayer != mc.player) clearFocus();
+        if (focusTarget != null) {
+            previousFocusAnchor = focusAnchor;
+            focusAnchor = focusAnchor.lerp(focusTarget, .22);
+        }
         ensureInitialized();
         updateSmoothedDistance();
         saveChangedDistanceWhenReady();
@@ -118,6 +152,7 @@ public final class RpgCameraController {
         Vec3 anchor = focusedEntity.getEyePosition(partialTick)
                 .add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
 
+        if (focusTarget != null) anchor = previousFocusAnchor.lerp(focusAnchor, partialTick);
         camera.setPosition(anchor);
         double collisionSafeDistance = camera.getMaxZoom(currentDistance);
         Vector3f look = camera.getLookVector();

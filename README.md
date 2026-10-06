@@ -20,7 +20,7 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.9`.
+Version: `0.1.0-alpha.10`.
 
 - Forge project foundation and dedicated client configuration.
 - Action, tactical, and hybrid control modes.
@@ -51,7 +51,11 @@ Version: `0.1.0-alpha.9`.
 - World-cursor projection uses the camera's updated orientation vectors and rendered FOV.
 - A small world-space marker shows the exact ray impact point before clicking.
 - Camera settings persist in `config/stonebanner-client.toml`.
-- Excavation safety queries require an exact route through the access structure to an exterior cell, avoiding the block being mined and ladder attachments that would be removed. Verification of this change is pending; see the roadmap.
+- Exposed ore discoveries have Allow mining, Show vein, Go to vein and Dismiss actions.
+- Press `N` (rebindable) to open the ore discovery journal, including dismissed findings.
+- Mining permission covers surveyed blocks within an existing excavation zone. New exposed blocks require renewed permission; outside-zone ore requires extending the designation.
+- Camera focus moves to a loaded vein without teleporting the hero; use Return to hero in the journal to restore the camera.
+- Excavation safety queries require an exact route through the access structure to an exterior cell, avoiding the block being mined and ladder attachments that would be removed. Automated tests and the build pass; in-game verification is pending. See the roadmap.
 
 The pathfinder now has prototype handling for stairs, bottom slabs, water, wooden doors, ladders,
 trapdoors and open iron doors. Closed iron access still requires a player-operated redstone mechanism.

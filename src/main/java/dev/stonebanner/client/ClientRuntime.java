@@ -1,5 +1,7 @@
 package dev.stonebanner.client;
 
+import dev.stonebanner.client.control.OreDiscoveryState;
+import dev.stonebanner.client.screen.OreDiscoveriesScreen;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.ControlMode;
@@ -31,6 +33,11 @@ public final class ClientRuntime {
             return;
         }
 
+        OreDiscoveryState.checkWorld();
+        while (ClientKeyMappings.ORE_JOURNAL.consumeClick()) {
+            if (!(minecraft.screen instanceof OreDiscoveriesScreen))
+                minecraft.setScreen(new OreDiscoveriesScreen(minecraft.screen));
+        }
         enforcePerspective(minecraft);
         handleControlModeKey(minecraft);
         synchronizeTacticalScreen(minecraft);

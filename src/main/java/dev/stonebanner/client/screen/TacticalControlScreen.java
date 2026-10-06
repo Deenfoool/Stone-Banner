@@ -1,5 +1,6 @@
 package dev.stonebanner.client.screen;
 
+import dev.stonebanner.client.hud.OreDiscoveryHud;
 import dev.stonebanner.client.ClientKeyMappings;
 import dev.stonebanner.client.ClientRuntime;
 import dev.stonebanner.client.camera.RpgCameraController;
@@ -61,6 +62,7 @@ public final class TacticalControlScreen extends Screen {
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
         ExcavationLadderStatusHud.render(graphics, minecraft, width);
 
+        OreDiscoveryHud.render(graphics, minecraft, width, height);
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
         graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
@@ -168,7 +170,12 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && RpgCameraController.hasFocus()) {
+            RpgCameraController.clearFocus(); return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            if (OreDiscoveryHud.click(mouseX, mouseY, width)) return true;
+            if (RpgCameraController.hasFocus()) { RpgCameraController.clearFocus(); return true; }
             HumanNpcEntity selected = CitizenSelectionController.selected().orElse(null);
             StoneBannerHudRenderer.HudAction hudAction = StoneBannerHudRenderer.actionAt(
                     mouseX, mouseY, width, height, selected != null
@@ -404,6 +411,9 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (ClientKeyMappings.ORE_JOURNAL.matches(keyCode, scanCode)) {
+            minecraft.setScreen(new OreDiscoveriesScreen(this)); return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             minecraft.setScreen(new PauseScreen(true));
             return true;
