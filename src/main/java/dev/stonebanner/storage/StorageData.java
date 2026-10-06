@@ -96,6 +96,31 @@ public final class StorageData extends SavedData {
         return item == null ? 0 : count(level, stack -> stack.is(item));
     }
 
+    /** Finds the nearest loaded registered container holding at least one matching real item. */
+    public Optional<BlockPos> nearestContainerWithItem(ServerLevel level, BlockPos origin,
+                                                       Predicate<ItemStack> predicate, double maxDistance) {
+        if (level == null || origin == null || predicate == null) {
+            return Optional.empty();
+        }
+        double maxDistanceSqr = maxDistance < 0.0D ? Double.POSITIVE_INFINITY : maxDistance * maxDistance;
+        for (BlockPos pos : validLoadedPositions(level, origin)) {
+            if (distanceSquared(origin, pos) > maxDistanceSqr) {
+                continue;
+            }
+            Container container = liveContainer(level, pos).orElse(null);
+            if (container == null) {
+                continue;
+            }
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!stack.isEmpty() && predicate.test(stack)) {
+                    return Optional.of(pos.immutable());
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * Returns the nearest loaded registered container that can accept at least one item from {@code offered}.
      * No inventory is mutated by this query.
@@ -116,6 +141,43 @@ public final class StorageData extends SavedData {
             }
         }
         return Optional.empty();
+    }
+
+    /** Removes matching items from one specific registered container. */
+    public Extraction extractAt(ServerLevel level, BlockPos pos, Predicate<ItemStack> predicate, int amount) {
+        if (level == null || pos == null || predicate == null || amount <= 0
+                || !containerPositions.contains(pos.asLong()) || !level.hasChunkAt(pos)) {
+            return Extraction.EMPTY;
+        }
+        Container container = liveContainer(level, pos).orElse(null);
+        if (container == null) {
+            containerPositions.remove(pos.asLong());
+            setDirty();
+            return Extraction.EMPTY;
+        }
+
+        int remaining = amount;
+        ArrayList<ItemStack> extracted = new ArrayList<>();
+        boolean changed = false;
+        for (int slot = 0; slot < container.getContainerSize() && remaining > 0; slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || !predicate.test(stack)) {
+                continue;
+            }
+            ItemStack removed = container.removeItem(slot, Math.min(remaining, stack.getCount()));
+            if (!removed.isEmpty()) {
+                extracted.add(removed);
+                remaining -= removed.getCount();
+                changed = true;
+            }
+        }
+        if (changed) {
+            container.setChanged();
+        }
+        if (extracted.isEmpty()) {
+            return Extraction.EMPTY;
+        }
+        return new Extraction(List.copyOf(extracted), List.of(pos.immutable()));
     }
 
     /**
