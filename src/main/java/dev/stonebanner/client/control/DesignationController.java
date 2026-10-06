@@ -2,6 +2,7 @@ package dev.stonebanner.client.control;
 
 import dev.stonebanner.designation.DesignationLimits;
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.StoneBannerNetwork;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -12,6 +13,7 @@ import java.util.Optional;
 /** Client-side three-click designation state. Server remains authoritative. */
 public final class DesignationController {
     private static DesignationType activeType;
+    private static ExcavationAccessMode excavationAccessMode = ExcavationAccessMode.AUTO;
     private static BlockPos firstCorner;
     private static BlockPos footprintCorner;
     private static BlockPos hoverCorner;
@@ -20,6 +22,19 @@ public final class DesignationController {
 
     public static boolean isActive() { return activeType != null; }
     public static Optional<DesignationType> activeType() { return Optional.ofNullable(activeType); }
+
+    public static ExcavationAccessMode excavationAccessMode() {
+        return excavationAccessMode;
+    }
+
+    public static void setExcavationAccessMode(ExcavationAccessMode mode) {
+        excavationAccessMode = mode == null ? ExcavationAccessMode.AUTO : mode;
+        clearSelection();
+    }
+
+    public static void cycleExcavationAccessMode() {
+        setExcavationAccessMode(excavationAccessMode.next());
+    }
 
     public static void activate(DesignationType type) {
         activeType = type;
@@ -62,7 +77,7 @@ public final class DesignationController {
             showTooLargeMessage();
             return true;
         }
-        StoneBannerNetwork.sendDesignation(activeType, firstCorner, finalCorner);
+        StoneBannerNetwork.sendDesignation(activeType, firstCorner, finalCorner, excavationAccessMode);
         clearSelection();
         return true;
     }
