@@ -68,7 +68,7 @@ public final class TacticalControlScreen extends Screen {
                             ((BlockHitResult) hit).getBlockPos().getY(),
                             ((BlockHitResult) hit).getBlockPos().getZ()
                     );
-            graphics.drawString(font, targetLabel, 8, 40, 0xFFD8D2C8);
+            graphics.drawString(font, targetLabel, 8, 58, 0xFFD8D2C8);
         });
 
         DesignationController.previewDimensions().ifPresent(dimensions -> graphics.drawString(
@@ -81,7 +81,7 @@ public final class TacticalControlScreen extends Screen {
                         dimensions.volume()
                 ),
                 8,
-                52,
+                70,
                 DesignationController.previewAllowed() ? 0xFFE7C46A : 0xFFFF6868
         ));
     }
@@ -114,30 +114,65 @@ public final class TacticalControlScreen extends Screen {
                     mouseX, mouseY, width, height, selected != null
             );
             switch (hudAction) {
-                case CONSTRUCTION -> {
-                    DesignationController.cycleMode();
+                case CONSUME -> {
+                    return true;
+                }
+                case BOTTOM_BUILD -> {
+                    DesignationController.activate(DesignationType.CHOP);
                     CitizenSelectionController.clear();
                     PlayerCommandController.stop();
                     return true;
                 }
-                case OPEN_WORK -> {
-                    minecraft.setScreen(new CitizenDetailsScreen(
-                            this,
-                            selected.getId(),
-                            CitizenDetailsScreen.Tab.WORK
-                    ));
+                case TOGGLE_BOTTOM_DOCK -> {
+                    StoneBannerHudRenderer.toggleBottomDock();
                     return true;
                 }
                 case TOGGLE_CITIZEN -> {
                     StoneBannerHudRenderer.toggleCitizenPanel();
                     return true;
                 }
-                case OPEN_CITIZEN -> {
-                    minecraft.setScreen(new CitizenDetailsScreen(
-                            this,
-                            selected.getId(),
-                            CitizenDetailsScreen.Tab.OVERVIEW
-                    ));
+                case OPEN_CITIZEN_OVERVIEW -> {
+                    openCitizen(selected, CitizenDetailsScreen.Tab.OVERVIEW);
+                    return true;
+                }
+                case OPEN_CITIZEN_HEALTH -> {
+                    openCitizen(selected, CitizenDetailsScreen.Tab.HEALTH);
+                    return true;
+                }
+                case OPEN_CITIZEN_SKILLS -> {
+                    openCitizen(selected, CitizenDetailsScreen.Tab.SKILLS);
+                    return true;
+                }
+                case OPEN_WORK -> {
+                    openCitizen(selected, CitizenDetailsScreen.Tab.WORK);
+                    return true;
+                }
+                case OPEN_CITIZEN_INVENTORY -> {
+                    openCitizen(selected, CitizenDetailsScreen.Tab.INVENTORY);
+                    return true;
+                }
+                case DESIGNATE_CHOP -> {
+                    activateDesignation(DesignationType.CHOP);
+                    return true;
+                }
+                case DESIGNATE_MINE -> {
+                    activateDesignation(DesignationType.MINE);
+                    return true;
+                }
+                case DESIGNATE_EXCAVATE -> {
+                    activateDesignation(DesignationType.EXCAVATE);
+                    return true;
+                }
+                case DESIGNATE_TUNNEL -> {
+                    activateDesignation(DesignationType.TUNNEL);
+                    return true;
+                }
+                case DESIGNATE_CLEAR -> {
+                    activateDesignation(DesignationType.CLEAR);
+                    return true;
+                }
+                case DESIGNATE_CANCEL -> {
+                    activateDesignation(DesignationType.CANCEL);
                     return true;
                 }
                 case TIME_PAUSE -> {
@@ -203,6 +238,19 @@ public final class TacticalControlScreen extends Screen {
             return true;
         }
         return button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE || super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private void openCitizen(HumanNpcEntity selected, CitizenDetailsScreen.Tab tab) {
+        if (selected == null) {
+            return;
+        }
+        minecraft.setScreen(new CitizenDetailsScreen(this, selected.getId(), tab));
+    }
+
+    private static void activateDesignation(DesignationType type) {
+        DesignationController.activate(type);
+        CitizenSelectionController.clear();
+        PlayerCommandController.stop();
     }
 
     @Override
