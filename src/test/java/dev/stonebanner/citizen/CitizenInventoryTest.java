@@ -34,6 +34,20 @@ class CitizenInventoryTest {
     }
 
     @Test
+    void constructionMaterialsCountAndConsumeOnlyPersonalSlots() {
+        CitizenInventory inventory = new CitizenInventory();
+        inventory.add(new ItemStack(Items.LADDER, 3));
+        inventory.addHaulCargo(new ItemStack(Items.LADDER, 5));
+
+        assertEquals(3, inventory.countPersonalItem(Items.LADDER));
+        ItemStack removed = inventory.removePersonalItem(Items.LADDER, 1);
+        assertTrue(removed.is(Items.LADDER));
+        assertEquals(1, removed.getCount());
+        assertEquals(2, inventory.countPersonalItem(Items.LADDER));
+        assertEquals(5, inventory.firstHaulCargo().orElseThrow().stack().getCount());
+    }
+
+    @Test
     void haulCargoMarkerRoundTripsThroughNbt() {
         CitizenInventory inventory = new CitizenInventory();
         inventory.add(new ItemStack(Items.BREAD, 4));
