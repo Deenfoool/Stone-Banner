@@ -1,6 +1,7 @@
 package dev.stonebanner.citizen;
 
 import dev.stonebanner.designation.ExcavationEgressSafety;
+import dev.stonebanner.designation.ExcavationOreDiscovery;
 import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
@@ -209,12 +210,19 @@ public final class CitizenWorkController {
     private void completeCurrentJob(ServerLevel level) {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        ExcavationPlanData excavationPlans = job.workType() == WorkType.MINING
+                ? ExcavationPlanData.forLevel(level)
+                : null;
+
         boolean completed = switch (job.workType()) {
             case FORESTRY, MINING, CLEARING -> level.destroyBlock(job.target(), true, owner);
             default -> false;
         };
 
         if (completed) {
+            if (job.workType() == WorkType.MINING && excavationPlans != null) {
+                ExcavationOreDiscovery.scanNewlyExposed(level, excavationPlans, job.target());
+            }
             board.complete(job.id(), owner.getUUID());
         } else if (!isJobStillValid(level, job)) {
             board.remove(job.id());
