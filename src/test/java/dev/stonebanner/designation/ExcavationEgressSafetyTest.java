@@ -42,7 +42,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 50, 20,
                 14, 60, 24,
-                0, -1
+                0, 60, -1
         );
 
         List<BlockPos> probes = ExcavationEgressSafety.rawEgressProbes(plan);
@@ -58,7 +58,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 5, 20,
                 14, 60, 24,
-                0, -1
+                0, 5, -1
         );
 
         BlockPos previous = ExcavationEgressSafety.rampSupportAtY(plan, plan.maxY());
@@ -76,7 +76,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 30, 20,
                 10, 45, 24,
-                0, -1
+                0, 40, -1
         );
 
         assertNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
@@ -87,12 +87,12 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView positiveX = new ExcavationPlanData.PlanView(
                 10, 40, 2,
                 30, 42, 4,
-                1, 1
+                1, 10, 1
         );
         ExcavationPlanData.PlanView negativeX = new ExcavationPlanData.PlanView(
                 10, 40, 2,
                 30, 42, 4,
-                1, -1
+                1, 30, -1
         );
 
         assertTrue(ExcavationEgressSafety.rawEgressProbes(positiveX).stream()
