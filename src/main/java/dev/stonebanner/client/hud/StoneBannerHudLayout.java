@@ -85,15 +85,18 @@ public final class StoneBannerHudLayout {
     }
 
     public static Rect bottomDock(int screenWidth, int screenHeight, boolean expanded) {
-        int leftReserved = screenWidth >= 700 ? CITIZEN_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
-        int rightReserved = screenWidth >= 700 ? RIGHT_RAIL_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
+        boolean reserveCorners = screenWidth >= 700;
+        int leftReserved = reserveCorners ? CITIZEN_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
+        int rightReserved = reserveCorners ? RIGHT_RAIL_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
         int available = Math.max(1, screenWidth - leftReserved - rightReserved);
         int desired = Math.min(BOTTOM_DOCK_MAX_WIDTH, available);
         int width = available >= BOTTOM_DOCK_MIN_WIDTH
                 ? Math.max(BOTTOM_DOCK_MIN_WIDTH, desired)
                 : Math.max(1, screenWidth - SCREEN_MARGIN * 2);
         int height = expanded ? BOTTOM_DOCK_EXPANDED_HEIGHT : BOTTOM_DOCK_COLLAPSED_HEIGHT;
-        int x = Math.max(SCREEN_MARGIN, (screenWidth - width) / 2);
+        int x = reserveCorners && available >= BOTTOM_DOCK_MIN_WIDTH
+                ? leftReserved + Math.max(0, (available - width) / 2)
+                : Math.max(SCREEN_MARGIN, (screenWidth - width) / 2);
         int y = Math.max(TOP_HEIGHT + 14, screenHeight - height - SCREEN_MARGIN);
         return new Rect(x, y, width, height);
     }
