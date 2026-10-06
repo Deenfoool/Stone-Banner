@@ -26,21 +26,30 @@ public final class ExcavationEgressSafety {
     }
 
     /**
-     * Controls whether the plan may publish work for its current slice.
-     * The top quarry layer is always allowed; every deeper layer requires the preserved ramp to remain intact.
-     * Tunnel sequencing already advances from its entrance, so its per-block egress guard remains authoritative.
+     * Server-authoritative reason why a plan can or cannot expose its current slice.
+     *
+     * <p>A narrow vertical strip has no valid perimeter ramp and therefore explicitly waits for the future
+     * ladder access mode. A normal quarry with a damaged or obstructed reserved ramp reports BLOCKED.
+     * Horizontal tunnels keep their section-ordering path guard and are READY at plan level.</p>
      */
-    static boolean canExposeCurrentSlice(ServerLevel level, ExcavationPlanData.PlanView plan) {
+    static ExcavationAccessStatus currentSliceAccessStatus(ServerLevel level, ExcavationPlanData.PlanView plan) {
         if (level == null || plan == null) {
-            return false;
+            return ExcavationAccessStatus.NO_PATH;
         }
-        if (plan.modeCode() != 0) {
-            return true;
+        if (plan.modeCode() != 0 || plan.currentSlice() == plan.maxY()) {
+            return ExcavationAccessStatus.READY;
         }
-        if (plan.currentSlice() == plan.maxY()) {
-            return true;
+        if (rampSupportAtY(plan, plan.currentSlice()) == null) {
+            return ExcavationAccessStatus.NEEDS_LADDER;
         }
-        return rampChainIntact(level, plan, plan.currentSlice());
+        return rampChainIntact(level, plan, plan.currentSlice())
+                ? ExcavationAccessStatus.READY
+                : ExcavationAccessStatus.BLOCKED;
+    }
+
+    /** Controls whether the plan may publish work for its current slice. */
+    static boolean canExposeCurrentSlice(ServerLevel level, ExcavationPlanData.PlanView plan) {
+        return currentSliceAccessStatus(level, plan) == ExcavationAccessStatus.READY;
     }
 
     public static boolean canSafelyMine(ServerLevel level, ExcavationPlanData plans,
