@@ -9,13 +9,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.Optional;
 
-/**
- * Client-side three-click designation state. Server remains authoritative.
- *
- * <p>Click 1 fixes the first footprint corner, click 2 fixes the horizontal footprint,
- * and click 3 fixes the vertical depth and submits the volume. Right click walks the
- * selection backwards one completed click at a time.</p>
- */
+/** Client-side three-click designation state. Server remains authoritative. */
 public final class DesignationController {
     private static DesignationType activeType;
     private static BlockPos firstCorner;
@@ -33,7 +27,6 @@ public final class DesignationController {
         return Optional.ofNullable(activeType);
     }
 
-    /** Selects an exact designation tool from HUD buttons instead of forcing the user to cycle through tools. */
     public static void activate(DesignationType type) {
         activeType = type;
         clearSelection();
@@ -60,51 +53,34 @@ public final class DesignationController {
         clearSelection();
     }
 
-    /** Advances the current selection by one click. The third click submits the completed volume. */
     public static boolean click(BlockPos pos) {
-        if (activeType == null || pos == null) {
-            return false;
-        }
-
+        if (activeType == null || pos == null) return false;
         BlockPos immutable = pos.immutable();
         if (firstCorner == null) {
             firstCorner = immutable;
             hoverCorner = immutable;
             return true;
         }
-
         if (footprintCorner == null) {
             footprintCorner = horizontalCorner(immutable);
             hoverCorner = footprintCorner;
             return true;
         }
-
         BlockPos finalCorner = depthCorner(immutable);
         if (!DesignationLimits.isAllowed(firstCorner, finalCorner)) {
             showTooLargeMessage();
             return true;
         }
-
         StoneBannerNetwork.sendDesignation(activeType, firstCorner, finalCorner);
         clearSelection();
         return true;
     }
 
-    /** Updates the live preview for the next click without committing a step. */
     public static void updatePreview(BlockPos pos) {
-        if (activeType == null || firstCorner == null || pos == null) {
-            return;
-        }
-        hoverCorner = footprintCorner == null
-                ? horizontalCorner(pos)
-                : depthCorner(pos);
+        if (activeType == null || firstCorner == null || pos == null) return;
+        hoverCorner = footprintCorner == null ? horizontalCorner(pos) : depthCorner(pos);
     }
 
-    /**
-     * Rewinds exactly one completed click. Returns false when there is no selection step to undo.
-     * Two RMB presses after two LMB clicks therefore return 2 -> 1 -> 0 without disabling the tool;
-     * a further RMB at step 0 may be interpreted by the input layer as leaving the designation tool.
-     */
     public static boolean undoSelectionStep() {
         if (footprintCorner != null) {
             footprintCorner = null;
@@ -122,15 +98,11 @@ public final class DesignationController {
         return firstCorner != null;
     }
 
-    /** Number of already committed LMB steps: 0, 1 or 2. */
     public static int completedClicks() {
-        if (footprintCorner != null) {
-            return 2;
-        }
+        if (footprintCorner != null) return 2;
         return firstCorner == null ? 0 : 1;
     }
 
-    /** Next user-facing step in the three-click workflow. */
     public static SelectionStep nextStep() {
         return switch (completedClicks()) {
             case 0 -> SelectionStep.LENGTH;
@@ -144,22 +116,14 @@ public final class DesignationController {
     }
 
     public static Optional<BlockPos> selectionEnd() {
-        if (firstCorner == null) {
-            return Optional.empty();
-        }
-        if (hoverCorner != null) {
-            return Optional.of(hoverCorner);
-        }
-        return Optional.of(firstCorner);
+        if (firstCorner == null) return Optional.empty();
+        return Optional.ofNullable(hoverCorner == null ? firstCorner : hoverCorner);
     }
 
     public static Optional<DesignationLimits.Dimensions> previewDimensions() {
-        BlockPos start = firstCorner;
         BlockPos end = selectionEnd().orElse(null);
-        if (start == null || end == null) {
-            return Optional.empty();
-        }
-        return Optional.of(DesignationLimits.dimensions(start, end));
+        if (firstCorner == null || end == null) return Optional.empty();
+        return Optional.of(DesignationLimits.dimensions(firstCorner, end));
     }
 
     public static boolean previewAllowed() {
@@ -177,9 +141,7 @@ public final class DesignationController {
 
     private static void showTooLargeMessage() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
-            return;
-        }
+        if (minecraft.player == null) return;
         minecraft.player.displayClientMessage(
                 Component.translatable(
                         "message.stonebanner.designation.too_large",
@@ -197,9 +159,7 @@ public final class DesignationController {
     }
 
     public enum SelectionStep {
-        LENGTH("length"),
-        WIDTH("width"),
-        DEPTH("depth");
+        LENGTH("length"), WIDTH("width"), DEPTH("depth");
 
         private final String serializedName;
 
