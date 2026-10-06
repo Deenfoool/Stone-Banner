@@ -47,9 +47,11 @@ public final class ExcavationEgressSafety {
                 : ExcavationAccessStatus.BLOCKED;
     }
 
-    /** Controls whether the plan may publish work for its current slice. */
+    /** Controls whether the plan may publish work for its current slice and reports a transition once. */
     static boolean canExposeCurrentSlice(ServerLevel level, ExcavationPlanData.PlanView plan) {
-        return currentSliceAccessStatus(level, plan) == ExcavationAccessStatus.READY;
+        ExcavationAccessStatus status = currentSliceAccessStatus(level, plan);
+        ExcavationAccessNotifier.update(level, plan, status);
+        return status == ExcavationAccessStatus.READY;
     }
 
     public static boolean canSafelyMine(ServerLevel level, ExcavationPlanData plans,
@@ -69,19 +71,33 @@ public final class ExcavationEgressSafety {
         }
 
         if (!routeSurvivesRemoval(workerFeet, target, List.of())) {
+            ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.BLOCKED);
             return false;
         }
 
         if (plan.modeCode() == 0) {
-            return canReachReservedRamp(level, plan, workerFeet, target);
+            ExcavationAccessStatus sliceStatus = currentSliceAccessStatus(level, plan);
+            if (sliceStatus != ExcavationAccessStatus.READY) {
+                ExcavationAccessNotifier.update(level, plan, sliceStatus);
+                return false;
+            }
+            boolean safe = canReachReservedRamp(level, plan, workerFeet, target);
+            ExcavationAccessNotifier.update(
+                    level,
+                    plan,
+                    safe ? ExcavationAccessStatus.READY : ExcavationAccessStatus.NO_PATH
+            );
+            return safe;
         }
 
         for (BlockPos egress : egressCandidates(level, plan, workerFeet)) {
             Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, egress);
             if (route.isPresent() && routeSurvivesRemoval(workerFeet, target, route.get())) {
+                ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.READY);
                 return true;
             }
         }
+        ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.NO_PATH);
         return false;
     }
 
