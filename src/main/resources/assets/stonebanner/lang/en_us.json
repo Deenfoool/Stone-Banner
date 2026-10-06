@@ -307,5 +307,15 @@
   "message.stonebanner.interaction_unreachable": "No accessible route to the interaction target.",
   "hud.stonebanner.hero.controls": "V: WASD / mouse · RMB: action · LMB: interact · Space: up · Ctrl: down · Tab: orders",
   "hud.stonebanner.commands.controls": "Orders · LMB: select / drag box · Shift: add · RMB: order · edges: camera · Tab: hero",
-  "hud.stonebanner.selection_count": "Selected citizens: %s"
+  "hud.stonebanner.selection_count": "Selected citizens: %s",
+  "delivery.stonebanner.idle": "Awaiting delivery",
+  "delivery.stonebanner.travelling": "Carrying to storage",
+  "delivery.stonebanner.depositing": "Depositing cargo",
+  "delivery.stonebanner.waiting_storage": "No accepting storage",
+  "delivery.stonebanner.blocked_route": "No reachable storage",
+  "delivery.stonebanner.paused_needs": "Needs or danger",
+  "delivery.stonebanner.player_command": "Following direct order",
+  "screen.stonebanner.citizen.cargo": "Carried cargo",
+  "screen.stonebanner.citizen.delivery": "Delivery",
+  "hud.stonebanner.cargo": "Cargo: %s · %s"
 }

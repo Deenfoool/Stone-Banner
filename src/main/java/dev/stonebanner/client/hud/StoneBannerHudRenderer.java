@@ -398,6 +398,11 @@ public final class StoneBannerHudRenderer {
                 font.plainSubstrByWidth(activity.getString(), Math.max(35, card.width() - infoX + card.x() - 30)),
                 infoX, card.y() + 33, ACCENT, false);
 
+        if (citizenPanelExpanded && npc.hudCargoCount() > 0) {
+            String delivery = Component.translatable("hud.stonebanner.cargo", npc.hudCargoCount(),
+                    Component.translatable(npc.hudDeliveryStatus().key())).getString();
+            graphics.drawString(font, font.plainSubstrByWidth(delivery, card.width() - 16), card.x() + 8, card.y() + 52, MUTED, false);
+        }
         int toggleX = card.x() + card.width() - 27;
         inset(graphics, toggleX, card.y() + 5, 22, 22, true);
         graphics.drawCenteredString(font, citizenPanelExpanded ? "−" : "+", toggleX + 11, card.y() + 12, ACCENT);

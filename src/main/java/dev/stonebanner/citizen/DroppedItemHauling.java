@@ -7,7 +7,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 
 import java.util.List;
-import java.util.Optional;
 
 /** Bridges physical ItemEntity drops into persistent HAULING jobs without virtualizing the items. */
 public final class DroppedItemHauling {
@@ -20,12 +19,8 @@ public final class DroppedItemHauling {
         return !itemsAt(level, target).isEmpty();
     }
 
-    public static Optional<ItemStack> firstStack(ServerLevel level, BlockPos target) {
-        return itemsAt(level, target).stream()
-                .map(ItemEntity::getItem)
-                .filter(stack -> !stack.isEmpty())
-                .findFirst()
-                .map(ItemStack::copy);
+    public static List<ItemStack> stacksAt(ServerLevel level, BlockPos target) {
+        return itemsAt(level, target).stream().map(ItemEntity::getItem).filter(stack -> !stack.isEmpty()).map(ItemStack::copy).toList();
     }
 
     /** Publish one location job; CitizenJobBoard deduplicates HAULING jobs at the same target. */

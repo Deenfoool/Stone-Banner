@@ -307,5 +307,15 @@
   "message.stonebanner.interaction_unreachable": "Нет доступного пути к цели взаимодействия.",
   "hud.stonebanner.hero.controls": "V: WASD / мышь · ПКМ: действие · ЛКМ: использовать · Space: вверх · Ctrl: вниз · Tab: приказы",
   "hud.stonebanner.commands.controls": "Приказы · ЛКМ: выбор / рамка · Shift: добавить · ПКМ: приказ · края: камера · Tab: герой",
-  "hud.stonebanner.selection_count": "Выбрано жителей: %s"
+  "hud.stonebanner.selection_count": "Выбрано жителей: %s",
+  "delivery.stonebanner.idle": "Ожидает доставки",
+  "delivery.stonebanner.travelling": "Несёт на склад",
+  "delivery.stonebanner.depositing": "Выгружает груз",
+  "delivery.stonebanner.waiting_storage": "Нет места на складе",
+  "delivery.stonebanner.blocked_route": "Нет доступного пути",
+  "delivery.stonebanner.paused_needs": "Потребности или опасность",
+  "delivery.stonebanner.player_command": "Выполняет прямой приказ",
+  "screen.stonebanner.citizen.cargo": "Переносимый груз",
+  "screen.stonebanner.citizen.delivery": "Доставка",
+  "hud.stonebanner.cargo": "Груз: %s · %s"
 }

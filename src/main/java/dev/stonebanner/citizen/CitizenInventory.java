@@ -163,15 +163,6 @@ public final class CitizenInventory {
         return false;
     }
 
-    public Optional<HaulCargo> firstHaulCargo() {
-        for (int index = 0; index < SLOT_COUNT; index++) {
-            if (haulCargo[index] && !slots.get(index).isEmpty()) {
-                return Optional.of(new HaulCargo(index, slots.get(index).copy()));
-            }
-        }
-        return Optional.empty();
-    }
-
     public List<HaulCargo> haulCargoSnapshot() {
         ArrayList<HaulCargo> cargo = new ArrayList<>();
         for (int index = 0; index < SLOT_COUNT; index++) {

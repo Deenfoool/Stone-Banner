@@ -30,7 +30,7 @@ class CitizenInventoryTest {
         assertEquals(12, inventory.stack(0).getCount());
         assertEquals(20, inventory.stack(1).getCount());
         assertTrue(inventory.hasHaulCargo());
-        assertEquals(1, inventory.firstHaulCargo().orElseThrow().slot());
+        assertEquals(1, inventory.haulCargoSnapshot().get(0).slot());
     }
 
     @Test
@@ -44,7 +44,7 @@ class CitizenInventoryTest {
         assertTrue(removed.is(Items.LADDER));
         assertEquals(1, removed.getCount());
         assertEquals(2, inventory.countPersonalItem(Items.LADDER));
-        assertEquals(5, inventory.firstHaulCargo().orElseThrow().stack().getCount());
+        assertEquals(5, inventory.haulCargoSnapshot().get(0).stack().getCount());
     }
 
     @Test
@@ -60,7 +60,7 @@ class CitizenInventoryTest {
         assertTrue(loaded.stack(0).is(Items.BREAD));
         assertTrue(loaded.stack(1).is(Items.IRON_ORE));
         assertTrue(loaded.hasHaulCargo());
-        CitizenInventory.HaulCargo cargo = loaded.firstHaulCargo().orElseThrow();
+        CitizenInventory.HaulCargo cargo = loaded.haulCargoSnapshot().get(0);
         assertEquals(1, cargo.slot());
         assertEquals(7, cargo.stack().getCount());
 

@@ -121,26 +121,20 @@ public final class StorageData extends SavedData {
         return Optional.empty();
     }
 
-    /**
-     * Returns the nearest loaded registered container that can accept at least one item from {@code offered}.
-     * No inventory is mutated by this query.
-     */
-    public Optional<BlockPos> nearestAcceptingContainer(ServerLevel level, BlockPos origin,
-                                                        ItemStack offered, double maxDistance) {
-        if (level == null || origin == null || offered == null || offered.isEmpty()) {
-            return Optional.empty();
-        }
-        double maxDistanceSqr = maxDistance < 0.0D ? Double.POSITIVE_INFINITY : maxDistance * maxDistance;
+    /** Loaded, nearest-first candidates accepting any carried stack; query does not move items. */
+    public List<BlockPos> acceptingContainers(ServerLevel level, BlockPos origin,
+                                             List<ItemStack> offered, double maxDistance) {
+        if (level == null || origin == null || offered == null || offered.isEmpty()) return List.of();
+        double maxDistanceSqr = maxDistance < 0 ? Double.POSITIVE_INFINITY : maxDistance * maxDistance;
+        List<BlockPos> result = new ArrayList<>();
         for (BlockPos pos : validLoadedPositions(level, origin)) {
-            if (distanceSquared(origin, pos) > maxDistanceSqr) {
-                continue;
-            }
+            if (distanceSquared(origin, pos) > maxDistanceSqr) continue;
             Container container = liveContainer(level, pos).orElse(null);
-            if (container != null && canAccept(container, offered)) {
-                return Optional.of(pos.immutable());
+            if (container != null && canAcceptAny(container, offered)) {
+                result.add(pos.immutable());
             }
         }
-        return Optional.empty();
+        return List.copyOf(result);
     }
 
     /** Removes matching items from one specific registered container. */
@@ -301,27 +295,31 @@ public final class StorageData extends SavedData {
         return entity instanceof Container container ? Optional.of(container) : Optional.empty();
     }
 
-    private static boolean canAccept(Container container, ItemStack offered) {
+    static boolean canAcceptAny(Container container, List<ItemStack> offered) {
+        return offered.stream().anyMatch(stack -> stack != null && !stack.isEmpty() && canAccept(container, stack));
+    }
+
+    static boolean canAccept(Container container, ItemStack offered) {
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack existing = container.getItem(slot);
-            if (!existing.isEmpty() && ItemStack.isSameItemSameTags(existing, offered)) {
+            if (!existing.isEmpty() && container.canPlaceItem(slot, offered) && ItemStack.isSameItemSameTags(existing, offered)) {
                 int limit = Math.min(container.getMaxStackSize(), existing.getMaxStackSize());
                 if (existing.getCount() < limit) {
                     return true;
                 }
             }
-            if (existing.isEmpty() && container.canPlaceItem(slot, offered)) {
+            if (existing.isEmpty() && container.canPlaceItem(slot, offered) && Math.min(container.getMaxStackSize(), offered.getMaxStackSize()) > 0) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean insertInto(Container container, ItemStack remaining) {
+    static boolean insertInto(Container container, ItemStack remaining) {
         boolean changed = false;
         for (int slot = 0; slot < container.getContainerSize() && !remaining.isEmpty(); slot++) {
             ItemStack existing = container.getItem(slot);
-            if (existing.isEmpty() || !ItemStack.isSameItemSameTags(existing, remaining)) {
+            if (existing.isEmpty() || !container.canPlaceItem(slot, remaining) || !ItemStack.isSameItemSameTags(existing, remaining)) {
                 continue;
             }
             int limit = Math.min(container.getMaxStackSize(), existing.getMaxStackSize());

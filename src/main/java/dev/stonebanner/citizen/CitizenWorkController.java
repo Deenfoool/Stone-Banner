@@ -55,6 +55,13 @@ public final class CitizenWorkController {
     private double workProgress;
 
     private CargoPhase cargoPhase = CargoPhase.IDLE;
+    private dev.stonebanner.storage.DeliveryStatus deliveryStatus = dev.stonebanner.storage.DeliveryStatus.IDLE;
+    private final java.util.Map<BlockPos, Long> failedCargoStorages = new java.util.HashMap<>();
+    private final java.util.Map<BlockPos, Optional<BlockPos>> storageApproachCache = new java.util.HashMap<>();
+    private long storageRouteTick = Long.MIN_VALUE;
+    private int storageRouteBudget;
+    private record DeliveryRoute(BlockPos storage, BlockPos approach) {}
+    public dev.stonebanner.storage.DeliveryStatus deliveryStatus() { return deliveryStatus; }
     private BlockPos cargoStorageTarget;
     private int cargoRetryCooldown;
 
@@ -427,55 +434,61 @@ public final class CitizenWorkController {
                 owner.commandController().stop();
             }
             cargoPhase = CargoPhase.WAITING_STORAGE;
+            deliveryStatus = dev.stonebanner.storage.DeliveryStatus.PAUSED_NEEDS;
             cargoStorageTarget = null;
             return;
         }
 
+        // Manual Move/Follow/Attack commands take precedence over an idle/waiting delivery.
+        if (cargoPhase != CargoPhase.TRAVELLING && owner.commandController().hasActiveCommand()) {
+            deliveryStatus = dev.stonebanner.storage.DeliveryStatus.PLAYER_COMMAND;
+            return;
+        }
         if (cargoRetryCooldown > 0) {
             cargoRetryCooldown--;
             return;
         }
 
         if (cargoStorageTarget == null) {
-            CitizenInventory.HaulCargo cargo = inventory.firstHaulCargo().orElse(null);
-            if (cargo == null) {
-                resetCargoDelivery();
-                return;
-            }
-
             StorageData storage = StorageData.forLevel(level);
-            BlockPos storageTarget = storage.nearestAcceptingContainer(
-                    level,
-                    owner.blockPosition(),
-                    cargo.stack(),
-                    STORAGE_SEARCH_RADIUS
-            ).orElse(null);
-            if (storageTarget == null || !owner.citizenData().canTravelTo(storageTarget)) {
+            var offered = inventory.haulCargoSnapshot().stream().map(CitizenInventory.HaulCargo::stack).toList();
+            var candidates = storage.acceptingContainers(level, owner.blockPosition(), offered, STORAGE_SEARCH_RADIUS);
+            var route = dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 8, target -> {
+                if (!owner.citizenData().canTravelTo(target)
+                        || level.getGameTime() < failedCargoStorages.getOrDefault(target, Long.MIN_VALUE)) return Optional.<DeliveryRoute>empty();
+                return findReachableStorageApproach(level, target).map(approach -> new DeliveryRoute(target, approach));
+            });
+            if (route.isEmpty()) {
                 cargoPhase = CargoPhase.WAITING_STORAGE;
+                deliveryStatus = candidates.isEmpty() ? dev.stonebanner.storage.DeliveryStatus.WAITING_STORAGE
+                        : dev.stonebanner.storage.DeliveryStatus.BLOCKED_ROUTE;
                 cargoRetryCooldown = CARGO_RETRY_TICKS;
                 owner.setBrainState(CitizenBrainState.IDLE);
                 return;
             }
-
-            BlockPos approach = findApproachPosition(level, storageTarget).orElse(null);
-            if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+            DeliveryRoute selected = route.get();
+            if (!owner.commandController().issueSystemMove(selected.approach(), CitizenBrainState.WORK)) {
+                rememberFailedStorage(level, selected.storage());
                 cargoPhase = CargoPhase.WAITING_STORAGE;
+                deliveryStatus = dev.stonebanner.storage.DeliveryStatus.BLOCKED_ROUTE;
                 cargoRetryCooldown = CARGO_RETRY_TICKS;
-                owner.setBrainState(CitizenBrainState.IDLE);
                 return;
             }
-
-            cargoStorageTarget = storageTarget.immutable();
+            cargoStorageTarget = selected.storage();
             cargoPhase = CargoPhase.TRAVELLING;
+            deliveryStatus = dev.stonebanner.storage.DeliveryStatus.TRAVELLING;
             owner.setBrainState(CitizenBrainState.WORK);
             return;
         }
 
         if (cargoPhase == CargoPhase.TRAVELLING) {
-            if (isWithinWorkRange(cargoStorageTarget)) {
+            if (isWithinWorkRange(cargoStorageTarget) && storageVisible(level, owner.getEyePosition(), cargoStorageTarget)) {
                 owner.commandController().stop();
                 cargoPhase = CargoPhase.DEPOSITING;
+                deliveryStatus = dev.stonebanner.storage.DeliveryStatus.DEPOSITING;
             } else if (!owner.commandController().hasActiveCommand()) {
+                rememberFailedStorage(level, cargoStorageTarget);
+                deliveryStatus = dev.stonebanner.storage.DeliveryStatus.BLOCKED_ROUTE;
                 cargoStorageTarget = null;
                 cargoPhase = CargoPhase.WAITING_STORAGE;
                 cargoRetryCooldown = CARGO_RETRY_TICKS;
@@ -484,6 +497,12 @@ public final class CitizenWorkController {
         }
 
         if (cargoPhase == CargoPhase.DEPOSITING) {
+            if (!isWithinWorkRange(cargoStorageTarget) || !storageVisible(level, owner.getEyePosition(), cargoStorageTarget)) {
+                rememberFailedStorage(level, cargoStorageTarget);
+                cargoStorageTarget = null; cargoPhase = CargoPhase.WAITING_STORAGE;
+                deliveryStatus = dev.stonebanner.storage.DeliveryStatus.BLOCKED_ROUTE;
+                cargoRetryCooldown = CARGO_RETRY_TICKS; return;
+            }
             depositCargo(level, cargoStorageTarget);
             if (!inventory.hasHaulCargo()) {
                 resetCargoDelivery();
@@ -493,8 +512,43 @@ public final class CitizenWorkController {
             }
             cargoStorageTarget = null;
             cargoPhase = CargoPhase.WAITING_STORAGE;
+            deliveryStatus = dev.stonebanner.storage.DeliveryStatus.WAITING_STORAGE;
             cargoRetryCooldown = CARGO_RETRY_TICKS;
         }
+    }
+
+    private void rememberFailedStorage(ServerLevel level, BlockPos storage) {
+        failedCargoStorages.entrySet().removeIf(entry -> entry.getValue() <= level.getGameTime());
+        failedCargoStorages.put(storage.immutable(), level.getGameTime() + CARGO_RETRY_TICKS * 3L);
+    }
+
+    private boolean storageVisible(ServerLevel level, Vec3 eyes, BlockPos target) {
+        var hit = level.clip(new net.minecraft.world.level.ClipContext(eyes, Vec3.atCenterOf(target),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, owner));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || hit.getBlockPos().equals(target);
+    }
+
+    /** Try adjacent standing points, including an alternate side of a blocked container. */
+    private Optional<BlockPos> findReachableStorageApproach(ServerLevel level, BlockPos target) {
+        if (storageRouteTick != level.getGameTime()) {
+            storageRouteTick = level.getGameTime(); storageRouteBudget = 24; storageApproachCache.clear();
+        }
+        Optional<BlockPos> cached = storageApproachCache.get(target);
+        if (cached != null) return cached;
+        List<BlockPos> candidates = new ArrayList<>();
+        for (Direction direction : Direction.Plane.HORIZONTAL) for (int dy : new int[]{0, -1, 1}) {
+            BlockPos pos = target.relative(direction).offset(0, dy, 0);
+            if (BlockPathfinder.isWalkable(level, pos)
+                    && storageVisible(level, BlockPathfinder.waypoint(level, pos).add(0, owner.getEyeHeight(), 0), target)) candidates.add(pos);
+        }
+        candidates.sort(Comparator.comparingDouble(pos -> owner.distanceToSqr(Vec3.atCenterOf(pos))));
+        Optional<BlockPos> result = dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 3, pos -> {
+            if (storageRouteBudget <= 0) return Optional.empty();
+            storageRouteBudget--;
+            return BlockPathfinder.findPath(level, owner.blockPosition(), pos).isPresent() ? Optional.of(pos.immutable()) : Optional.empty();
+        });
+        storageApproachCache.put(target.immutable(), result);
+        return result;
     }
 
     private void depositCargo(ServerLevel level, BlockPos storageTarget) {
@@ -631,7 +685,7 @@ public final class CitizenWorkController {
     }
 
     public boolean hasActiveJob() {
-        return currentJob != null || cargoPhase != CargoPhase.IDLE;
+        return currentJob != null || cargoPhase == CargoPhase.TRAVELLING || cargoPhase == CargoPhase.DEPOSITING;
     }
 
     public Optional<CitizenJob> currentJob() {
@@ -699,19 +753,10 @@ public final class CitizenWorkController {
 
     private boolean isJobActionable(ServerLevel level, CitizenJob job) {
         if (job.workType() == WorkType.HAULING) {
-            ItemStack firstDrop = DroppedItemHauling.firstStack(level, job.target()).orElse(null);
-            if (firstDrop == null) {
-                return false;
-            }
-            BlockPos storageTarget = StorageData.forLevel(level).nearestAcceptingContainer(
-                    level,
-                    job.target(),
-                    firstDrop,
-                    STORAGE_SEARCH_RADIUS
-            ).orElse(null);
-            return storageTarget != null
-                    && owner.citizenData().canTravelTo(storageTarget)
-                    && findApproachPosition(level, storageTarget).isPresent();
+            var drops = DroppedItemHauling.stacksAt(level, job.target());
+            var candidates = StorageData.forLevel(level).acceptingContainers(level, job.target(), drops, STORAGE_SEARCH_RADIUS);
+            return dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 8, target ->
+                    owner.citizenData().canTravelTo(target) ? findReachableStorageApproach(level, target) : Optional.<BlockPos>empty()).isPresent();
         }
 
         if (isLadderBuildJob(level, job)) {
@@ -798,6 +843,8 @@ public final class CitizenWorkController {
 
     private void resetCargoDelivery() {
         cargoPhase = CargoPhase.IDLE;
+        deliveryStatus = dev.stonebanner.storage.DeliveryStatus.IDLE;
+        failedCargoStorages.clear();
         cargoStorageTarget = null;
         cargoRetryCooldown = 0;
     }

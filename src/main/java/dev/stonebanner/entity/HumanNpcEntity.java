@@ -89,6 +89,11 @@ public class HumanNpcEntity extends PathfinderMob {
     private static final EntityDataAccessor<Long> DATA_PRIORITIES_PACKED =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.LONG);
 
+    private static final EntityDataAccessor<Integer> DATA_DELIVERY_STATUS =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_CARGO_COUNT =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+
     private final CitizenCommandController commandController;
     private final CitizenWorkController workController;
     private final CitizenData citizenData;
@@ -122,6 +127,8 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.define(DATA_FATIGUE, 0);
         entityData.define(DATA_DANGER, 0);
         entityData.define(DATA_WORK_TYPE, -1);
+        entityData.define(DATA_DELIVERY_STATUS, 0);
+        entityData.define(DATA_CARGO_COUNT, 0);
         entityData.define(DATA_SKILLS_PACKED, 0);
         entityData.define(DATA_INJURIES_PACKED, 0);
         entityData.define(DATA_PRIORITIES_PACKED, 0L);
@@ -329,6 +336,11 @@ public class HumanNpcEntity extends PathfinderMob {
         return id >= 0 && id < values.length ? values[id] : CitizenProfession.UNEMPLOYED;
     }
 
+    public dev.stonebanner.storage.DeliveryStatus hudDeliveryStatus() {
+        return dev.stonebanner.storage.DeliveryStatus.byId(entityData.get(DATA_DELIVERY_STATUS));
+    }
+    public int hudCargoCount() { return entityData.get(DATA_CARGO_COUNT); }
+
     public int hudHunger() {
         return entityData.get(DATA_HUNGER);
     }
@@ -376,9 +388,10 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.set(DATA_HUNGER, (int) Math.round(citizenData.needs().hunger()));
         entityData.set(DATA_FATIGUE, (int) Math.round(citizenData.needs().fatigue()));
         entityData.set(DATA_DANGER, (int) Math.round(citizenData.needs().danger()));
-        entityData.set(DATA_WORK_TYPE, workController.currentJob()
-                .map(job -> job.workType().ordinal())
-                .orElse(-1));
+        entityData.set(DATA_WORK_TYPE, workController.activeWorkType().map(Enum::ordinal).orElse(-1));
+        entityData.set(DATA_DELIVERY_STATUS, workController.deliveryStatus().ordinal());
+        entityData.set(DATA_CARGO_COUNT, citizenData.inventory().haulCargoSnapshot().stream()
+                .mapToInt(cargo -> cargo.stack().getCount()).sum());
         entityData.set(DATA_SKILLS_PACKED, CitizenHudCodec.packSkills(citizenData));
         entityData.set(DATA_INJURIES_PACKED, CitizenHudCodec.packInjuries(citizenData.health()));
         entityData.set(DATA_PRIORITIES_PACKED, CitizenHudCodec.packPriorities(citizenData));
