@@ -8,6 +8,7 @@ import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.client.control.PlayerCommandController;
 import dev.stonebanner.client.control.WorldCursor;
+import dev.stonebanner.client.hud.ExcavationLadderStatusHud;
 import dev.stonebanner.client.hud.StoneBannerHudRenderer;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.entity.HumanNpcEntity;
@@ -52,6 +53,7 @@ public final class TacticalControlScreen extends Screen {
         }
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
+        ExcavationLadderStatusHud.render(graphics, minecraft, width);
 
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
