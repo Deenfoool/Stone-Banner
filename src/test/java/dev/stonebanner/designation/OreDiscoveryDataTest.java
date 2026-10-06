@@ -35,8 +35,7 @@ class OreDiscoveryDataTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 20, 30,
                 14, 24, 34,
-                0, -1,
-                24
+                0, 24, -1
         );
 
         assertTrue(ExcavationOreDiscovery.insidePlan(plan, new BlockPos(12, 22, 32)));
