@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Bounded A* path query shared by client player control and server-side Citizen navigation.
@@ -55,8 +56,21 @@ public final class BlockPathfinder {
             return Optional.empty();
         }
 
-        BlockPos start = startResult.get();
-        BlockPos goal = goalResult.get();
+        return search(level, startResult.get(), goalResult.get(), node -> true);
+    }
+
+    /** Safety queries must reach the requested cells, never a nearby substitute. */
+    public static Optional<List<BlockPos>> findExactPath(Level level, BlockPos start, BlockPos goal,
+                                                        Predicate<BlockPos> permitted) {
+        if (!isWalkable(level, start) || !isWalkable(level, goal)
+                || !permitted.test(start) || !permitted.test(goal)) {
+            return Optional.empty();
+        }
+        return search(level, start, goal, permitted);
+    }
+
+    private static Optional<List<BlockPos>> search(Level level, BlockPos start, BlockPos goal,
+                                                   Predicate<BlockPos> permitted) {
         if (start.equals(goal)) {
             return Optional.of(List.of());
         }
@@ -85,7 +99,7 @@ public final class BlockPathfinder {
 
             for (BlockPos neighbor : neighbors(level, current, start)) {
                 long neighborKey = neighbor.asLong();
-                if (closed.contains(neighborKey)) {
+                if (closed.contains(neighborKey) || !permitted.test(neighbor)) {
                     continue;
                 }
 

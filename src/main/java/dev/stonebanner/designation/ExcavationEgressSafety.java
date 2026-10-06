@@ -4,12 +4,15 @@ import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Conservative pre-destruction safety check for active excavation plans.
@@ -67,9 +70,7 @@ public final class ExcavationEgressSafety {
             return true;
         }
 
-        boolean standingOnLadderAboveTarget = workerFeet.equals(target.above())
-                && level.getBlockState(workerFeet).is(Blocks.LADDER);
-        if (!standingOnLadderAboveTarget && !routeSurvivesRemoval(workerFeet, target, List.of())) {
+        if (!nodeSurvivesRemoval(workerFeet, target, level::getBlockState)) {
             ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.BLOCKED);
             return false;
         }
@@ -92,15 +93,42 @@ public final class ExcavationEgressSafety {
             return safe;
         }
 
-        for (BlockPos egress : egressCandidates(level, plan, workerFeet)) {
-            Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, egress);
-            if (route.isPresent() && routeSurvivesRemoval(workerFeet, target, route.get())) {
-                ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.READY);
-                return true;
-            }
+        if (canReachExterior(level, plan, workerFeet, target)) {
+            ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.READY);
+            return true;
         }
         ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.NO_PATH);
         return false;
+    }
+
+    /** A ladder can replace ground support, but its wall attachment must survive the excavation. */
+    static boolean nodeSurvivesRemoval(BlockPos node, BlockPos target,
+                                        Function<BlockPos, BlockState> states) {
+        if (node.equals(target)) {
+            return false;
+        }
+        BlockState state = states.apply(node);
+        if (state.is(Blocks.LADDER)) {
+            BlockPos attachment = node.relative(state.getValue(LadderBlock.FACING).getOpposite());
+            return !attachment.equals(target);
+        }
+        return !node.equals(target.above());
+    }
+
+    private static boolean canReachExterior(ServerLevel level, ExcavationPlanData.PlanView plan,
+                                             BlockPos start, BlockPos target) {
+        for (BlockPos exit : egressCandidates(level, plan, start)) {
+            if (safeRoute(level, start, exit, target).isPresent()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Optional<List<BlockPos>> safeRoute(ServerLevel level, BlockPos start,
+                                                     BlockPos goal, BlockPos target) {
+        return BlockPathfinder.findExactPath(level, start, goal,
+                node -> nodeSurvivesRemoval(node, target, level::getBlockState));
     }
 
     static ExcavationAccessMode accessMode(ExcavationPlanData.PlanView plan) {
@@ -121,19 +149,6 @@ public final class ExcavationEgressSafety {
         int sizeX = plan.maxX() - plan.minX() + 1;
         int sizeZ = plan.maxZ() - plan.minZ() + 1;
         return sizeX < 2 || sizeZ < 2;
-    }
-
-    static boolean routeSurvivesRemoval(BlockPos workerFeet, BlockPos target, List<BlockPos> route) {
-        BlockPos unsupportedFeet = target.above();
-        if (workerFeet.equals(target) || workerFeet.equals(unsupportedFeet)) {
-            return false;
-        }
-        for (BlockPos node : route) {
-            if (node.equals(target) || node.equals(unsupportedFeet)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     static List<BlockPos> rawEgressProbes(ExcavationPlanData.PlanView plan) {
@@ -218,7 +233,8 @@ public final class ExcavationEgressSafety {
         }
         for (int y = plan.maxY(); y > plan.currentSlice(); y--) {
             BlockPos ladder = ladderAccessAtY(plan, y);
-            if (!level.hasChunkAt(ladder) || !level.getBlockState(ladder).is(Blocks.LADDER)) {
+            if (!level.hasChunkAt(ladder) || !level.getBlockState(ladder).is(Blocks.LADDER)
+                    || !level.getBlockState(ladder).canSurvive(level, ladder)) {
                 return false;
             }
         }
@@ -227,28 +243,19 @@ public final class ExcavationEgressSafety {
 
     private static boolean canReachLadderExit(ServerLevel level, ExcavationPlanData.PlanView plan,
                                               BlockPos workerFeet, BlockPos target) {
+        if (plan.currentSlice() == plan.maxY()) {
+            return canReachExterior(level, plan, workerFeet, target);
+        }
         if (!hasCompleteLadderAccess(level, plan)) {
             return false;
         }
 
         BlockPos landing = ladderAccessAtY(plan, plan.currentSlice() + 1);
-        if (workerFeet.equals(landing)) {
-            return level.getBlockState(landing).is(Blocks.LADDER);
-        }
-
-        Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, landing);
-        if (route.isEmpty()) {
-            return false;
-        }
-        for (BlockPos node : route.get()) {
-            if (node.equals(target)) {
-                return false;
-            }
-            if (node.equals(target.above()) && !level.getBlockState(node).is(Blocks.LADDER)) {
-                return false;
-            }
-        }
-        return true;
+        BlockPos top = ladderAccessAtY(plan, plan.maxY());
+        // Reaching a ladder at the bottom is insufficient: the shaft must lead outside the work volume.
+        return safeRoute(level, workerFeet, landing, target).isPresent()
+                && safeRoute(level, landing, top, target).isPresent()
+                && canReachExterior(level, plan, top, target);
     }
 
     private static boolean canReachReservedRamp(ServerLevel level, ExcavationPlanData.PlanView plan,
@@ -259,8 +266,10 @@ public final class ExcavationEgressSafety {
         }
 
         BlockPos currentLanding = currentSupport.above();
-        Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, currentLanding);
-        return route.isPresent() && routeSurvivesRemoval(workerFeet, target, route.get());
+        BlockPos topLanding = rampSupportAtY(plan, plan.maxY()).above();
+        return safeRoute(level, workerFeet, currentLanding, target).isPresent()
+                && safeRoute(level, currentLanding, topLanding, target).isPresent()
+                && canReachExterior(level, plan, topLanding, target);
     }
 
     private static boolean rampChainIntact(ServerLevel level, ExcavationPlanData.PlanView plan, int fromY) {
