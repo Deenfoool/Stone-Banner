@@ -15,9 +15,8 @@ import java.util.Optional;
  * Conservative pre-destruction safety check for active excavation plans.
  *
  * <p>The check intentionally uses the current world state and rejects a route if it relies on the block being
- * removed or on the block directly above it. Vertical quarries use their reserved perimeter ramp as the
- * long-distance egress invariant. Narrow shafts may instead use a continuous line of real vanilla ladders.
- * Tunnels validate a real route back through their entrance face.</p>
+ * removed or on the block directly above it. Vertical plans obey their persisted access strategy: physical
+ * perimeter ramp or a continuous line of real vanilla ladders. Tunnels validate a route through the entrance.</p>
  */
 public final class ExcavationEgressSafety {
     private static final int MAX_EGRESS_CANDIDATES = 16;
@@ -34,7 +33,7 @@ public final class ExcavationEgressSafety {
             return ExcavationAccessStatus.READY;
         }
 
-        if (rampSupportAtY(plan, plan.currentSlice()) == null) {
+        if (usesLadderAccess(plan)) {
             return hasCompleteLadderAccess(level, plan)
                     ? ExcavationAccessStatus.READY
                     : ExcavationAccessStatus.NEEDS_LADDER;
@@ -82,7 +81,7 @@ public final class ExcavationEgressSafety {
                 return false;
             }
 
-            boolean safe = rampSupportAtY(plan, target.getY()) == null
+            boolean safe = usesLadderAccess(plan)
                     ? canReachLadderExit(level, plan, workerFeet, target)
                     : canReachReservedRamp(level, plan, workerFeet, target);
             ExcavationAccessNotifier.update(
@@ -102,6 +101,26 @@ public final class ExcavationEgressSafety {
         }
         ExcavationAccessNotifier.update(level, plan, ExcavationAccessStatus.NO_PATH);
         return false;
+    }
+
+    static ExcavationAccessMode accessMode(ExcavationPlanData.PlanView plan) {
+        return plan == null ? ExcavationAccessMode.AUTO : ExcavationAccessMode.byId(plan.accessModeCode());
+    }
+
+    static boolean usesLadderAccess(ExcavationPlanData.PlanView plan) {
+        if (plan == null || plan.modeCode() != 0) {
+            return false;
+        }
+        ExcavationAccessMode mode = accessMode(plan);
+        if (mode == ExcavationAccessMode.LADDERS) {
+            return true;
+        }
+        if (mode == ExcavationAccessMode.RAMP) {
+            return false;
+        }
+        int sizeX = plan.maxX() - plan.minX() + 1;
+        int sizeZ = plan.maxZ() - plan.minZ() + 1;
+        return sizeX < 2 || sizeZ < 2;
     }
 
     static boolean routeSurvivesRemoval(BlockPos workerFeet, BlockPos target, List<BlockPos> route) {
@@ -151,11 +170,12 @@ public final class ExcavationEgressSafety {
         return List.copyOf(probes);
     }
 
-    /** Returns the reserved solid support for one quarry depth, or null for strips too narrow for a ramp. */
+    /** Returns the reserved solid support for one quarry depth, or null when this plan uses ladders. */
     static BlockPos rampSupportAtY(ExcavationPlanData.PlanView plan, int y) {
         int sizeX = plan.maxX() - plan.minX() + 1;
         int sizeZ = plan.maxZ() - plan.minZ() + 1;
-        if (plan.modeCode() != 0 || sizeX < 2 || sizeZ < 2 || y < plan.minY() || y > plan.maxY()) {
+        if (plan.modeCode() != 0 || usesLadderAccess(plan)
+                || sizeX < 2 || sizeZ < 2 || y < plan.minY() || y > plan.maxY()) {
             return null;
         }
 
@@ -178,14 +198,14 @@ public final class ExcavationEgressSafety {
         return new BlockPos(plan.minX(), y, plan.maxZ() - 1 - index);
     }
 
-    /** Deterministic ladder column used by narrow shafts until explicit access placement UI is added. */
+    /** Deterministic ladder column used for ladder-access vertical plans. */
     static BlockPos ladderAccessAtY(ExcavationPlanData.PlanView plan, int y) {
         return new BlockPos(plan.minX(), y, plan.minZ());
     }
 
     /** Number of already-open shaft cells that require ladders before the current slice can be worked. */
     static int requiredLadderCount(ExcavationPlanData.PlanView plan) {
-        if (plan == null || plan.modeCode() != 0 || plan.currentSlice() >= plan.maxY()) {
+        if (plan == null || plan.modeCode() != 0 || !usesLadderAccess(plan) || plan.currentSlice() >= plan.maxY()) {
             return 0;
         }
         return plan.maxY() - plan.currentSlice();
