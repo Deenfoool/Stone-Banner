@@ -1,6 +1,7 @@
 package dev.stonebanner.client.control;
 
 import dev.stonebanner.designation.DesignationType;
+import dev.stonebanner.designation.ExcavationAccessMode;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ class DesignationControllerTest {
     @AfterEach
     void resetController() {
         DesignationController.deactivate();
+        DesignationController.setExcavationAccessMode(ExcavationAccessMode.AUTO);
     }
 
     @Test
@@ -53,5 +55,29 @@ class DesignationControllerTest {
 
         assertFalse(DesignationController.undoSelectionStep());
         assertTrue(DesignationController.isActive());
+    }
+
+    @Test
+    void changingAccessModeClearsOnlyTheInProgressGeometry() {
+        DesignationController.activate(DesignationType.EXCAVATE);
+        DesignationController.click(new BlockPos(4, 70, 4));
+        assertTrue(DesignationController.hasSelectionInProgress());
+
+        DesignationController.setExcavationAccessMode(ExcavationAccessMode.LADDERS);
+
+        assertEquals(ExcavationAccessMode.LADDERS, DesignationController.excavationAccessMode());
+        assertFalse(DesignationController.hasSelectionInProgress());
+        assertTrue(DesignationController.isActive());
+    }
+
+    @Test
+    void accessModeCyclesAutoRampLadders() {
+        DesignationController.setExcavationAccessMode(ExcavationAccessMode.AUTO);
+        DesignationController.cycleExcavationAccessMode();
+        assertEquals(ExcavationAccessMode.RAMP, DesignationController.excavationAccessMode());
+        DesignationController.cycleExcavationAccessMode();
+        assertEquals(ExcavationAccessMode.LADDERS, DesignationController.excavationAccessMode());
+        DesignationController.cycleExcavationAccessMode();
+        assertEquals(ExcavationAccessMode.AUTO, DesignationController.excavationAccessMode());
     }
 }
