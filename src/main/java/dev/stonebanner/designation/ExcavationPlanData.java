@@ -43,6 +43,7 @@ public final class ExcavationPlanData extends SavedData {
     private static final String TAG_MAX_Y = "MaxY";
     private static final String TAG_MAX_Z = "MaxZ";
     private static final String TAG_MODE = "Mode";
+    private static final String TAG_ACCESS_MODE = "AccessMode";
     private static final String TAG_CURRENT_SLICE = "CurrentSlice";
     private static final String TAG_CURRENT_Y_LEGACY = "CurrentY";
     private static final String TAG_STEP = "Step";
@@ -64,7 +65,13 @@ public final class ExcavationPlanData extends SavedData {
 
     /** Creates a top-down quarry plan and publishes only its first non-empty horizontal layer. */
     public int createVertical(ServerLevel level, BlockPos first, BlockPos second) {
-        return create(level, Plan.vertical(nextId++, first, second));
+        return createVertical(level, first, second, ExcavationAccessMode.AUTO);
+    }
+
+    /** Creates a top-down quarry plan using the selected persistent access strategy. */
+    public int createVertical(ServerLevel level, BlockPos first, BlockPos second, ExcavationAccessMode accessMode) {
+        return create(level, Plan.vertical(nextId++, first, second,
+                accessMode == null ? ExcavationAccessMode.AUTO : accessMode));
     }
 
     /**
@@ -202,6 +209,7 @@ public final class ExcavationPlanData extends SavedData {
                     new BlockPos(plan.minX, plan.minY, plan.minZ),
                     new BlockPos(plan.maxX, plan.maxY, plan.maxZ),
                     plan.mode.ordinal(),
+                    plan.accessMode.ordinal(),
                     plan.currentSlice,
                     plan.step,
                     plan.currentSliceInsideBounds() && sliceHasHazard(level, plan)
@@ -227,7 +235,6 @@ public final class ExcavationPlanData extends SavedData {
                 removeCurrentSliceJobs(level, plan);
                 return;
             }
-            // Re-publish missing jobs if the world still contains a target block and access remains safe.
             publishCurrentSlice(level, plan);
             return;
         }
@@ -265,6 +272,7 @@ public final class ExcavationPlanData extends SavedData {
                 plan.maxY,
                 plan.maxZ,
                 plan.mode.ordinal(),
+                plan.accessMode.ordinal(),
                 plan.currentSlice,
                 plan.step
         );
@@ -377,6 +385,7 @@ public final class ExcavationPlanData extends SavedData {
             tag.putInt(TAG_MAX_Y, plan.maxY);
             tag.putInt(TAG_MAX_Z, plan.maxZ);
             tag.putString(TAG_MODE, plan.mode.serializedName());
+            tag.putString(TAG_ACCESS_MODE, plan.accessMode.serializedName());
             tag.putInt(TAG_CURRENT_SLICE, plan.currentSlice);
             tag.putInt(TAG_STEP, plan.step);
             list.add(tag);
@@ -394,6 +403,9 @@ public final class ExcavationPlanData extends SavedData {
             Mode mode = tag.contains(TAG_MODE, Tag.TAG_STRING)
                     ? Mode.fromSerializedName(tag.getString(TAG_MODE))
                     : Mode.VERTICAL;
+            ExcavationAccessMode accessMode = tag.contains(TAG_ACCESS_MODE, Tag.TAG_STRING)
+                    ? ExcavationAccessMode.fromSerializedName(tag.getString(TAG_ACCESS_MODE))
+                    : ExcavationAccessMode.AUTO;
             int currentSlice = tag.contains(TAG_CURRENT_SLICE, Tag.TAG_INT)
                     ? tag.getInt(TAG_CURRENT_SLICE)
                     : tag.getInt(TAG_CURRENT_Y_LEGACY);
@@ -409,6 +421,7 @@ public final class ExcavationPlanData extends SavedData {
                     tag.getInt(TAG_MAX_Y),
                     tag.getInt(TAG_MAX_Z),
                     mode,
+                    accessMode,
                     currentSlice,
                     step
             );
@@ -452,12 +465,13 @@ public final class ExcavationPlanData extends SavedData {
         private final int maxY;
         private final int maxZ;
         private final Mode mode;
+        private final ExcavationAccessMode accessMode;
         private int currentSlice;
         private final int step;
 
         private Plan(long id, int minX, int minY, int minZ,
                      int maxX, int maxY, int maxZ,
-                     Mode mode, int currentSlice, int step) {
+                     Mode mode, ExcavationAccessMode accessMode, int currentSlice, int step) {
             this.id = id;
             this.minX = minX;
             this.minY = minY;
@@ -466,15 +480,16 @@ public final class ExcavationPlanData extends SavedData {
             this.maxY = maxY;
             this.maxZ = maxZ;
             this.mode = mode;
+            this.accessMode = accessMode == null ? ExcavationAccessMode.AUTO : accessMode;
             this.currentSlice = currentSlice;
             this.step = normalizeStep(step);
         }
 
-        private static Plan vertical(long id, BlockPos first, BlockPos second) {
+        private static Plan vertical(long id, BlockPos first, BlockPos second, ExcavationAccessMode accessMode) {
             Bounds bounds = Bounds.from(first, second);
             return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
                     bounds.maxX, bounds.maxY, bounds.maxZ,
-                    Mode.VERTICAL, bounds.maxY, -1);
+                    Mode.VERTICAL, accessMode, bounds.maxY, -1);
         }
 
         private static Plan tunnel(long id, BlockPos first, BlockPos second, BlockPos entranceHint) {
@@ -488,7 +503,7 @@ public final class ExcavationPlanData extends SavedData {
                         <= Math.abs(hint.getX() - bounds.maxX);
                 return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
                         bounds.maxX, bounds.maxY, bounds.maxZ,
-                        Mode.TUNNEL_X,
+                        Mode.TUNNEL_X, ExcavationAccessMode.AUTO,
                         enterFromMin ? bounds.minX : bounds.maxX,
                         enterFromMin ? 1 : -1);
             }
@@ -497,7 +512,7 @@ public final class ExcavationPlanData extends SavedData {
                     <= Math.abs(hint.getZ() - bounds.maxZ);
             return new Plan(id, bounds.minX, bounds.minY, bounds.minZ,
                     bounds.maxX, bounds.maxY, bounds.maxZ,
-                    Mode.TUNNEL_Z,
+                    Mode.TUNNEL_Z, ExcavationAccessMode.AUTO,
                     enterFromMin ? bounds.minZ : bounds.maxZ,
                     enterFromMin ? 1 : -1);
         }
@@ -525,14 +540,22 @@ public final class ExcavationPlanData extends SavedData {
             };
         }
 
-        /**
-         * Default quarry access mode: preserve one block per depth around the perimeter.
-         * Consecutive supports are horizontally adjacent and one block lower, forming a
-         * physical Minecraft staircase/spiral. Narrow 1-block strips wait for the future
-         * ladder access mode instead of pretending they have a safe ramp.
-         */
+        private boolean usesLadderAccess() {
+            if (mode != Mode.VERTICAL) {
+                return false;
+            }
+            if (accessMode == ExcavationAccessMode.LADDERS) {
+                return true;
+            }
+            if (accessMode == ExcavationAccessMode.RAMP) {
+                return false;
+            }
+            return maxX <= minX || maxZ <= minZ;
+        }
+
+        /** Preserve one block per depth around the perimeter only when the selected strategy uses a ramp. */
         private boolean isReservedRampSupport(BlockPos pos) {
-            if (mode != Mode.VERTICAL || maxX <= minX || maxZ <= minZ) {
+            if (mode != Mode.VERTICAL || usesLadderAccess() || maxX <= minX || maxZ <= minZ) {
                 return false;
             }
             if (pos.getY() < minY || pos.getY() > maxY) {
@@ -583,7 +606,7 @@ public final class ExcavationPlanData extends SavedData {
 
     record PlanView(int minX, int minY, int minZ,
                     int maxX, int maxY, int maxZ,
-                    int modeCode, int currentSlice, int step) {
+                    int modeCode, int accessModeCode, int currentSlice, int step) {
     }
 
     private record Bounds(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
