@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.Optional;
 
-/** Creates and validates real ladder support work for narrow vertical excavation shafts. */
+/** Creates and validates real ladder support work for vertical excavation plans using ladder access. */
 public final class ExcavationLadderAutomation {
     private ExcavationLadderAutomation() {
     }
@@ -25,12 +25,13 @@ public final class ExcavationLadderAutomation {
         }
 
         ExcavationPlanData.PlanView plan = planResult.get();
-        if (plan.modeCode() != 0 || ExcavationEgressSafety.rampSupportAtY(plan, minedTarget.getY()) != null) {
+        if (plan.modeCode() != 0 || !ExcavationEgressSafety.usesLadderAccess(plan)) {
             return;
         }
 
         BlockPos ladderPos = ExcavationEgressSafety.ladderAccessAtY(plan, minedTarget.getY());
-        if (!level.hasChunkAt(ladderPos)
+        if (!minedTarget.equals(ladderPos)
+                || !level.hasChunkAt(ladderPos)
                 || level.getBlockState(ladderPos).is(Blocks.LADDER)
                 || !level.getBlockState(ladderPos).isAir()) {
             return;
