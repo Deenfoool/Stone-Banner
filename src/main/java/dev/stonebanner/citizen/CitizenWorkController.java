@@ -1,5 +1,6 @@
 package dev.stonebanner.citizen;
 
+import dev.stonebanner.designation.ExcavationEgressSafety;
 import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
@@ -23,6 +24,7 @@ import java.util.Optional;
  */
 public final class CitizenWorkController {
     private static final int ACQUIRE_INTERVAL_TICKS = 20;
+    private static final int UNSAFE_EGRESS_RETRY_TICKS = 40;
     private static final double WORK_RANGE_SQR = 2.75D * 2.75D;
     private static final double FORESTRY_BASE_WORK = 60.0D;
     private static final double CLEARING_BASE_WORK = 20.0D;
@@ -176,10 +178,32 @@ public final class CitizenWorkController {
             return;
         }
 
-        if (currentJob.workType() == WorkType.MINING && isOccupiedByOtherCitizen(level, currentJob.target())) {
-            return;
+        if (currentJob.workType() == WorkType.MINING) {
+            if (isOccupiedByOtherCitizen(level, currentJob.target())) {
+                return;
+            }
+            ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+            if (!ExcavationEgressSafety.canSafelyMine(
+                    level,
+                    plans,
+                    owner.blockPosition(),
+                    currentJob.target()
+            )) {
+                deferUnsafeExcavation(level);
+                return;
+            }
         }
         completeCurrentJob(level);
+    }
+
+    private void deferUnsafeExcavation(ServerLevel level) {
+        if (currentJob != null) {
+            CitizenJobBoard.forLevel(level).release(currentJob.id(), owner.getUUID());
+        }
+        owner.commandController().stop();
+        clearLocalState();
+        owner.setBrainState(CitizenBrainState.IDLE);
+        acquireCooldown = UNSAFE_EGRESS_RETRY_TICKS;
     }
 
     private void completeCurrentJob(ServerLevel level) {

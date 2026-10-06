@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Persistent sequencing for volume excavation.
@@ -149,6 +150,22 @@ public final class ExcavationPlanData extends SavedData {
         return plans.size();
     }
 
+    /**
+     * Exposes immutable geometry only for a target in the currently active slice.
+     * Runtime safety code uses this instead of reaching into persistent plan internals.
+     */
+    Optional<PlanView> activePlanFor(BlockPos target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        for (Plan plan : plans.values()) {
+            if (plan.currentSliceInsideBounds() && plan.isInCurrentSlice(target)) {
+                return Optional.of(view(plan));
+            }
+        }
+        return Optional.empty();
+    }
+
     public int hazardPausedPlanCount(ServerLevel level) {
         int paused = 0;
         for (Plan plan : plans.values()) {
@@ -206,7 +223,11 @@ public final class ExcavationPlanData extends SavedData {
         }
 
         if (sliceHasTargets(level, plan)) {
-            // Re-publish missing jobs if the world still contains a target block.
+            if (!ExcavationEgressSafety.canExposeCurrentSlice(level, view(plan))) {
+                removeCurrentSliceJobs(level, plan);
+                return;
+            }
+            // Re-publish missing jobs if the world still contains a target block and access remains safe.
             publishCurrentSlice(level, plan);
             return;
         }
@@ -223,12 +244,30 @@ public final class ExcavationPlanData extends SavedData {
                 return;
             }
             if (sliceHasTargets(level, plan)) {
+                if (!ExcavationEgressSafety.canExposeCurrentSlice(level, view(plan))) {
+                    removeCurrentSliceJobs(level, plan);
+                    return;
+                }
                 publishCurrentSlice(level, plan);
                 return;
             }
             plan.advance();
         }
         plans.remove(plan.id);
+    }
+
+    private static PlanView view(Plan plan) {
+        return new PlanView(
+                plan.minX,
+                plan.minY,
+                plan.minZ,
+                plan.maxX,
+                plan.maxY,
+                plan.maxZ,
+                plan.mode.ordinal(),
+                plan.currentSlice,
+                plan.step
+        );
     }
 
     private static void publishCurrentSlice(ServerLevel level, Plan plan) {
@@ -540,6 +579,11 @@ public final class ExcavationPlanData extends SavedData {
                     && maxY >= other.minY && minY <= other.maxY
                     && maxZ >= other.minZ && minZ <= other.maxZ;
         }
+    }
+
+    record PlanView(int minX, int minY, int minZ,
+                    int maxX, int maxY, int maxZ,
+                    int modeCode, int currentSlice, int step) {
     }
 
     private record Bounds(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
