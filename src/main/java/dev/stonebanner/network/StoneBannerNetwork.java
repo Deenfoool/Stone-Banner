@@ -9,6 +9,7 @@ import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.RequestCitizenInventoryPacket;
 import dev.stonebanner.network.packet.SetWorkPriorityPacket;
 import dev.stonebanner.network.packet.StopCitizenPacket;
+import dev.stonebanner.network.packet.StorageSummaryPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,7 +22,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "3";
+    private static final String PROTOCOL_VERSION = "4";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -91,6 +92,13 @@ public final class StoneBannerNetwork {
                 CitizenInventorySnapshotPacket::decode,
                 CitizenInventorySnapshotPacket::handle
         );
+        CHANNEL.registerMessage(
+                nextPacketId++,
+                StorageSummaryPacket.class,
+                StorageSummaryPacket::encode,
+                StorageSummaryPacket::decode,
+                StorageSummaryPacket::handle
+        );
     }
 
     public static void sendMoveCitizen(int entityId, BlockPos target) {
@@ -127,6 +135,13 @@ public final class StoneBannerNetwork {
         CHANNEL.send(
                 PacketDistributor.PLAYER.with(() -> player),
                 new CitizenInventorySnapshotPacket(entityId, stacks)
+        );
+    }
+
+    public static void sendStorageSummary(ServerPlayer player, int ladderCount) {
+        CHANNEL.send(
+                PacketDistributor.PLAYER.with(() -> player),
+                new StorageSummaryPacket(ladderCount)
         );
     }
 }
