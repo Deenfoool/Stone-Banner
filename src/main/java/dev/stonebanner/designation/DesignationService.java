@@ -55,6 +55,7 @@ public final class DesignationService {
         int affected = 0;
         if (type == DesignationType.CANCEL) {
             affected += excavationPlans.cancelIntersecting(level, first, second);
+            affected += ExcavationLadderTaskData.forLevel(level).cancelIntersecting(first, second);
         }
 
         for (int x = minX; x <= maxX; x++) {
