@@ -48,6 +48,7 @@
   "hud.stonebanner.designation.step.length": "Length",
   "hud.stonebanner.designation.step.width": "Width",
   "hud.stonebanner.designation.step.depth": "Depth",
+  "hud.stonebanner.excavation.ladders": "Ladders: %s needed • %s in storage",
 
   "hud.stonebanner.top.settlement": "Settlement",
   "hud.stonebanner.top.not_founded": "not founded",
