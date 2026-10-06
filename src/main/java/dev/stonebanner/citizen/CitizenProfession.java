@@ -10,7 +10,8 @@ public enum CitizenProfession {
     BUILDER,
     CRAFTSMAN,
     TRADER,
-    GUARD;
+    GUARD,
+    GEOLOGIST;
 
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);

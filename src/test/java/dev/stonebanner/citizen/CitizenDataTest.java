@@ -27,6 +27,16 @@ class CitizenDataTest {
     }
 
     @Test
+    void geologistSkillPersistsAndRoutineMiningDoesNotCompeteWithSurveys() {
+        var source = new CitizenData(); source.setProfession(CitizenProfession.GEOLOGIST, true);
+        source.setSkill(CitizenSkill.GEOLOGY, 8);
+        var restored = new CitizenData(); restored.load(source.save());
+        assertEquals(CitizenProfession.GEOLOGIST, restored.profession());
+        assertEquals(8, CitizenHudCodec.skill(CitizenHudCodec.packSkills(restored), CitizenSkill.GEOLOGY));
+        assertEquals(WorkPriority.DISABLED, restored.workPriority(WorkType.MINING));
+        assertEquals(WorkPriority.CRITICAL, restored.workPriority(WorkType.EMERGENCY));
+    }
+    @Test
     void nbtRoundTripPreservesCitizenConfiguration() {
         CitizenData source = new CitizenData();
         source.initializeStarterSkills(77);

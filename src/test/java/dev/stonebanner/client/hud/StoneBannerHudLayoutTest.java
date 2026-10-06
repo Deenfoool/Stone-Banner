@@ -73,6 +73,18 @@ class StoneBannerHudLayoutTest {
     }
 
     @Test
+    void mapLayersFitBetweenTimeControlsAndClock() {
+        var clock = StoneBannerHudLayout.clockPanel(870, 519);
+        var rail = StoneBannerHudLayout.rightRail(870, 519);
+        for (int i = 0; i < 3; i++) {
+            var button = StoneBannerHudLayout.layerButton(870, 519, i);
+            assertTrue(rail.contains(button.x(), button.y()));
+            assertTrue(rail.contains(button.x()+button.width()-1, button.y()+button.height()-1));
+            assertFalse(button.overlaps(clock));
+            for (int j = 0; j < 4; j++) assertFalse(button.overlaps(StoneBannerHudLayout.timeButton(870, 519, j)));
+        }
+    }
+    @Test
     void citizenTabsStayInsideExpandedCard() {
         StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(870, 519, true);
         for (int index = 0; index < 5; index++) {

@@ -1,6 +1,9 @@
 package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.network.packet.GeologyActionPacket;
+import dev.stonebanner.network.packet.GeologySnapshotPacket;
+import dev.stonebanner.geology.GeologyService;
 import dev.stonebanner.network.packet.BannerCommunityActionPacket;
 import dev.stonebanner.network.packet.BannerCommunitySnapshotPacket;
 import dev.stonebanner.settlement.BannerCommunityService;
@@ -29,7 +32,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "8";
+    private static final String PROTOCOL_VERSION = "9";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -49,6 +52,12 @@ public final class StoneBannerNetwork {
             return;
         }
         registered = true;
+        CHANNEL.registerMessage(nextPacketId++, GeologyActionPacket.class,
+                GeologyActionPacket::encode, GeologyActionPacket::decode, GeologyActionPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++, GeologySnapshotPacket.class,
+                GeologySnapshotPacket::encode, GeologySnapshotPacket::decode, GeologySnapshotPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
 
         CHANNEL.registerMessage(nextPacketId++, BannerCommunityActionPacket.class,
                 BannerCommunityActionPacket::encode, BannerCommunityActionPacket::decode, BannerCommunityActionPacket::handle,
@@ -127,6 +136,15 @@ public final class StoneBannerNetwork {
         );
     }
 
+    public static void requestMapLayers(BlockPos center) {
+        CHANNEL.sendToServer(new GeologyActionPacket(true, center, GeologyService.Action.OPEN, -1));
+    }
+    public static void sendGeologyAction(BlockPos target, GeologyService.Action action, int npcId) {
+        CHANNEL.sendToServer(new GeologyActionPacket(false, target, action, npcId));
+    }
+    public static void sendGeology(ServerPlayer player, GeologySnapshotPacket snapshot) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), snapshot);
+    }
     public static void sendBannerAction(BlockPos pos, BannerCommunityService.Action action, String name, int entityId) {
         CHANNEL.sendToServer(new BannerCommunityActionPacket(pos, action, name, entityId));
     }

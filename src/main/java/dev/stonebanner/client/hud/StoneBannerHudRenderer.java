@@ -181,6 +181,10 @@ public final class StoneBannerHudRenderer {
                     };
                 }
             }
+            for (int i = 0; i < 3; i++) {
+                if (StoneBannerHudLayout.layerButton(screenWidth, screenHeight, i).contains(mouseX, mouseY))
+                    return switch (i) { case 0 -> HudAction.LAYER_BOUNDARIES; case 1 -> HudAction.LAYER_RESOURCES; default -> HudAction.LAYER_FERTILITY; };
+            }
             return HudAction.CONSUME;
         }
 
@@ -568,6 +572,15 @@ public final class StoneBannerHudRenderer {
                     button.y() + 10, active ? ACCENT : TEXT);
         }
 
+        ItemStack[] layerIcons = {BANNER_ICON, MINE_ICON, ZONES_TAB_ICON};
+        var layers = dev.stonebanner.client.control.MapLayerState.Layer.values();
+        for (int i = 0; i < layers.length; i++) {
+            var button = StoneBannerHudLayout.layerButton(screenWidth, screenHeight, i);
+            inset(graphics, button.x(), button.y(), button.width(), button.height(), true);
+            graphics.renderItem(layerIcons[i], button.x() + (button.width() - 16) / 2, button.y() + 4);
+            if (dev.stonebanner.client.control.MapLayerState.enabled(layers[i]))
+                graphics.renderOutline(button.x() + 1, button.y() + 1, button.width() - 2, button.height() - 2, BORDER_ACTIVE);
+        }
         StoneBannerHudLayout.Rect clock = StoneBannerHudLayout.clockPanel(screenWidth, screenHeight);
         inset(graphics, clock.x(), clock.y(), clock.width(), clock.height(), true);
         graphics.renderItem(CLOCK_ICON, clock.x() + 8, clock.y() + 12);
@@ -847,6 +860,9 @@ public final class StoneBannerHudRenderer {
         HOTBAR_7,
         HOTBAR_8,
         HOTBAR_9,
+        LAYER_BOUNDARIES,
+        LAYER_RESOURCES,
+        LAYER_FERTILITY,
         TIME_PAUSE,
         TIME_NORMAL,
         TIME_DOUBLE,

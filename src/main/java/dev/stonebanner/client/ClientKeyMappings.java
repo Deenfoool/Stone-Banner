@@ -34,12 +34,16 @@ public final class ClientKeyMappings {
             "key.stonebanner.ore_journal", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
 
+    public static final KeyMapping LAYER_BOUNDARIES = new KeyMapping("key.stonebanner.layer_boundaries", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, CATEGORY);
+    public static final KeyMapping LAYER_RESOURCES = new KeyMapping("key.stonebanner.layer_resources", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, CATEGORY);
+    public static final KeyMapping LAYER_FERTILITY = new KeyMapping("key.stonebanner.layer_fertility", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY);
     private ClientKeyMappings() {
     }
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(ORE_JOURNAL);
+        event.register(LAYER_BOUNDARIES); event.register(LAYER_RESOURCES); event.register(LAYER_FERTILITY);
         event.register(CYCLE_CONTROL_MODE);
         event.register(CYCLE_DESIGNATION_MODE);
     }

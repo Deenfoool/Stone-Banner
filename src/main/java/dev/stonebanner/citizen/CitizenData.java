@@ -203,6 +203,12 @@ public final class CitizenData {
             case CRAFTSMAN -> workPriorities.put(WorkType.CRAFTING, WorkPriority.HIGH);
             case TRADER -> workPriorities.put(WorkType.TRADING, WorkPriority.HIGH);
             case GUARD -> workPriorities.put(WorkType.GUARD, WorkPriority.HIGH);
+            case GEOLOGIST -> {
+                for (WorkType type : WorkType.values()) {
+                    if (type != WorkType.EMERGENCY && type != WorkType.TREATMENT)
+                        workPriorities.put(type, WorkPriority.DISABLED);
+                }
+            }
             case UNEMPLOYED -> workPriorities.put(WorkType.HAULING, WorkPriority.HIGH);
         }
     }

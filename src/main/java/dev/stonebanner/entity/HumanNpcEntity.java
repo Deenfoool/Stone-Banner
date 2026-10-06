@@ -22,6 +22,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
@@ -139,7 +140,9 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         commandController.tick();
-        workController.tick();
+        if (dev.stonebanner.geology.GeologyService.surveying(this) && !commandController.hasActiveCommand())
+            getNavigation().stop();
+        if (!dev.stonebanner.geology.GeologyService.surveying(this)) workController.tick();
         if (tickCount % 20 == 0) {
             tickCitizenSecond();
         }
@@ -173,7 +176,8 @@ public class HumanNpcEntity extends PathfinderMob {
             return;
         }
 
-        CitizenBrainState commandedState = workController.hasActiveJob()
+        CitizenBrainState commandedState = dev.stonebanner.geology.GeologyService.surveying(this)
+                && !commandController.hasActiveCommand() ? CitizenBrainState.WORK : workController.hasActiveJob()
                 ? CitizenBrainState.WORK
                 : commandController.hasActiveCommand()
                 ? commandController.movementState()
@@ -268,6 +272,8 @@ public class HumanNpcEntity extends PathfinderMob {
     }
 
     public boolean issueCommand(ActorCommand command) {
+        if (level() instanceof ServerLevel serverLevel)
+            dev.stonebanner.geology.GeologyService.cancelSurvey(serverLevel, getUUID());
         workController.interrupt(false);
         return commandController.issue(command);
     }

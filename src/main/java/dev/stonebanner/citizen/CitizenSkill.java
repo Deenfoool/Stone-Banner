@@ -7,7 +7,8 @@ public enum CitizenSkill {
     MINING,
     CONSTRUCTION,
     CRAFTING,
-    COMBAT;
+    COMBAT,
+    GEOLOGY;
 
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);

@@ -34,6 +34,9 @@ public final class ClientRuntime {
         }
 
         OreDiscoveryState.checkWorld();
+        while (ClientKeyMappings.LAYER_BOUNDARIES.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.BOUNDARIES);
+        while (ClientKeyMappings.LAYER_RESOURCES.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES);
+        while (ClientKeyMappings.LAYER_FERTILITY.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.FERTILITY);
         while (ClientKeyMappings.ORE_JOURNAL.consumeClick()) {
             if (!(minecraft.screen instanceof OreDiscoveriesScreen))
                 minecraft.setScreen(new OreDiscoveriesScreen(minecraft.screen));

@@ -77,14 +77,20 @@ public final class StoneBannerHudLayout {
         return new Rect(rail.x() + 5 + index * (width + gap), rail.y() + 5, width, TIME_BUTTON_HEIGHT);
     }
 
+    public static Rect layerButton(int screenWidth, int screenHeight, int index) {
+        if (index < 0 || index >= 3) throw new IllegalArgumentException("Layer index");
+        Rect rail = rightRail(screenWidth, screenHeight);
+        int gap = 3, width = (rail.width() - 10 - gap * 2) / 3;
+        return new Rect(rail.x() + 5 + index * (width + gap), rail.y() + 38, width, 24);
+    }
     public static Rect clockPanel(int screenWidth, int screenHeight) {
         Rect rail = rightRail(screenWidth, screenHeight);
-        return new Rect(rail.x() + 5, rail.y() + 38, rail.width() - 10, 42);
+        return new Rect(rail.x() + 5, rail.y() + 68, rail.width() - 10, 42);
     }
 
     public static Rect miniMap(int screenWidth, int screenHeight) {
         Rect rail = rightRail(screenWidth, screenHeight);
-        return new Rect(rail.x() + 5, rail.y() + 85, rail.width() - 10, rail.height() - 90);
+        return new Rect(rail.x() + 5, rail.y() + 115, rail.width() - 10, Math.max(1, rail.height() - 120));
     }
 
     public static Rect bottomDock(int screenWidth, int screenHeight, boolean expanded) {

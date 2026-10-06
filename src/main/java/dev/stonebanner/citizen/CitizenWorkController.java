@@ -520,7 +520,11 @@ public final class CitizenWorkController {
         Set<UUID> itemEntitiesBefore = nearbyItemEntityIds(level, job.target());
 
         boolean completed = switch (job.workType()) {
-            case FORESTRY, MINING, CLEARING -> level.destroyBlock(job.target(), true, owner);
+            case FORESTRY, MINING, CLEARING -> {
+                boolean changed = level.destroyBlock(job.target(), true, owner);
+                if (changed) dev.stonebanner.geology.ChunkResourceCache.invalidate(level, job.target());
+                yield changed;
+            }
             default -> false;
         };
 

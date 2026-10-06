@@ -144,6 +144,36 @@ public final class TacticalControlScreen extends Screen {
             }
             graphics.drawString(font, extensionHint, 8, 70, extensionColor, false);
         }
+        if (dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)
+                && !DesignationController.isActive() && !TunnelExtensionController.isActive()) {
+            var snapshot = dev.stonebanner.client.control.MapLayerState.snapshot();
+            if (snapshot != null) hoveredTarget.filter(BlockHitResult.class::isInstance).map(BlockHitResult.class::cast).ifPresent(hit -> {
+                int cx = hit.getBlockPos().getX() >> 4, cz = hit.getBlockPos().getZ() >> 4;
+                snapshot.tiles().stream().filter(tile -> tile.x() == cx && tile.z() == cz).findFirst().ifPresent(tile -> {
+                    var labels = dev.stonebanner.client.control.MapLayerOverlay.resourceLabels(tile);
+                    int panelWidth = Math.min(280, width - 16);
+                    graphics.fill(6, 108, 6 + panelWidth, 130 + labels.size() * 11, 0xD0101518);
+                    graphics.drawString(font, Component.translatable("geology.stonebanner.chunk", cx, cz), 10, 112, 0xFFE7C46A);
+                    int row = 126;
+                    for (var label : labels) {
+                        graphics.drawString(font, font.plainSubstrByWidth(label.getString(), panelWidth - 8), 10, row, 0xFFD8D2C8);
+                        row += 11;
+                    }
+                });
+            });
+        }
+        net.minecraft.client.KeyMapping[] layerKeys = {ClientKeyMappings.LAYER_BOUNDARIES, ClientKeyMappings.LAYER_RESOURCES, ClientKeyMappings.LAYER_FERTILITY};
+        for (int i = 0; i < 3; i++) {
+            var button = dev.stonebanner.client.hud.StoneBannerHudLayout.layerButton(width, height, i);
+            if (button.contains(mouseX, mouseY)) graphics.renderTooltip(font,
+                    Component.translatable("geology.stonebanner.layer_tooltip",
+                            Component.translatable(dev.stonebanner.client.control.MapLayerState.Layer.values()[i].key()),
+                            layerKeys[i].getTranslatedKeyMessage()), mouseX, mouseY);
+        }
+        if (!DesignationController.isActive() && !TunnelExtensionController.isActive()
+                && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES))
+            graphics.drawString(font, Component.translatable("geology.stonebanner.survey_hint"), 8, 84, 0xFFE7C46A);
+
     }
 
     private int cursorColor() {
@@ -169,6 +199,7 @@ public final class TacticalControlScreen extends Screen {
             case CLEAR -> 0xFF8ED9C3;
             case CANCEL -> 0xFFFF6868;
         };
+
     }
 
     @Override
@@ -272,6 +303,15 @@ public final class TacticalControlScreen extends Screen {
                     selectHotbarSlot(StoneBannerHudRenderer.hotbarIndex(hudAction));
                     return true;
                 }
+                case LAYER_BOUNDARIES, LAYER_RESOURCES, LAYER_FERTILITY -> {
+                    var layer = switch (hudAction) {
+                        case LAYER_BOUNDARIES -> dev.stonebanner.client.control.MapLayerState.Layer.BOUNDARIES;
+                        case LAYER_RESOURCES -> dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES;
+                        default -> dev.stonebanner.client.control.MapLayerState.Layer.FERTILITY;
+                    };
+                    dev.stonebanner.client.control.MapLayerState.toggle(layer);
+                    return true;
+                }
                 case TIME_PAUSE -> {
                     GameSpeedController.setSpeed(GameSpeedController.Speed.PAUSED);
                     return true;
@@ -329,6 +369,15 @@ public final class TacticalControlScreen extends Screen {
                     }
                 } else {
                     BlockHitResult blockHit = (BlockHitResult) hit;
+                    if (minecraft.level != null && minecraft.level.getBlockState(blockHit.getBlockPos()).is(dev.stonebanner.geology.ResearchBlocks.TABLE.get())) {
+                        dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(blockHit.getBlockPos(), dev.stonebanner.geology.GeologyService.Action.OPEN, -1);
+                        return;
+                    }
+                    if (hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
+                        dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(blockHit.getBlockPos().relative(blockHit.getDirection()), dev.stonebanner.geology.GeologyService.Action.SURVEY,
+                                CitizenSelectionController.selected().map(npc -> npc.getId()).orElse(-1));
+                        return;
+                    }
                     if (minecraft.level != null && minecraft.level.getBlockState(blockHit.getBlockPos()).getBlock()
                             instanceof net.minecraft.world.level.block.BannerBlock) {
                         dev.stonebanner.network.StoneBannerNetwork.sendBannerAction(blockHit.getBlockPos(),
@@ -420,6 +469,13 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        net.minecraft.client.KeyMapping[] layers = {ClientKeyMappings.LAYER_BOUNDARIES, ClientKeyMappings.LAYER_RESOURCES, ClientKeyMappings.LAYER_FERTILITY};
+        for (int i = 0; i < layers.length; i++) {
+            if (layers[i].matches(keyCode, scanCode)) {
+                dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.values()[i]);
+                return true;
+            }
+        }
         if (ClientKeyMappings.ORE_JOURNAL.matches(keyCode, scanCode)) {
             minecraft.setScreen(new OreDiscoveriesScreen(this)); return true;
         }
