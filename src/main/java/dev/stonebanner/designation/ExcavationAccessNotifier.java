@@ -43,16 +43,6 @@ final class ExcavationAccessNotifier {
         broadcast(level, Component.translatable(status.translationKey()));
     }
 
-    static void clear(ServerLevel level, ExcavationPlanData.PlanView plan) {
-        if (level == null || plan == null) {
-            return;
-        }
-        Map<PlanKey, ExcavationAccessStatus> levelProblems = LAST_PROBLEMS.get(level);
-        if (levelProblems != null) {
-            levelProblems.remove(PlanKey.from(plan));
-        }
-    }
-
     private static void broadcast(ServerLevel level, Component message) {
         level.players().forEach(player -> player.displayClientMessage(message, true));
     }
