@@ -14,9 +14,10 @@ import java.util.Optional;
  * Conservative pre-destruction safety check for active excavation plans.
  *
  * <p>The check intentionally uses the current world state and rejects a route if it relies on the block being
- * removed or on the block directly above it. Removing a solid block can only reduce support, so a currently
- * valid route that does not use those nodes remains a safe egress route after destruction. The check is only
- * applied to mining jobs that belong to the currently exposed slice of an excavation plan.</p>
+ * removed or on the block directly above it. Vertical quarries use their reserved perimeter ramp as the
+ * long-distance egress invariant, so deep quarries are not limited by the normal short-range A* vertical bound.
+ * Tunnels still validate a real route back through their entrance face. The check is only applied to mining
+ * jobs that belong to the currently exposed slice of an excavation plan.</p>
  */
 public final class ExcavationEgressSafety {
     private static final int MAX_EGRESS_CANDIDATES = 16;
@@ -42,6 +43,10 @@ public final class ExcavationEgressSafety {
 
         if (!routeSurvivesRemoval(workerFeet, target, List.of())) {
             return false;
+        }
+
+        if (plan.modeCode() == 0) {
+            return canReachReservedRamp(level, plan, workerFeet, target);
         }
 
         for (BlockPos egress : egressCandidates(level, plan, workerFeet)) {
@@ -98,6 +103,66 @@ public final class ExcavationEgressSafety {
             }
         }
         return List.copyOf(probes);
+    }
+
+    /** Returns the reserved solid support for one quarry depth, or null for strips too narrow for a ramp. */
+    static BlockPos rampSupportAtY(ExcavationPlanData.PlanView plan, int y) {
+        int sizeX = plan.maxX() - plan.minX() + 1;
+        int sizeZ = plan.maxZ() - plan.minZ() + 1;
+        if (plan.modeCode() != 0 || sizeX < 2 || sizeZ < 2 || y < plan.minY() || y > plan.maxY()) {
+            return null;
+        }
+
+        int perimeter = 2 * sizeX + 2 * sizeZ - 4;
+        int depth = plan.maxY() - y;
+        int index = Math.floorMod(depth, perimeter);
+
+        if (index < sizeX) {
+            return new BlockPos(plan.minX() + index, y, plan.minZ());
+        }
+        index -= sizeX;
+        if (index < sizeZ - 1) {
+            return new BlockPos(plan.maxX(), y, plan.minZ() + 1 + index);
+        }
+        index -= sizeZ - 1;
+        if (index < sizeX - 1) {
+            return new BlockPos(plan.maxX() - 1 - index, y, plan.maxZ());
+        }
+        index -= sizeX - 1;
+        return new BlockPos(plan.minX(), y, plan.maxZ() - 1 - index);
+    }
+
+    private static boolean canReachReservedRamp(ServerLevel level, ExcavationPlanData.PlanView plan,
+                                                BlockPos workerFeet, BlockPos target) {
+        BlockPos currentSupport = rampSupportAtY(plan, target.getY());
+        if (currentSupport == null || !rampChainIntact(level, plan, target.getY())) {
+            return false;
+        }
+
+        BlockPos currentLanding = currentSupport.above();
+        Optional<List<BlockPos>> route = BlockPathfinder.findPath(level, workerFeet, currentLanding);
+        return route.isPresent() && routeSurvivesRemoval(workerFeet, target, route.get());
+    }
+
+    private static boolean rampChainIntact(ServerLevel level, ExcavationPlanData.PlanView plan, int fromY) {
+        BlockPos previous = null;
+        for (int y = plan.maxY(); y >= fromY; y--) {
+            BlockPos support = rampSupportAtY(plan, y);
+            if (support == null || !level.hasChunkAt(support)
+                    || level.getBlockState(support).getCollisionShape(level, support).isEmpty()
+                    || !BlockPathfinder.isWalkable(level, support.above())) {
+                return false;
+            }
+            if (previous != null) {
+                int horizontalStep = Math.abs(previous.getX() - support.getX())
+                        + Math.abs(previous.getZ() - support.getZ());
+                if (horizontalStep != 1 || previous.getY() != support.getY() + 1) {
+                    return false;
+                }
+            }
+            previous = support;
+        }
+        return true;
     }
 
     private static List<BlockPos> egressCandidates(ServerLevel level, ExcavationPlanData.PlanView plan,
