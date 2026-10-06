@@ -24,7 +24,8 @@ public final class WorldCursor {
 
     public static Optional<HitResult> pick(Minecraft minecraft, double mouseX, double mouseY,
                                            int screenWidth, int screenHeight) {
-        if (minecraft.level == null || minecraft.player == null || screenWidth <= 0 || screenHeight <= 0) {
+        if (minecraft.level == null || minecraft.player == null || screenWidth <= 0 || screenHeight <= 0
+                || dev.stonebanner.client.camera.RpgCameraController.viewObstructed()) {
             hoveredEntityId = null;
             hoveredLocation = null;
             return Optional.empty();

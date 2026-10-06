@@ -9,6 +9,12 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.level.chunk.ChunkStatus;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.ViewportEvent;
@@ -39,6 +45,8 @@ public final class RpgCameraController {
     private static Vec3 focusTarget;
     private static Vec3 focusAnchor;
     private static Vec3 previousFocusAnchor;
+    private static boolean viewObstructed;
+    public static boolean viewObstructed() { return viewObstructed; }
 
     public static void focusOn(net.minecraft.core.BlockPos pos) {
         Minecraft mc = Minecraft.getInstance();
@@ -95,6 +103,7 @@ public final class RpgCameraController {
         if (!isCameraActive(minecraft)) {
             trackedPlayer = null;
             rotatingCamera = false;
+            viewObstructed = false;
             return;
         }
 
@@ -149,18 +158,49 @@ public final class RpgCameraController {
         camera.setRotation(cameraYaw, cameraPitch);
 
         float partialTick = (float) event.getPartialTick();
-        Vec3 anchor = focusedEntity.getEyePosition(partialTick)
-                .add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
+        Vec3 eyes = focusedEntity.getEyePosition(partialTick);
+        Vec3 requestedAnchor = eyes.add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
+        if (focusTarget != null && previousFocusAnchor != null && focusAnchor != null)
+            requestedAnchor = previousFocusAnchor.lerp(focusAnchor, partialTick);
 
-        if (focusTarget != null) anchor = previousFocusAnchor.lerp(focusAnchor, partialTick);
-        camera.setPosition(anchor);
-        double collisionSafeDistance = camera.getMaxZoom(currentDistance);
+        double aspect = (double) minecraft.getWindow().getWidth() / Math.max(1, minecraft.getWindow().getHeight());
+        double radius = CameraCollision.radius(minecraft.gameRenderer.getFov(camera, partialTick, true), aspect);
+        if (!Double.isFinite(radius) || radius > 2) {
+            viewObstructed = true;
+            camera.setPosition(eyes);
+            return;
+        }
+        var context = CollisionContext.of(focusedEntity);
+        java.util.function.Function<AABB, List<AABB>> obstacles = bounds -> obstacles(minecraft, context, bounds);
+        // Start at the real eyes, never at an unchecked height offset inside a roof.
+        var lift = CameraCollision.sweep(eyes, requestedAnchor, radius, obstacles);
+        viewObstructed = lift.blockedStart();
+        Vec3 anchor = lift.position();
         Vector3f look = camera.getLookVector();
-        camera.setPosition(anchor.subtract(
-                look.x() * collisionSafeDistance,
-                look.y() * collisionSafeDistance,
-                look.z() * collisionSafeDistance
-        ));
+        Vec3 desired = anchor.subtract(look.x() * currentDistance, look.y() * currentDistance, look.z() * currentDistance);
+        var retreat = CameraCollision.sweep(anchor, desired, radius, obstacles);
+        viewObstructed |= retreat.blockedStart();
+        // Apply collision correction immediately. Only preferred zoom is smoothed; smoothing the safe
+        // position would carry the camera through a closing door or a newly entered ceiling.
+        camera.setPosition(viewObstructed ? eyes : retreat.position());
+
+    }
+
+    private static List<AABB> obstacles(Minecraft minecraft, CollisionContext context, AABB bounds) {
+        var result = new ArrayList<AABB>();
+        var pos = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(bounds.minX) - 1; x <= Mth.floor(bounds.maxX) + 1; x++)
+            for (int z = Mth.floor(bounds.minZ) - 1; z <= Mth.floor(bounds.maxZ) + 1; z++) {
+                boolean loaded = minecraft.level.getChunkSource().getChunk(x >> 4, z >> 4, ChunkStatus.FULL, false) != null;
+                for (int y = Mth.floor(bounds.minY) - 1; y <= Mth.floor(bounds.maxY) + 1; y++) {
+                    pos.set(x, y, z);
+                    // Unloaded chunks act as a barrier, never as transparent empty space.
+                    if (!loaded) { result.add(new AABB(pos)); continue; }
+                    var shape = minecraft.level.getBlockState(pos).getVisualShape(minecraft.level, pos, context);
+                    for (var box : shape.toAabbs()) result.add(box.move(x, y, z));
+                }
+            }
+        return result;
     }
 
     private static boolean isCameraActive(Minecraft minecraft) {
