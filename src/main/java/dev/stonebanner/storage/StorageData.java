@@ -97,6 +97,28 @@ public final class StorageData extends SavedData {
     }
 
     /**
+     * Returns the nearest loaded registered container that can accept at least one item from {@code offered}.
+     * No inventory is mutated by this query.
+     */
+    public Optional<BlockPos> nearestAcceptingContainer(ServerLevel level, BlockPos origin,
+                                                        ItemStack offered, double maxDistance) {
+        if (level == null || origin == null || offered == null || offered.isEmpty()) {
+            return Optional.empty();
+        }
+        double maxDistanceSqr = maxDistance < 0.0D ? Double.POSITIVE_INFINITY : maxDistance * maxDistance;
+        for (BlockPos pos : validLoadedPositions(level, origin)) {
+            if (distanceSquared(origin, pos) > maxDistanceSqr) {
+                continue;
+            }
+            Container container = liveContainer(level, pos).orElse(null);
+            if (container != null && canAccept(container, offered)) {
+                return Optional.of(pos.immutable());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Removes up to {@code amount} matching items from the nearest loaded registered containers.
      * Returned stacks preserve their real item/NBT/components; no synthetic replacement stack is created.
      */
@@ -143,6 +165,23 @@ public final class StorageData extends SavedData {
         return extracted.isEmpty()
                 ? Extraction.EMPTY
                 : new Extraction(List.copyOf(extracted), List.copyOf(sources));
+    }
+
+    /** Inserts into one specific registered container and returns a copy of the remainder. */
+    public ItemStack insertAt(ServerLevel level, BlockPos pos, ItemStack offered) {
+        if (level == null || pos == null || offered == null || offered.isEmpty()
+                || !containerPositions.contains(pos.asLong()) || !level.hasChunkAt(pos)) {
+            return offered == null ? ItemStack.EMPTY : offered.copy();
+        }
+        Container container = liveContainer(level, pos).orElse(null);
+        if (container == null) {
+            containerPositions.remove(pos.asLong());
+            setDirty();
+            return offered.copy();
+        }
+        ItemStack remaining = offered.copy();
+        insertInto(container, remaining);
+        return remaining;
     }
 
     /**
@@ -198,6 +237,22 @@ public final class StorageData extends SavedData {
     private static Optional<Container> liveContainer(ServerLevel level, BlockPos pos) {
         BlockEntity entity = level.getBlockEntity(pos);
         return entity instanceof Container container ? Optional.of(container) : Optional.empty();
+    }
+
+    private static boolean canAccept(Container container, ItemStack offered) {
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack existing = container.getItem(slot);
+            if (!existing.isEmpty() && ItemStack.isSameItemSameTags(existing, offered)) {
+                int limit = Math.min(container.getMaxStackSize(), existing.getMaxStackSize());
+                if (existing.getCount() < limit) {
+                    return true;
+                }
+            }
+            if (existing.isEmpty() && container.canPlaceItem(slot, offered)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean insertInto(Container container, ItemStack remaining) {
