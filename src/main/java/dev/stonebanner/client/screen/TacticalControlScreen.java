@@ -98,6 +98,23 @@ public final class TacticalControlScreen extends Screen {
                 DesignationController.isActive() ? 82 : 70,
                 DesignationController.previewAllowed() ? 0xFFE7C46A : 0xFFFF6868
         ));
+
+        if (DesignationController.activeType().orElse(null) == DesignationType.EXCAVATE) {
+            graphics.drawString(
+                    font,
+                    Component.translatable(
+                            "hud.stonebanner.excavation.access",
+                            Component.translatable(
+                                    "excavation_access.stonebanner."
+                                            + DesignationController.excavationAccessMode().serializedName()
+                            )
+                    ),
+                    8,
+                    94,
+                    0xFFD8D2C8,
+                    false
+            );
+        }
     }
 
     private int cursorColor() {
@@ -201,6 +218,10 @@ public final class TacticalControlScreen extends Screen {
                 }
                 case DESIGNATE_CANCEL -> {
                     activateDesignation(DesignationType.CANCEL);
+                    return true;
+                }
+                case CYCLE_EXCAVATION_ACCESS -> {
+                    DesignationController.cycleExcavationAccessMode();
                     return true;
                 }
                 case HOTBAR_1, HOTBAR_2, HOTBAR_3, HOTBAR_4, HOTBAR_5,
