@@ -7,6 +7,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,7 +43,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 50, 20,
                 14, 60, 24,
-                0, 60, -1
+                0, ExcavationAccessMode.AUTO.ordinal(), 60, -1
         );
 
         List<BlockPos> probes = ExcavationEgressSafety.rawEgressProbes(plan);
@@ -58,7 +59,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 5, 20,
                 14, 60, 24,
-                0, 5, -1
+                0, ExcavationAccessMode.AUTO.ordinal(), 5, -1
         );
 
         BlockPos previous = ExcavationEgressSafety.rampSupportAtY(plan, plan.maxY());
@@ -76,7 +77,7 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 30, 20,
                 10, 45, 24,
-                0, 40, -1
+                0, ExcavationAccessMode.AUTO.ordinal(), 40, -1
         );
 
         assertNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
@@ -85,11 +86,37 @@ class ExcavationEgressSafetyTest {
     }
 
     @Test
+    void wideQuarryCanForceLadderAccess() {
+        ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
+                10, 30, 20,
+                14, 45, 24,
+                0, ExcavationAccessMode.LADDERS.ordinal(), 40, -1
+        );
+
+        assertTrue(ExcavationEgressSafety.usesLadderAccess(plan));
+        assertNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
+        assertEquals(5, ExcavationEgressSafety.requiredLadderCount(plan));
+    }
+
+    @Test
+    void wideQuarryCanForceRampAccess() {
+        ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
+                10, 30, 20,
+                14, 45, 24,
+                0, ExcavationAccessMode.RAMP.ordinal(), 40, -1
+        );
+
+        assertFalse(ExcavationEgressSafety.usesLadderAccess(plan));
+        assertNotNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
+        assertEquals(0, ExcavationEgressSafety.requiredLadderCount(plan));
+    }
+
+    @Test
     void topVerticalSliceNeedsNoLaddersYet() {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 4, 20, 8,
                 4, 30, 8,
-                0, 30, -1
+                0, ExcavationAccessMode.AUTO.ordinal(), 30, -1
         );
 
         assertEquals(0, ExcavationEgressSafety.requiredLadderCount(plan));
@@ -100,12 +127,12 @@ class ExcavationEgressSafetyTest {
         ExcavationPlanData.PlanView positiveX = new ExcavationPlanData.PlanView(
                 10, 40, 2,
                 30, 42, 4,
-                1, 10, 1
+                1, ExcavationAccessMode.AUTO.ordinal(), 10, 1
         );
         ExcavationPlanData.PlanView negativeX = new ExcavationPlanData.PlanView(
                 10, 40, 2,
                 30, 42, 4,
-                1, 30, -1
+                1, ExcavationAccessMode.AUTO.ordinal(), 30, -1
         );
 
         assertTrue(ExcavationEgressSafety.rawEgressProbes(positiveX).stream()
