@@ -46,13 +46,17 @@ public final class RpgCameraController {
     private static Vec3 focusAnchor;
     private static Vec3 previousFocusAnchor;
     private static boolean viewObstructed;
+    private static final TacticalCameraRig tacticalRig = new TacticalCameraRig();
+    private static boolean wasTactical;
+    private static Vec3 lastSafeAnchor;
+    private static net.minecraft.resources.ResourceLocation cameraDimension;
     public static boolean viewObstructed() { return viewObstructed; }
 
     public static void focusOn(net.minecraft.core.BlockPos pos) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || !mc.level.hasChunkAt(pos)) return;
         initializeOrientationIfNeeded(mc.player);
-        focusAnchor = mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        focusAnchor = lastSafeAnchor != null ? lastSafeAnchor : mc.player.getEyePosition();
         previousFocusAnchor = focusAnchor;
         // Focus the exposed face, not a point inside ore or the roof of a narrow tunnel.
         Vec3 center = Vec3.atCenterOf(pos);
@@ -89,6 +93,20 @@ public final class RpgCameraController {
             focusAnchor = focusAnchor.lerp(focusTarget, .22);
         }
         ensureInitialized();
+        if (tacticalRig.initialized()) tacticalRig.tick();
+        if (mc.player != null && mc.level != null && mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen
+                && tacticalRig.initialized()) {
+            long window = mc.getWindow().getWindow();
+            double left = (pressed(window, GLFW.GLFW_KEY_A) || pressed(window, GLFW.GLFW_KEY_LEFT) ? 1 : 0)
+                    - (pressed(window, GLFW.GLFW_KEY_D) || pressed(window, GLFW.GLFW_KEY_RIGHT) ? 1 : 0);
+            double forward = (pressed(window, GLFW.GLFW_KEY_W) || pressed(window, GLFW.GLFW_KEY_UP) ? 1 : 0)
+                    - (pressed(window, GLFW.GLFW_KEY_S) || pressed(window, GLFW.GLFW_KEY_DOWN) ? 1 : 0);
+            double up = (pressed(window, GLFW.GLFW_KEY_PAGE_UP) ? 1 : 0) - (pressed(window, GLFW.GLFW_KEY_PAGE_DOWN) ? 1 : 0);
+            if (left != 0 || forward != 0 || up != 0) {
+                clearFocus();
+                tacticalRig.pan(left, forward, up, cameraYaw, pressed(window, GLFW.GLFW_KEY_LEFT_SHIFT) ? .8 : .35);
+            }
+        }
         updateSmoothedDistance();
         saveChangedDistanceWhenReady();
     }
@@ -104,6 +122,10 @@ public final class RpgCameraController {
             trackedPlayer = null;
             rotatingCamera = false;
             viewObstructed = false;
+            tacticalRig.reset(null);
+            lastSafeAnchor = null;
+            wasTactical = false;
+            cameraDimension = null;
             return;
         }
 
@@ -159,7 +181,14 @@ public final class RpgCameraController {
 
         float partialTick = (float) event.getPartialTick();
         Vec3 eyes = focusedEntity.getEyePosition(partialTick);
-        Vec3 requestedAnchor = eyes.add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
+        var dimension = minecraft.level.dimension().location();
+        if (!dimension.equals(cameraDimension)) recenter();
+        cameraDimension = dimension;
+        boolean tactical = ClientConfig.controlMode() == dev.stonebanner.control.ControlMode.TACTICAL;
+        if (wasTactical != tactical) { tacticalRig.reset(null); clearFocus(); lastSafeAnchor = null; }
+        wasTactical = tactical;
+        Vec3 requestedAnchor = tactical && tacticalRig.initialized()
+                ? tacticalRig.interpolated(partialTick) : eyes.add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
         if (focusTarget != null && previousFocusAnchor != null && focusAnchor != null)
             requestedAnchor = previousFocusAnchor.lerp(focusAnchor, partialTick);
 
@@ -173,9 +202,23 @@ public final class RpgCameraController {
         var context = CollisionContext.of(focusedEntity);
         java.util.function.Function<AABB, List<AABB>> obstacles = bounds -> obstacles(minecraft, context, bounds);
         // Start at the real eyes, never at an unchecked height offset inside a roof.
-        var lift = CameraCollision.sweep(eyes, requestedAnchor, radius, obstacles);
+        Vec3 sweepStart = tactical && lastSafeAnchor != null ? lastSafeAnchor : eyes;
+        // A free camera stays in the loaded neighbourhood of the hero, but does not follow their movement.
+        if (tactical) {
+            Vec3 offset = requestedAnchor.subtract(eyes);
+            if (offset.length() > 64) requestedAnchor = eyes.add(offset.normalize().scale(64));
+        }
+        var lift = CameraCollision.sweep(sweepStart, requestedAnchor, radius, obstacles);
+        if (tactical && lift.blockedStart() && sweepStart != eyes) {
+            recenter();
+            lift = CameraCollision.sweep(eyes, eyes.add(0, ClientConfig.CAMERA_HEIGHT.get(), 0), radius, obstacles);
+            requestedAnchor = lift.position();
+        }
         viewObstructed = lift.blockedStart();
         Vec3 anchor = lift.position();
+        lastSafeAnchor = anchor;
+        if (tactical && (!tacticalRig.initialized() || focusTarget != null || anchor.distanceToSqr(requestedAnchor) > 1e-6))
+            tacticalRig.reset(anchor);
         Vector3f look = camera.getLookVector();
         Vec3 desired = anchor.subtract(look.x() * currentDistance, look.y() * currentDistance, look.z() * currentDistance);
         var retreat = CameraCollision.sweep(anchor, desired, radius, obstacles);
@@ -184,6 +227,17 @@ public final class RpgCameraController {
         // position would carry the camera through a closing door or a newly entered ceiling.
         camera.setPosition(viewObstructed ? eyes : retreat.position());
 
+    }
+
+    private static boolean pressed(long window, int key) { return GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS; }
+    public static void recenter() {
+        clearFocus(); tacticalRig.reset(null); lastSafeAnchor = null;
+    }
+    public static void panByMouse(double dragX, double dragY) {
+        if (!tacticalRig.initialized()) return;
+        double length = Math.hypot(dragX, dragY);
+        if (length < 1e-6) return;
+        clearFocus(); tacticalRig.pan(dragX / length, dragY / length, 0, cameraYaw, length * .06);
     }
 
     private static List<AABB> obstacles(Minecraft minecraft, CollisionContext context, AABB bounds) {
@@ -225,6 +279,8 @@ public final class RpgCameraController {
         }
 
         trackedPlayer = player;
+        recenter();
+        viewObstructed = false;
         cameraYaw = player.getYRot();
         cameraPitch = Mth.clamp(ClientConfig.CAMERA_PITCH.get().floatValue(), MIN_PITCH, MAX_PITCH);
         lastPlayerYaw = player.getYRot();

@@ -60,6 +60,7 @@ public final class TacticalControlScreen extends Screen {
         }
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
+        graphics.drawString(font, font.plainSubstrByWidth(Component.translatable("hud.stonebanner.tactical.controls").getString(), width - 16), 8, 96, 0xFFD8D2C8);
         ExcavationLadderStatusHud.render(graphics, minecraft, width);
 
         OreDiscoveryHud.render(graphics, minecraft, width, height);
@@ -205,8 +206,11 @@ public final class TacticalControlScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && RpgCameraController.hasFocus()) {
-            RpgCameraController.clearFocus(); return true;
+            RpgCameraController.clearFocus();
         }
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT
+                && StoneBannerHudRenderer.actionAt(mouseX, mouseY, width, height, CitizenSelectionController.hasSelection())
+                != StoneBannerHudRenderer.HudAction.NONE) return true;
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (OreDiscoveryHud.click(mouseX, mouseY, width)) return true;
             if (RpgCameraController.hasFocus()) { RpgCameraController.clearFocus(); return true; }
@@ -361,7 +365,9 @@ public final class TacticalControlScreen extends Screen {
             hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
             hoveredTarget.ifPresent(hit -> {
                 if (hit instanceof EntityHitResult entityHit) {
-                    if (CitizenSelectionController.select(entityHit.getEntity())) {
+                    if (hasAltDown()) {
+                        CitizenSelectionController.clear(); PlayerCommandController.attack(entityHit.getEntity());
+                    } else if (CitizenSelectionController.select(entityHit.getEntity())) {
                         PlayerCommandController.stop();
                     } else {
                         CitizenSelectionController.clear();
@@ -369,20 +375,13 @@ public final class TacticalControlScreen extends Screen {
                     }
                 } else {
                     BlockHitResult blockHit = (BlockHitResult) hit;
-                    if (minecraft.level != null && minecraft.level.getBlockState(blockHit.getBlockPos()).is(dev.stonebanner.geology.ResearchBlocks.TABLE.get())) {
-                        dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(blockHit.getBlockPos(), dev.stonebanner.geology.GeologyService.Action.OPEN, -1);
-                        return;
-                    }
                     if (hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
                         dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(blockHit.getBlockPos().relative(blockHit.getDirection()), dev.stonebanner.geology.GeologyService.Action.SURVEY,
                                 CitizenSelectionController.selected().map(npc -> npc.getId()).orElse(-1));
                         return;
                     }
-                    if (minecraft.level != null && minecraft.level.getBlockState(blockHit.getBlockPos()).getBlock()
-                            instanceof net.minecraft.world.level.block.BannerBlock) {
-                        dev.stonebanner.network.StoneBannerNetwork.sendBannerAction(blockHit.getBlockPos(),
-                                dev.stonebanner.settlement.BannerCommunityService.Action.OPEN, "", -1);
-                        return;
+                    if (PlayerCommandController.isInteractiveBlock(blockHit.getBlockPos())) {
+                        PlayerCommandController.interactBlock(blockHit); return;
                     }
                     if (!CitizenSelectionController.moveSelected(blockHit)) {
                         PlayerCommandController.moveTo(blockHit);
@@ -404,9 +403,12 @@ public final class TacticalControlScreen extends Screen {
                 }
                 return true;
             }
-            if (!CitizenSelectionController.stopAndClear()) {
-                PlayerCommandController.stop();
-            }
+            hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+            if (hoveredTarget.orElse(null) instanceof EntityHitResult entityHit) {
+                PlayerCommandController.interactEntity(entityHit.getEntity());
+            } else if (hoveredTarget.orElse(null) instanceof BlockHitResult blockHit) {
+                PlayerCommandController.interactBlock(blockHit);
+            } else if (!CitizenSelectionController.stopAndClear()) PlayerCommandController.stop();
             return true;
         }
         return button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE || super.mouseClicked(mouseX, mouseY, button);
@@ -455,7 +457,8 @@ public final class TacticalControlScreen extends Screen {
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
-            RpgCameraController.rotateByMouseDrag(dragX, dragY);
+            if (hasShiftDown()) RpgCameraController.panByMouse(dragX, dragY);
+            else RpgCameraController.rotateByMouseDrag(dragX, dragY);
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -478,6 +481,10 @@ public final class TacticalControlScreen extends Screen {
         }
         if (ClientKeyMappings.ORE_JOURNAL.matches(keyCode, scanCode)) {
             minecraft.setScreen(new OreDiscoveriesScreen(this)); return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_HOME) { RpgCameraController.recenter(); return true; }
+        if (keyCode == GLFW.GLFW_KEY_SPACE) {
+            CitizenSelectionController.stopAndClear(); PlayerCommandController.stop(); return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             minecraft.setScreen(new PauseScreen(true));

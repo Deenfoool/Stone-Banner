@@ -1,6 +1,8 @@
 package dev.stonebanner.network;
 
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.network.packet.TacticalActionPacket;
+import dev.stonebanner.network.packet.OpenTacticalNpcPacket;
 import dev.stonebanner.network.packet.GeologyActionPacket;
 import dev.stonebanner.network.packet.GeologySnapshotPacket;
 import dev.stonebanner.geology.GeologyService;
@@ -32,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "9";
+    private static final String PROTOCOL_VERSION = "10";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -52,6 +54,12 @@ public final class StoneBannerNetwork {
             return;
         }
         registered = true;
+        CHANNEL.registerMessage(nextPacketId++, TacticalActionPacket.class, TacticalActionPacket::encode,
+                TacticalActionPacket::decode, TacticalActionPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++, OpenTacticalNpcPacket.class, OpenTacticalNpcPacket::encode,
+                OpenTacticalNpcPacket::decode, OpenTacticalNpcPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(nextPacketId++, GeologyActionPacket.class,
                 GeologyActionPacket::encode, GeologyActionPacket::decode, GeologyActionPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
@@ -136,6 +144,10 @@ public final class StoneBannerNetwork {
         );
     }
 
+    public static void sendTacticalAction(TacticalActionPacket packet) { CHANNEL.sendToServer(packet); }
+    public static void openTacticalNpc(ServerPlayer player, int entityId) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenTacticalNpcPacket(player.serverLevel().dimension().location(), entityId));
+    }
     public static void requestMapLayers(BlockPos center) {
         CHANNEL.sendToServer(new GeologyActionPacket(true, center, GeologyService.Action.OPEN, -1));
     }

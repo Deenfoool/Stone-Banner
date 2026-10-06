@@ -303,5 +303,7 @@
   "key.stonebanner.layer_boundaries": "Community boundaries",
   "key.stonebanner.layer_resources": "Chunk resources",
   "key.stonebanner.layer_fertility": "Fertile land",
-  "geology.stonebanner.layer_tooltip": "%s · %s"
+  "geology.stonebanner.layer_tooltip": "%s · %s",
+  "message.stonebanner.interaction_unreachable": "No accessible route to the interaction target.",
+  "hud.stonebanner.tactical.controls": "WASD: camera · Home: hero · RMB: use · Alt+LMB: attack · Space: stop"
 }

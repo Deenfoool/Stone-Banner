@@ -303,5 +303,7 @@
   "key.stonebanner.layer_boundaries": "Границы общины",
   "key.stonebanner.layer_resources": "Ресурсы чанков",
   "key.stonebanner.layer_fertility": "Плодородные земли",
-  "geology.stonebanner.layer_tooltip": "%s · %s"
+  "geology.stonebanner.layer_tooltip": "%s · %s",
+  "message.stonebanner.interaction_unreachable": "Нет доступного пути к цели взаимодействия.",
+  "hud.stonebanner.tactical.controls": "WASD: камера · Home: герой · ПКМ: использовать · Alt+ЛКМ: атака · Space: стоп"
 }

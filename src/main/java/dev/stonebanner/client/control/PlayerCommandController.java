@@ -2,6 +2,11 @@ package dev.stonebanner.client.control;
 
 import dev.stonebanner.client.camera.RpgCameraController;
 import dev.stonebanner.StoneAndBanner;
+import dev.stonebanner.control.TacticalInteractionRules;
+import dev.stonebanner.network.StoneBannerNetwork;
+import dev.stonebanner.network.packet.TacticalActionPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import dev.stonebanner.command.ActorCommand;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.CameraSpace;
@@ -49,6 +54,10 @@ public final class PlayerCommandController {
     private static Integer selectedEntityId;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static BlockPos attemptedControlledDoor;
+    private static BlockHitResult pendingBlock;
+    private static BlockPos actionGoal;
+    private static LocalPlayer commandPlayer;
+    private static net.minecraft.resources.ResourceLocation commandDimension;
 
     private PlayerCommandController() {
     }
@@ -75,6 +84,44 @@ public final class PlayerCommandController {
         issue(new ActorCommand.EntityAction(entity.getId(), action));
     }
 
+    public static void interactEntity(Entity entity) {
+        issue(new ActorCommand.EntityAction(entity.getId(), ActorCommand.EntityActionType.INTERACT));
+    }
+    public static void attack(Entity entity) {
+        issue(new ActorCommand.EntityAction(entity.getId(), ActorCommand.EntityActionType.ATTACK));
+    }
+    public static void interactBlock(BlockHitResult hit) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) return;
+        ensureWorld(mc); stopInternal();
+        pendingBlock = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), false);
+        if (!executePendingBlock(mc.player)) createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
+    }
+    public static boolean isInteractiveBlock(BlockPos pos) {
+        var mc = Minecraft.getInstance(); if (mc.level == null) return false;
+        var state = mc.level.getBlockState(pos); var block = state.getBlock();
+        return state.getMenuProvider(mc.level, pos) != null || block instanceof net.minecraft.world.level.block.EntityBlock
+                || block instanceof net.minecraft.world.level.block.BannerBlock
+                || block instanceof dev.stonebanner.geology.ResearchTableBlock
+                || block instanceof net.minecraft.world.level.block.DoorBlock
+                || block instanceof net.minecraft.world.level.block.TrapDoorBlock
+                || block instanceof net.minecraft.world.level.block.FenceGateBlock
+                || block instanceof net.minecraft.world.level.block.ButtonBlock
+                || block instanceof net.minecraft.world.level.block.LeverBlock
+                || block instanceof net.minecraft.world.level.block.BedBlock;
+    }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) {
+        stopInternal(); commandPlayer = null; commandDimension = null;
+    }
+    private static void ensureWorld(Minecraft mc) {
+        if (mc.player == null || mc.level == null) {
+            stopInternal(); commandPlayer = null; commandDimension = null; return;
+        }
+        var dimension = mc.level.dimension().location();
+        if (commandPlayer != mc.player || !dimension.equals(commandDimension)) stopInternal();
+        commandPlayer = mc.player; commandDimension = dimension;
+    }
+
     public static void stop() {
         issue(new ActorCommand.Stop());
     }
@@ -94,6 +141,8 @@ public final class PlayerCommandController {
             return;
         }
 
+        ensureWorld(minecraft);
+        pendingBlock = null;
         if (command instanceof ActorCommand.MoveTo moveTo) {
             selectedEntityId = null;
             pendingAction = PendingAction.NONE;
@@ -127,11 +176,13 @@ public final class PlayerCommandController {
             return;
         }
         if (!executePendingActionIfInRange(player, entity)) {
-            createPath(BlockPos.containing(entity.position()));
+            createInteractionPath(entity.getBoundingBox().getCenter(), null, player.getEntityReach());
         }
     }
 
     private static void stopInternal() {
+        pendingBlock = null;
+        actionGoal = null;
         path.clear();
         destination = null;
         selectedEntityId = null;
@@ -172,8 +223,7 @@ public final class PlayerCommandController {
         }
         Entity entity = minecraft.level.getEntity(selectedEntityId);
         if (entity == null || !entity.isAlive()) {
-            selectedEntityId = null;
-            pendingAction = PendingAction.NONE;
+            stopInternal();
             return Optional.empty();
         }
         return Optional.of(entity);
@@ -186,14 +236,17 @@ public final class PlayerCommandController {
             return;
         }
 
-        if (event.getInput().forwardImpulse != 0 || event.getInput().leftImpulse != 0)
+        if (ClientConfig.controlMode() != ControlMode.TACTICAL
+                && (event.getInput().forwardImpulse != 0 || event.getInput().leftImpulse != 0))
             RpgCameraController.clearFocus();
         if (ClientConfig.controlMode() != ControlMode.TACTICAL) {
             return;
         }
 
+        ensureWorld(minecraft);
         Input input = event.getInput();
         clearMovement(input);
+        if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) return;
         Player player = minecraft.player;
         ClientLevel level = minecraft.level;
         if (level == null) {
@@ -201,6 +254,11 @@ public final class PlayerCommandController {
             return;
         }
 
+        if (pendingBlock != null) {
+            if (executePendingBlock(player)) return;
+            if (path.isEmpty() && status != CommandStatus.UNREACHABLE)
+                createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), player.getBlockReach());
+        }
         Entity actionTarget = selectedEntity().orElse(null);
         if (actionTarget != null && pendingAction != PendingAction.NONE) {
             facePlayerToward(player, actionTarget);
@@ -209,12 +267,9 @@ public final class PlayerCommandController {
                 return;
             }
             BlockPos movingTarget = BlockPos.containing(actionTarget.position());
-            if (destination != null
-                    && horizontalBlockDistance(destination, movingTarget) > 2
-                    && player.tickCount % 10 == 0) {
-                destination = movingTarget;
-                replan(level, BlockPos.containing(player.position()));
-            }
+            if ((actionGoal == null || horizontalBlockDistance(actionGoal, movingTarget) > 2)
+                    && player.tickCount % 10 == 0)
+                createInteractionPath(actionTarget.getBoundingBox().getCenter(), null, player.getEntityReach());
         }
         if (path.isEmpty()) {
             return;
@@ -306,6 +361,49 @@ public final class PlayerCommandController {
         }
     }
 
+    private static void createInteractionPath(Vec3 point, BlockPos permittedBlock, double reach) {
+        var mc = Minecraft.getInstance(); if (mc.player == null || mc.level == null) return;
+        reach = Math.max(0, reach - .4); // Stop comfortably inside reach, not on a client/server timing boundary.
+        BlockPos center = BlockPos.containing(point); actionGoal = center;
+        var candidates = new java.util.ArrayList<BlockPos>();
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 2; dy++) {
+            var pos = center.offset(dx, dy, dz);
+            if (!mc.level.hasChunkAt(pos) || !BlockPathfinder.isWalkable(mc.level, pos)) continue;
+            Vec3 eyes = BlockPathfinder.waypoint(mc.level, pos).add(0, mc.player.getEyeHeight(), 0);
+            if (eyes.distanceToSqr(point) <= reach * reach
+                    && TacticalInteractionRules.visibleFrom(mc.level, mc.player, eyes, point, permittedBlock)) candidates.add(pos);
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(pos -> Vec3.atBottomCenterOf(pos).distanceToSqr(mc.player.position())));
+        path.clear(); destination = null;
+        int attempts = 0;
+        for (var pos : candidates) {
+            if (++attempts > 12) break;
+            var route = BlockPathfinder.findPath(mc.level, mc.player.blockPosition(), pos);
+            if (route.isPresent()) {
+                destination = pos; path.addAll(route.get()); status = path.isEmpty() ? CommandStatus.TARGET_SELECTED : CommandStatus.MOVING;
+                resetProgressTracking(); return;
+            }
+        }
+        status = CommandStatus.UNREACHABLE;
+        mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.stonebanner.interaction_unreachable"), true);
+    }
+    private static boolean executePendingBlock(Player player) {
+        var mc = Minecraft.getInstance(); if (pendingBlock == null || mc.level == null) return false;
+        if (!mc.level.hasChunkAt(pendingBlock.getBlockPos())) { stopInternal(); return true; }
+        double blockReach = Math.max(0, player.getBlockReach() - .4);
+        if (!player.canReach(pendingBlock.getBlockPos(), 0)
+                || player.getEyePosition().distanceToSqr(pendingBlock.getLocation()) > blockReach * blockReach
+                || !TacticalInteractionRules.visible(mc.level, player, pendingBlock.getLocation(), pendingBlock.getBlockPos())) return false;
+        facePlayerTowardDirection(player, pendingBlock.getLocation().x-player.getX(), pendingBlock.getLocation().z-player.getZ());
+        sendAction(new TacticalActionPacket(TacticalActionPacket.Action.USE_BLOCK, -1, pendingBlock.getBlockPos(), pendingBlock.getDirection(), pendingBlock.getLocation()));
+        pendingBlock = null; clearPath(); status = CommandStatus.IDLE; resetProgressTracking(); return true;
+    }
+    private static void sendAction(TacticalActionPacket packet) {
+        var mc = Minecraft.getInstance(); if (mc.player == null) return;
+        mc.player.connection.send(new ServerboundSetCarriedItemPacket(mc.player.getInventory().selected));
+        StoneBannerNetwork.sendTacticalAction(packet);
+    }
+
     private static void createPath(BlockPos requestedTarget) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
@@ -344,6 +442,13 @@ public final class PlayerCommandController {
     }
 
     private static void replan(ClientLevel level, BlockPos start) {
+        if (pendingBlock != null) {
+            createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), Minecraft.getInstance().player.getBlockReach()); return;
+        }
+        var entity = selectedEntity().orElse(null);
+        if (entity != null && pendingAction != PendingAction.NONE) {
+            createInteractionPath(entity.getBoundingBox().getCenter(), null, Minecraft.getInstance().player.getEntityReach()); return;
+        }
         if (destination == null) {
             return;
         }
@@ -371,28 +476,24 @@ public final class PlayerCommandController {
     }
 
     private static boolean executePendingActionIfInRange(Player player, Entity target) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.gameMode == null || pendingAction == PendingAction.NONE
-                || player.distanceToSqr(target) > 9.0D) {
-            return false;
-        }
-
+        var mc = Minecraft.getInstance();
+        double entityReach = Math.max(0, player.getEntityReach() - .4);
+        if (mc.level == null || pendingAction == PendingAction.NONE || !player.canReach(target, 0)
+                || player.getEyePosition().distanceToSqr(target.getBoundingBox().getCenter()) > entityReach * entityReach
+                || !TacticalInteractionRules.visible(mc.level, player, target.getBoundingBox().getCenter(), null)) return false;
         facePlayerToward(player, target);
+        clearPath(); attemptedControlledDoor = null; status = CommandStatus.TARGET_SELECTED;
         if (pendingAction == PendingAction.ATTACK) {
-            minecraft.gameMode.attack(player, target);
-            player.swing(InteractionHand.MAIN_HAND);
-        } else if (pendingAction == PendingAction.INTERACT) {
-            InteractionResult result = minecraft.gameMode.interact(player, target, InteractionHand.MAIN_HAND);
-            if (result.shouldSwing()) {
-                player.swing(InteractionHand.MAIN_HAND);
+            if (player.getAttackStrengthScale(.5f) >= .9f && !player.isUsingItem()) {
+                sendAction(new TacticalActionPacket(TacticalActionPacket.Action.ATTACK, target.getId(), BlockPos.ZERO, Direction.UP, Vec3.ZERO));
+                player.swing(InteractionHand.MAIN_HAND); player.resetAttackStrengthTicker();
             }
+            // Attack order persists until death, stop or a replacement order; vanilla attack cooldown still applies.
+        } else {
+            sendAction(new TacticalActionPacket(TacticalActionPacket.Action.INTERACT_ENTITY, target.getId(), BlockPos.ZERO, Direction.UP, Vec3.ZERO));
+            pendingAction = PendingAction.NONE;
         }
-        pendingAction = PendingAction.NONE;
-        clearPath();
-        attemptedControlledDoor = null;
-        status = CommandStatus.TARGET_SELECTED;
-        resetProgressTracking();
-        return true;
+        resetProgressTracking(); return true;
     }
 
     private static void openDoorAhead(Player player, ClientLevel level, BlockPos nextNode) {
