@@ -39,8 +39,8 @@ public final class PathPreviewRenderer {
         Vec3 hoveredLocation = WorldCursor.hoveredLocation().orElse(null);
         Entity selectedEntity = PlayerCommandController.selectedEntity().orElse(null);
         Entity selectedCitizen = CitizenSelectionController.selected().orElse(null);
-        boolean hasDesignationPreview = DesignationController.dragStart().isPresent()
-                && DesignationController.dragEnd().isPresent();
+        boolean hasDesignationPreview = DesignationController.selectionStart().isPresent()
+                && DesignationController.selectionEnd().isPresent();
         boolean hasExcavationOverlay = ExcavationOverlayState.hasPlans();
         if (path.isEmpty() && destination == null && hoveredEntity == null
                 && selectedEntity == null && selectedCitizen == null && hoveredLocation == null
@@ -180,8 +180,8 @@ public final class PathPreviewRenderer {
     }
 
     private static void renderDesignationPreview(PoseStack poses, VertexConsumer lines) {
-        BlockPos first = DesignationController.dragStart().orElse(null);
-        BlockPos second = DesignationController.dragEnd().orElse(null);
+        BlockPos first = DesignationController.selectionStart().orElse(null);
+        BlockPos second = DesignationController.selectionEnd().orElse(null);
         DesignationType type = DesignationController.activeType().orElse(null);
         if (first == null || second == null || type == null) {
             return;

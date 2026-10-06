@@ -39,6 +39,10 @@
   "hud.stonebanner.tactical.selected": "Selected: %s  •  Right click to clear",
   "hud.stonebanner.tactical.npc_selected": "NPC selected: %s [%s]  •  Left click ground: move  •  Right click: stop/deselect",
   "hud.stonebanner.designation.selection_size": "Selection: %s × %s × %s — about %s blocks",
+  "hud.stonebanner.designation.selection_step": "%s/3 • %s",
+  "hud.stonebanner.designation.step.length": "Length",
+  "hud.stonebanner.designation.step.width": "Width",
+  "hud.stonebanner.designation.step.depth": "Depth",
 
   "hud.stonebanner.top.settlement": "Settlement",
   "hud.stonebanner.top.not_founded": "not founded",
@@ -47,6 +51,11 @@
   "hud.stonebanner.top.treasury": "Treasury",
   "hud.stonebanner.top.prosperity": "Prosperity",
   "hud.stonebanner.top.materials": "Materials",
+  "hud.stonebanner.top.day": "Day %s",
+  "hud.stonebanner.top.day_time": "Day %s • %s",
+  "hud.stonebanner.weather.clear": "Clear",
+  "hud.stonebanner.weather.rain": "Rain",
+  "hud.stonebanner.weather.thunder": "Thunder",
 
   "hud.stonebanner.npc.health": "Health",
   "hud.stonebanner.npc.hunger": "Hunger",
@@ -57,10 +66,14 @@
   "hud.stonebanner.npc.collapse": "[−]",
   "hud.stonebanner.npc.details": "Info",
 
+  "hud.stonebanner.menu.build": "Build",
+  "hud.stonebanner.menu.orders": "Orders",
+  "hud.stonebanner.menu.zones": "Zones",
+  "hud.stonebanner.menu.research": "Research",
+  "hud.stonebanner.menu.crafting": "Crafting",
   "hud.stonebanner.menu.construction": "Construction",
   "hud.stonebanner.menu.work": "Work",
   "hud.stonebanner.menu.history": "History",
-  "hud.stonebanner.menu.research": "Research",
   "hud.stonebanner.time.pause": "Pause",
   "hud.stonebanner.time.start": "Start",
 

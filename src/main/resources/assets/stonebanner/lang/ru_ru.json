@@ -39,6 +39,10 @@
   "hud.stonebanner.tactical.selected": "Выбрано: %s  •  ПКМ для отмены",
   "hud.stonebanner.tactical.npc_selected": "Выбран NPC: %s [%s]  •  ЛКМ по земле: отправить  •  ПКМ: стоп/снять выбор",
   "hud.stonebanner.designation.selection_size": "Область: %s × %s × %s — примерно %s блоков",
+  "hud.stonebanner.designation.selection_step": "%s/3 • %s",
+  "hud.stonebanner.designation.step.length": "Длина",
+  "hud.stonebanner.designation.step.width": "Ширина",
+  "hud.stonebanner.designation.step.depth": "Глубина",
 
   "hud.stonebanner.top.settlement": "Поселение",
   "hud.stonebanner.top.not_founded": "не основано",
@@ -47,6 +51,11 @@
   "hud.stonebanner.top.treasury": "Казна",
   "hud.stonebanner.top.prosperity": "Процв.",
   "hud.stonebanner.top.materials": "Материалы",
+  "hud.stonebanner.top.day": "День %s",
+  "hud.stonebanner.top.day_time": "День %s • %s",
+  "hud.stonebanner.weather.clear": "Ясно",
+  "hud.stonebanner.weather.rain": "Дождь",
+  "hud.stonebanner.weather.thunder": "Гроза",
 
   "hud.stonebanner.npc.health": "Здоровье",
   "hud.stonebanner.npc.hunger": "Голод",
@@ -57,10 +66,14 @@
   "hud.stonebanner.npc.collapse": "[−]",
   "hud.stonebanner.npc.details": "Досье",
 
+  "hud.stonebanner.menu.build": "Строить",
+  "hud.stonebanner.menu.orders": "Приказы",
+  "hud.stonebanner.menu.zones": "Зоны",
+  "hud.stonebanner.menu.research": "Исследование",
+  "hud.stonebanner.menu.crafting": "Ремесло",
   "hud.stonebanner.menu.construction": "Строительство",
   "hud.stonebanner.menu.work": "Работы",
   "hud.stonebanner.menu.history": "История",
-  "hud.stonebanner.menu.research": "Исследование",
   "hud.stonebanner.time.pause": "Пауза",
   "hud.stonebanner.time.start": "Старт",
 
