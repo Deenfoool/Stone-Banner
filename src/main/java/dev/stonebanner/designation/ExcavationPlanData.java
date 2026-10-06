@@ -157,6 +157,61 @@ public final class ExcavationPlanData extends SavedData {
         return plans.size();
     }
 
+    /** Compact plan metadata for UI/commands without exposing mutable persistence internals. */
+    public List<PlanSummary> summaries() {
+        ArrayList<PlanSummary> result = new ArrayList<>(plans.size());
+        for (Plan plan : plans.values()) {
+            result.add(new PlanSummary(
+                    plan.id,
+                    new BlockPos(plan.minX, plan.minY, plan.minZ),
+                    new BlockPos(plan.maxX, plan.maxY, plan.maxZ),
+                    plan.mode.serializedName(),
+                    plan.accessMode,
+                    plan.currentSlice,
+                    plan.step
+            ));
+        }
+        return List.copyOf(result);
+    }
+
+    /**
+     * Extends only the deep end of an active horizontal tunnel while keeping its cross-section, entrance,
+     * current front and direction intact. The final plan must still satisfy the normal designation limits.
+     */
+    public ExtensionResult extendTunnel(ServerLevel level, long planId, int additionalLength) {
+        if (level == null || additionalLength <= 0) {
+            return new ExtensionResult(ExtensionStatus.INVALID_LENGTH, 0);
+        }
+        Plan plan = plans.get(planId);
+        if (plan == null) {
+            return new ExtensionResult(ExtensionStatus.NOT_FOUND, 0);
+        }
+        if (plan.mode == Mode.VERTICAL) {
+            return new ExtensionResult(ExtensionStatus.NOT_TUNNEL, 0);
+        }
+
+        Plan extended;
+        try {
+            extended = plan.extendedBy(additionalLength);
+        } catch (ArithmeticException ignored) {
+            return new ExtensionResult(ExtensionStatus.TOO_LARGE, 0);
+        }
+
+        BlockPos extendedMin = new BlockPos(extended.minX, extended.minY, extended.minZ);
+        BlockPos extendedMax = new BlockPos(extended.maxX, extended.maxY, extended.maxZ);
+        if (!DesignationLimits.isAllowed(extendedMin, extendedMax)) {
+            return new ExtensionResult(ExtensionStatus.TOO_LARGE, 0);
+        }
+
+        int addedTargets = countAddedTargets(level, plan, extended);
+        plans.put(planId, extended);
+        setDirty();
+        // The current front does not move. If it was waiting/reconciling, preserve the same exposed section.
+        exposeCurrentOrNextSlice(level, extended);
+        syncAll(level);
+        return new ExtensionResult(ExtensionStatus.EXTENDED, addedTargets);
+    }
+
     /**
      * Exposes immutable geometry only for a target in the currently active slice.
      * Runtime safety code uses this instead of reaching into persistent plan internals.
@@ -304,6 +359,21 @@ public final class ExcavationPlanData extends SavedData {
             for (int y = plan.minY; y <= plan.maxY; y++) {
                 for (int z = plan.minZ; z <= plan.maxZ; z++) {
                     if (isExcavationTarget(level, plan, new BlockPos(x, y, z))) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countAddedTargets(ServerLevel level, Plan previous, Plan extended) {
+        int count = 0;
+        for (int x = extended.minX; x <= extended.maxX; x++) {
+            for (int y = extended.minY; y <= extended.maxY; y++) {
+                for (int z = extended.minZ; z <= extended.maxZ; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    if (!previous.contains(pos) && isExcavationTarget(level, extended, pos)) {
                         count++;
                     }
                 }
@@ -517,6 +587,26 @@ public final class ExcavationPlanData extends SavedData {
                     enterFromMin ? 1 : -1);
         }
 
+        private Plan extendedBy(int length) {
+            if (mode == Mode.VERTICAL || length <= 0) {
+                return this;
+            }
+            if (mode == Mode.TUNNEL_X) {
+                if (step > 0) {
+                    return new Plan(id, minX, minY, minZ, Math.addExact(maxX, length), maxY, maxZ,
+                            mode, accessMode, currentSlice, step);
+                }
+                return new Plan(id, Math.subtractExact(minX, length), minY, minZ, maxX, maxY, maxZ,
+                        mode, accessMode, currentSlice, step);
+            }
+            if (step > 0) {
+                return new Plan(id, minX, minY, minZ, maxX, maxY, Math.addExact(maxZ, length),
+                        mode, accessMode, currentSlice, step);
+            }
+            return new Plan(id, minX, minY, Math.subtractExact(minZ, length), maxX, maxY, maxZ,
+                    mode, accessMode, currentSlice, step);
+        }
+
         private void advance() {
             currentSlice += step;
         }
@@ -602,6 +692,26 @@ public final class ExcavationPlanData extends SavedData {
                     && maxY >= other.minY && minY <= other.maxY
                     && maxZ >= other.minZ && minZ <= other.maxZ;
         }
+    }
+
+    public record PlanSummary(long id, BlockPos min, BlockPos max, String mode,
+                              ExcavationAccessMode accessMode, int currentSlice, int step) {
+        public PlanSummary {
+            min = min.immutable();
+            max = max.immutable();
+            accessMode = accessMode == null ? ExcavationAccessMode.AUTO : accessMode;
+        }
+    }
+
+    public record ExtensionResult(ExtensionStatus status, int addedTargets) {
+    }
+
+    public enum ExtensionStatus {
+        EXTENDED,
+        NOT_FOUND,
+        NOT_TUNNEL,
+        INVALID_LENGTH,
+        TOO_LARGE
     }
 
     record PlanView(int minX, int minY, int minZ,
