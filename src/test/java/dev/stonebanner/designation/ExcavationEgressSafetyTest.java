@@ -72,7 +72,7 @@ class ExcavationEgressSafetyTest {
     }
 
     @Test
-    void oneBlockWideVerticalStripHasNoFakeRamp() {
+    void oneBlockWideVerticalStripUsesDeterministicLadderColumn() {
         ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
                 10, 30, 20,
                 10, 45, 24,
@@ -80,6 +80,19 @@ class ExcavationEgressSafetyTest {
         );
 
         assertNull(ExcavationEgressSafety.rampSupportAtY(plan, 40));
+        assertEquals(new BlockPos(10, 44, 20), ExcavationEgressSafety.ladderAccessAtY(plan, 44));
+        assertEquals(5, ExcavationEgressSafety.requiredLadderCount(plan));
+    }
+
+    @Test
+    void topVerticalSliceNeedsNoLaddersYet() {
+        ExcavationPlanData.PlanView plan = new ExcavationPlanData.PlanView(
+                4, 20, 8,
+                4, 30, 8,
+                0, 30, -1
+        );
+
+        assertEquals(0, ExcavationEgressSafety.requiredLadderCount(plan));
     }
 
     @Test
