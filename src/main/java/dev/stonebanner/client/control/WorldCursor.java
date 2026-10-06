@@ -24,6 +24,11 @@ public final class WorldCursor {
 
     public static Optional<HitResult> pick(Minecraft minecraft, double mouseX, double mouseY,
                                            int screenWidth, int screenHeight) {
+        return pick(minecraft, mouseX, mouseY, screenWidth, screenHeight, false);
+    }
+
+    public static Optional<HitResult> pick(Minecraft minecraft, double mouseX, double mouseY,
+                                           int screenWidth, int screenHeight, boolean fluids) {
         if (minecraft.level == null || minecraft.player == null || screenWidth <= 0 || screenHeight <= 0
                 || dev.stonebanner.client.camera.RpgCameraController.viewObstructed()) {
             hoveredEntityId = null;
@@ -58,7 +63,7 @@ public final class WorldCursor {
                 start,
                 end,
                 ClipContext.Block.OUTLINE,
-                ClipContext.Fluid.NONE,
+                fluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE,
                 minecraft.player
         ));
         double blockDistance = blockResult.getType() == HitResult.Type.BLOCK

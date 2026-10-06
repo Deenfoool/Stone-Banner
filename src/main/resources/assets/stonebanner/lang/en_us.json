@@ -1,10 +1,10 @@
 {
   "key.categories.stonebanner": "Stone & Banner",
-  "key.stonebanner.cycle_control_mode": "Cycle control mode",
+  "key.stonebanner.cycle_control_mode": "Switch movement profile",
   "key.stonebanner.cycle_designation_mode": "Cycle designation tool",
-  "control_mode.stonebanner.action": "Action / WASD",
-  "control_mode.stonebanner.tactical": "Tactical / Mouse",
-  "control_mode.stonebanner.hybrid": "Hybrid",
+  "control_mode.stonebanner.action": "Movement: WASD",
+  "control_mode.stonebanner.tactical": "Movement: mouse",
+  "control_mode.stonebanner.hybrid": "Movement: mouse",
   "message.stonebanner.control_mode": "Control mode: %s",
   "message.stonebanner.excavation_access.ready": "Excavation access restored",
   "message.stonebanner.excavation_access.no_path": "Excavation paused: no safe path out",
@@ -242,7 +242,7 @@
   "geology.stonebanner.cost": "Cost: %s paper, 1 book%s",
   "geology.stonebanner.progress": "Work remaining: %s sec.",
   "geology.stonebanner.stay": "Work beside the table (within 8 blocks).",
-  "geology.stonebanner.survey_hint": "Geologist + resources layer: Shift + left click ground",
+  "geology.stonebanner.survey_hint": "Orders + geologist + resources: Shift + RMB on ground",
   "geology.stonebanner.chunk": "Chunk %s, %s",
   "geology.stonebanner.fertility": "Soil suitability: %s%%",
   "geology.stonebanner.pending": "Assessing territory…",
@@ -305,5 +305,7 @@
   "key.stonebanner.layer_fertility": "Fertile land",
   "geology.stonebanner.layer_tooltip": "%s · %s",
   "message.stonebanner.interaction_unreachable": "No accessible route to the interaction target.",
-  "hud.stonebanner.tactical.controls": "WASD: camera · Home: hero · RMB: use · Alt+LMB: attack · Space: stop"
+  "hud.stonebanner.hero.controls": "V: WASD / mouse · RMB: action · LMB: interact · Space: up · Ctrl: down · Tab: orders",
+  "hud.stonebanner.commands.controls": "Orders · LMB: select / drag box · Shift: add · RMB: order · edges: camera · Tab: hero",
+  "hud.stonebanner.selection_count": "Selected citizens: %s"
 }

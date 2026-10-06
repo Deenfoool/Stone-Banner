@@ -56,6 +56,7 @@ public final class PlayerCommandController {
     private static BlockPos attemptedControlledDoor;
     private static BlockHitResult pendingBlock;
     private static BlockPos actionGoal;
+    private static Vec3 swimTarget;
     private static LocalPlayer commandPlayer;
     private static net.minecraft.resources.ResourceLocation commandDimension;
 
@@ -63,11 +64,21 @@ public final class PlayerCommandController {
     }
 
     public static void moveTo(BlockHitResult hit) {
+        var mc = Minecraft.getInstance();
+        if (mc.player != null && mc.level != null && mc.player.isInWater()
+                && !mc.level.getFluidState(hit.getBlockPos()).isEmpty()) {
+            ensureWorld(mc); stopInternal(); swimTarget = hit.getLocation(); status = CommandStatus.MOVING; return;
+        }
         Direction face = hit.getDirection();
         BlockPos requestedTarget = face == Direction.UP
                 ? hit.getBlockPos().above()
                 : hit.getBlockPos().relative(face);
         issue(new ActorCommand.MoveTo(requestedTarget));
+    }
+
+    public static boolean moving() { return !path.isEmpty() || swimTarget != null; }
+    public static void approach(Vec3 point, BlockPos block, double reach) {
+        var mc = Minecraft.getInstance(); ensureWorld(mc); stopInternal(); createInteractionPath(point, block, reach);
     }
 
     public static void contextAction(Entity entity) {
@@ -182,7 +193,7 @@ public final class PlayerCommandController {
 
     private static void stopInternal() {
         pendingBlock = null;
-        actionGoal = null;
+        actionGoal = null; swimTarget = null;
         path.clear();
         destination = null;
         selectedEntityId = null;
@@ -236,11 +247,10 @@ public final class PlayerCommandController {
             return;
         }
 
-        if (ClientConfig.controlMode() != ControlMode.TACTICAL
-                && (event.getInput().forwardImpulse != 0 || event.getInput().leftImpulse != 0))
-            RpgCameraController.clearFocus();
-        if (ClientConfig.controlMode() != ControlMode.TACTICAL) {
-            return;
+        if (!ClientConfig.ENFORCE_THIRD_PERSON.get()) return;
+        if (!HeroInputController.commandMode() && ClientConfig.controlMode() == ControlMode.ACTION
+                && HeroInputController.manualMovement()) {
+            stop(); RpgCameraController.clearFocus(); return;
         }
 
         ensureWorld(minecraft);
@@ -271,9 +281,17 @@ public final class PlayerCommandController {
                     && player.tickCount % 10 == 0)
                 createInteractionPath(actionTarget.getBoundingBox().getCenter(), null, player.getEntityReach());
         }
-        if (path.isEmpty()) {
-            return;
+        if (swimTarget != null) {
+            if (!player.isInWater() || player.position().distanceToSqr(swimTarget) < .6) { swimTarget = null; status = CommandStatus.IDLE; return; }
+            Vec3 delta = swimTarget.subtract(player.position());
+            facePlayerTowardDirection(player, delta.x, delta.z);
+            var movement = CameraSpace.worldToLocal(delta.x / Math.max(.01, delta.horizontalDistance()), delta.z / Math.max(.01, delta.horizontalDistance()), player.getYRot());
+            input.leftImpulse = movement.left(); input.forwardImpulse = movement.forward();
+            input.jumping = HeroInputController.jump() || swimTarget.y > player.getY() + .25;
+            input.shiftKeyDown = HeroInputController.descend();
+            updateProgressAndReplan(player, level); return;
         }
+        if (path.isEmpty()) { return; }
 
         updateProgressAndReplan(player, level);
         BlockPos nextNode = path.peekFirst();
@@ -352,10 +370,10 @@ public final class PlayerCommandController {
             input.jumping = deltaY > 0.15D;
             input.shiftKeyDown = deltaY < -0.15D;
         } else if (player.isInWater()) {
-            input.jumping = moveTarget.y > player.getY() + 0.25D;
-            input.shiftKeyDown = moveTarget.y < player.getY() - 0.40D;
+            input.jumping = HeroInputController.jump() || moveTarget.y > player.getY() + 0.25D;
+            input.shiftKeyDown = HeroInputController.descend();
         } else {
-            input.jumping = player.onGround()
+            input.jumping = HeroInputController.jump() || player.onGround()
                     && (player.horizontalCollision || moveTarget.y > player.getY() + 0.35D);
             input.shiftKeyDown = false;
         }
@@ -442,6 +460,7 @@ public final class PlayerCommandController {
     }
 
     private static void replan(ClientLevel level, BlockPos start) {
+        if(swimTarget!=null){stopInternal();status=CommandStatus.UNREACHABLE;return;}
         if (pendingBlock != null) {
             createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), Minecraft.getInstance().player.getBlockReach()); return;
         }

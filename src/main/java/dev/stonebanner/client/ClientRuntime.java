@@ -63,6 +63,7 @@ public final class ClientRuntime {
         ControlMode nextMode = ClientConfig.controlMode().next();
         ClientConfig.setControlMode(nextMode);
         PlayerCommandController.stop();
+        dev.stonebanner.client.control.HeroInputController.cancel();
         if (minecraft.player != null) {
             minecraft.player.displayClientMessage(
                     Component.translatable("message.stonebanner.control_mode", nextMode.displayName()),
@@ -73,7 +74,7 @@ public final class ClientRuntime {
     }
 
     private static void synchronizeTacticalScreen(Minecraft minecraft) {
-        boolean tactical = ClientConfig.controlMode() == ControlMode.TACTICAL;
+        boolean tactical = ClientConfig.ENFORCE_THIRD_PERSON.get();
         if (tactical && minecraft.screen == null) {
             minecraft.setScreen(new TacticalControlScreen());
         } else if (!tactical && minecraft.screen instanceof TacticalControlScreen) {

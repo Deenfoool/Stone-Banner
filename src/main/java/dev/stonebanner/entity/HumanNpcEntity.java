@@ -104,6 +104,7 @@ public class HumanNpcEntity extends PathfinderMob {
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0D)
+                .add(Attributes.ATTACK_DAMAGE, 2.0D)
                 .add(Attributes.MOVEMENT_SPEED, BASE_MOVEMENT_SPEED)
                 .add(Attributes.FOLLOW_RANGE, 32.0D);
     }
@@ -201,7 +202,7 @@ public class HumanNpcEntity extends PathfinderMob {
             if (workController.hasActiveJob()) {
                 workController.interrupt(true);
             }
-            commandController.stop();
+            if (!commandController.hasActiveCommand()) commandController.stop();
             setBrainState(CitizenBrainState.DEFEND);
             return;
         }

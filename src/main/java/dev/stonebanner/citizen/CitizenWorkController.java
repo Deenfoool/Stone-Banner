@@ -185,6 +185,21 @@ public final class CitizenWorkController {
         workProgress = 0.0D;
     }
 
+    /** Explicit context order still respects skills, safety, travel and reservations. */
+    public boolean assign(CitizenJob job) {
+        if(currentJob!=null&&currentJob.id()==job.id())return true;
+        if(!(owner.level() instanceof ServerLevel level)||!job.canBeDoneBy(owner.citizenData())
+                ||CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
+                ||!owner.citizenData().canTravelTo(job.target())||!isJobStillValid(level,job)||!isJobActionable(level,job))return false;
+        var approach=findJobApproachPosition(level,job).orElse(null);
+        if(approach==null)return false;
+        var board=CitizenJobBoard.forLevel(level);
+        if(!board.reserve(job.id(),owner.getUUID(),level.getGameTime()))return false;
+        interrupt(false);
+        if(!owner.commandController().issueSystemMove(approach,CitizenBrainState.WORK)){board.release(job.id(),owner.getUUID());return false;}
+        currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
+    }
+
     private boolean beginLadderBuild(ServerLevel level, CitizenJob job) {
         CitizenInventory inventory = owner.citizenData().inventory();
         currentJob = job;

@@ -14,8 +14,7 @@ public enum ControlMode {
     }
 
     public ControlMode next() {
-        ControlMode[] modes = values();
-        return modes[(ordinal() + 1) % modes.length];
+        return this == ACTION ? HYBRID : ACTION;
     }
 
     public Component displayName() {

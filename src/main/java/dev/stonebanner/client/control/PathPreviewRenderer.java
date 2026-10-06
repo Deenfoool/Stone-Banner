@@ -109,16 +109,20 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
-        if (selectedCitizen != null) {
+        for (var selectedMember : CitizenSelectionController.selectedAll()) {
             LevelRenderer.renderLineBox(
                     poses,
                     lines,
-                    selectedCitizen.getBoundingBox().inflate(0.14D),
+                    selectedMember.getBoundingBox().inflate(0.14D),
                     0.42F,
                     0.95F,
                     0.35F,
                     1.0F
             );
+        }
+        if(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen screen) {
+            var preview=HeroInputController.placementPreview(screen.hoveredHit());
+            if(preview!=null)LevelRenderer.renderLineBox(poses,lines,new AABB(preview).inflate(.005),.3f,.9f,.9f,.8f);
         }
         renderExcavationPlans(poses, lines);
         renderDesignationPreview(poses, lines);

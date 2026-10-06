@@ -21,7 +21,7 @@ public final class ClientConfig {
 
         BUILDER.push("controls");
         CONTROL_MODE = BUILDER
-                .comment("ACTION uses WASD, TACTICAL uses mouse movement, HYBRID supports both.")
+                .comment("ACTION uses WASD; HYBRID uses mouse movement. Legacy TACTICAL is migrated to mouse movement.")
                 .defineEnum("controlMode", ControlMode.ACTION);
         SHOW_PATH_PREVIEW = BUILDER
                 .comment("Show the planned route when moving with the mouse.")
@@ -53,7 +53,7 @@ public final class ClientConfig {
     }
 
     public static ControlMode controlMode() {
-        return CONTROL_MODE.get();
+        return CONTROL_MODE.get() == ControlMode.TACTICAL ? ControlMode.HYBRID : CONTROL_MODE.get();
     }
 
     public static void setControlMode(ControlMode mode) {

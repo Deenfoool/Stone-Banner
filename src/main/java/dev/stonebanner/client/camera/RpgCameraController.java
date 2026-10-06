@@ -95,12 +95,15 @@ public final class RpgCameraController {
         ensureInitialized();
         if (tacticalRig.initialized()) tacticalRig.tick();
         if (mc.player != null && mc.level != null && mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen
-                && tacticalRig.initialized()) {
+                && dev.stonebanner.client.control.HeroInputController.commandMode() && tacticalRig.initialized()) {
             long window = mc.getWindow().getWindow();
             double left = (pressed(window, GLFW.GLFW_KEY_A) || pressed(window, GLFW.GLFW_KEY_LEFT) ? 1 : 0)
                     - (pressed(window, GLFW.GLFW_KEY_D) || pressed(window, GLFW.GLFW_KEY_RIGHT) ? 1 : 0);
             double forward = (pressed(window, GLFW.GLFW_KEY_W) || pressed(window, GLFW.GLFW_KEY_UP) ? 1 : 0)
                     - (pressed(window, GLFW.GLFW_KEY_S) || pressed(window, GLFW.GLFW_KEY_DOWN) ? 1 : 0);
+            if (mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen screen) {
+                var edge = screen.edgePan(); left += edge[0]; forward += edge[1];
+            }
             double up = (pressed(window, GLFW.GLFW_KEY_PAGE_UP) ? 1 : 0) - (pressed(window, GLFW.GLFW_KEY_PAGE_DOWN) ? 1 : 0);
             if (left != 0 || forward != 0 || up != 0) {
                 clearFocus();
@@ -184,7 +187,7 @@ public final class RpgCameraController {
         var dimension = minecraft.level.dimension().location();
         if (!dimension.equals(cameraDimension)) recenter();
         cameraDimension = dimension;
-        boolean tactical = ClientConfig.controlMode() == dev.stonebanner.control.ControlMode.TACTICAL;
+        boolean tactical = dev.stonebanner.client.control.HeroInputController.commandMode();
         if (wasTactical != tactical) { tacticalRig.reset(null); clearFocus(); lastSafeAnchor = null; }
         wasTactical = tactical;
         Vec3 requestedAnchor = tactical && tacticalRig.initialized()

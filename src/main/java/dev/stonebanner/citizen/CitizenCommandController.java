@@ -40,6 +40,7 @@ public final class CitizenCommandController {
     private BlockPos moveDestination;
     private BlockPos attemptedDoor;
     private int navigationRefreshCooldown;
+    private int attackCooldown;
     private int followRepathCooldown;
     private int moveReplanAttempts;
     private int moveReplanCooldown;
@@ -62,6 +63,11 @@ public final class CitizenCommandController {
                 return false;
             }
             return issueMove(moveTo.target(), CitizenBrainState.MOVE);
+        }
+        if(command instanceof ActorCommand.EntityAction action && action.action()==ActorCommand.EntityActionType.ATTACK) {
+            Entity target=owner.level().getEntity(action.entityId());
+            if(!(target instanceof net.minecraft.world.entity.monster.Monster)||!isUsableTarget(target)||!owner.citizenData().canTravelTo(target.blockPosition()))return false;
+            stop(); activeCommand=command; movementState=CitizenBrainState.FOLLOW; status=CommandStatus.FOLLOWING; return true;
         }
         if (command instanceof ActorCommand.FollowEntity follow) {
             Entity target = owner.level().getEntity(follow.entityId());
@@ -109,6 +115,20 @@ public final class CitizenCommandController {
             return;
         }
 
+        if(activeCommand instanceof ActorCommand.EntityAction action) {
+            var target=owner.level().getEntity(action.entityId());
+            if(!isUsableTarget(target)||!owner.citizenData().canTravelTo(target.blockPosition())){stop();return;}
+            if(attackCooldown>0)attackCooldown--;
+            owner.getLookControl().setLookAt(target,30,30);
+            if(owner.distanceToSqr(target)<4 && owner.getSensing().hasLineOfSight(target)) {
+                owner.getNavigation().stop(); path.clear();
+                if(attackCooldown==0){owner.doHurtTarget(target);owner.swing(InteractionHand.MAIN_HAND);attackCooldown=20;}
+            } else {
+                tickFollow(new ActorCommand.FollowEntity(action.entityId(),1));
+            }
+            if(activeCommand!=null)activeCommand=action;
+            return;
+        }
         if (activeCommand instanceof ActorCommand.MoveTo) {
             tickPath(movementState, CommandStatus.MOVING);
             return;

@@ -1,10 +1,10 @@
 {
   "key.categories.stonebanner": "Stone & Banner",
-  "key.stonebanner.cycle_control_mode": "Переключить режим управления",
+  "key.stonebanner.cycle_control_mode": "Переключить профиль ходьбы",
   "key.stonebanner.cycle_designation_mode": "Переключить инструмент назначений",
-  "control_mode.stonebanner.action": "Динамический / WASD",
-  "control_mode.stonebanner.tactical": "Тактический / мышь",
-  "control_mode.stonebanner.hybrid": "Гибридный",
+  "control_mode.stonebanner.action": "Ходьба: WASD",
+  "control_mode.stonebanner.tactical": "Ходьба: мышь",
+  "control_mode.stonebanner.hybrid": "Ходьба: мышь",
   "message.stonebanner.control_mode": "Режим управления: %s",
   "message.stonebanner.excavation_access.ready": "Доступ к выработке восстановлен",
   "message.stonebanner.excavation_access.no_path": "Выработка остановлена: нет безопасного пути наружу",
@@ -242,7 +242,7 @@
   "geology.stonebanner.cost": "Цена: %s бумаги, 1 книга%s",
   "geology.stonebanner.progress": "Осталось работы: %s сек.",
   "geology.stonebanner.stay": "Работайте рядом со столом (до 8 блоков).",
-  "geology.stonebanner.survey_hint": "Геолог + слой ресурсов: Shift + ЛКМ по земле",
+  "geology.stonebanner.survey_hint": "Режим приказов + геолог + ресурсы: Shift + ПКМ по земле",
   "geology.stonebanner.chunk": "Чанк %s, %s",
   "geology.stonebanner.fertility": "Пригодность почвы: %s%%",
   "geology.stonebanner.pending": "Оценка территории…",
@@ -305,5 +305,7 @@
   "key.stonebanner.layer_fertility": "Плодородные земли",
   "geology.stonebanner.layer_tooltip": "%s · %s",
   "message.stonebanner.interaction_unreachable": "Нет доступного пути к цели взаимодействия.",
-  "hud.stonebanner.tactical.controls": "WASD: камера · Home: герой · ПКМ: использовать · Alt+ЛКМ: атака · Space: стоп"
+  "hud.stonebanner.hero.controls": "V: WASD / мышь · ПКМ: действие · ЛКМ: использовать · Space: вверх · Ctrl: вниз · Tab: приказы",
+  "hud.stonebanner.commands.controls": "Приказы · ЛКМ: выбор / рамка · Shift: добавить · ПКМ: приказ · края: камера · Tab: герой",
+  "hud.stonebanner.selection_count": "Выбрано жителей: %s"
 }
