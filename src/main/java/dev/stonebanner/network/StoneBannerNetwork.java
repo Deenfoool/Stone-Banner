@@ -6,6 +6,7 @@ import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.network.packet.CitizenInventorySnapshotPacket;
 import dev.stonebanner.network.packet.DesignationAreaPacket;
 import dev.stonebanner.network.packet.ExcavationPlanSnapshotPacket;
+import dev.stonebanner.network.packet.ExtendExcavationPacket;
 import dev.stonebanner.network.packet.MoveCitizenPacket;
 import dev.stonebanner.network.packet.RequestCitizenInventoryPacket;
 import dev.stonebanner.network.packet.SetWorkPriorityPacket;
@@ -23,7 +24,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "5";
+    private static final String PROTOCOL_VERSION = "6";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -64,6 +65,13 @@ public final class StoneBannerNetwork {
                 DesignationAreaPacket::encode,
                 DesignationAreaPacket::decode,
                 DesignationAreaPacket::handle
+        );
+        CHANNEL.registerMessage(
+                nextPacketId++,
+                ExtendExcavationPacket.class,
+                ExtendExcavationPacket::encode,
+                ExtendExcavationPacket::decode,
+                ExtendExcavationPacket::handle
         );
         CHANNEL.registerMessage(
                 nextPacketId++,
@@ -117,6 +125,10 @@ public final class StoneBannerNetwork {
     public static void sendDesignation(DesignationType type, BlockPos first, BlockPos second,
                                        ExcavationAccessMode accessMode) {
         CHANNEL.sendToServer(new DesignationAreaPacket(type, first, second, accessMode));
+    }
+
+    public static void sendExtendExcavation(long planId, int additionalLength) {
+        CHANNEL.sendToServer(new ExtendExcavationPacket(planId, additionalLength));
     }
 
     public static void sendWorkPriority(int entityId, int workTypeId, int priorityCode) {
