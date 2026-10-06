@@ -25,6 +25,24 @@ public final class ExcavationEgressSafety {
     private ExcavationEgressSafety() {
     }
 
+    /**
+     * Controls whether the plan may publish work for its current slice.
+     * The top quarry layer is always allowed; every deeper layer requires the preserved ramp to remain intact.
+     * Tunnel sequencing already advances from its entrance, so its per-block egress guard remains authoritative.
+     */
+    static boolean canExposeCurrentSlice(ServerLevel level, ExcavationPlanData.PlanView plan) {
+        if (level == null || plan == null) {
+            return false;
+        }
+        if (plan.modeCode() != 0) {
+            return true;
+        }
+        if (plan.currentSlice() == plan.maxY()) {
+            return true;
+        }
+        return rampChainIntact(level, plan, plan.currentSlice());
+    }
+
     public static boolean canSafelyMine(ServerLevel level, ExcavationPlanData plans,
                                         BlockPos workerFeet, BlockPos target) {
         if (level == null || plans == null || workerFeet == null || target == null) {
