@@ -1,6 +1,8 @@
 package dev.stonebanner.citizen;
 
 import dev.stonebanner.designation.ExcavationEgressSafety;
+import dev.stonebanner.designation.ExcavationLadderAutomation;
+import dev.stonebanner.designation.ExcavationLadderTaskData;
 import dev.stonebanner.designation.ExcavationOreDiscovery;
 import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
@@ -12,6 +14,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -24,11 +29,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Executes jobs chosen by CitizenJobPlanner and physical storage delivery.
+ * Executes jobs chosen by CitizenJobPlanner, physical storage delivery and excavation support work.
  *
  * <p>Physical work creates real ItemEntity drops. A worker with HAULING enabled may pick up its fresh drops;
  * any remainder becomes a persistent HAULING job that another Citizen can collect. Carried work cargo lives
- * in marked slots of the Citizen's real persistent inventory and is physically delivered to registered storage.</p>
+ * in marked slots of the Citizen's real persistent inventory and is physically delivered to registered storage.
+ * Narrow-shaft ladder BUILDING jobs likewise fetch a real ladder from registered storage before placement.</p>
  */
 public final class CitizenWorkController {
     private static final int ACQUIRE_INTERVAL_TICKS = 20;
@@ -50,6 +56,9 @@ public final class CitizenWorkController {
     private CargoPhase cargoPhase = CargoPhase.IDLE;
     private BlockPos cargoStorageTarget;
     private int cargoRetryCooldown;
+
+    private LadderBuildPhase ladderBuildPhase = LadderBuildPhase.IDLE;
+    private BlockPos ladderStorageTarget;
 
     public CitizenWorkController(HumanNpcEntity owner) {
         this.owner = owner;
@@ -95,6 +104,11 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (isLadderBuildJob(serverLevel, currentJob)) {
+            tickLadderBuild(serverLevel);
+            return;
+        }
+
         if (phase == WorkPhase.TRAVELLING) {
             tickTravelling(serverLevel);
         } else if (phase == WorkPhase.WORKING) {
@@ -132,7 +146,7 @@ public final class CitizenWorkController {
             if (!isJobActionable(level, job)) {
                 continue;
             }
-            if (findJobApproachPosition(level, job).isEmpty()) {
+            if (!isLadderBuildJob(level, job) && findJobApproachPosition(level, job).isEmpty()) {
                 continue;
             }
             candidates.add(job);
@@ -148,6 +162,13 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (isLadderBuildJob(level, job)) {
+            if (!beginLadderBuild(level, job)) {
+                board.release(job.id(), owner.getUUID());
+            }
+            return;
+        }
+
         BlockPos approach = findJobApproachPosition(level, job).orElse(null);
         if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
             board.release(job.id(), owner.getUUID());
@@ -157,6 +178,150 @@ public final class CitizenWorkController {
         currentJob = job;
         phase = WorkPhase.TRAVELLING;
         workProgress = 0.0D;
+    }
+
+    private boolean beginLadderBuild(ServerLevel level, CitizenJob job) {
+        CitizenInventory inventory = owner.citizenData().inventory();
+        currentJob = job;
+        phase = WorkPhase.TRAVELLING;
+        workProgress = 0.0D;
+
+        if (inventory.countPersonalItem(Items.LADDER) > 0) {
+            BlockPos approach = findApproachPosition(level, job.target()).orElse(null);
+            if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                clearLocalState();
+                return false;
+            }
+            ladderBuildPhase = LadderBuildPhase.TO_SITE;
+            owner.setBrainState(CitizenBrainState.WORK);
+            return true;
+        }
+
+        BlockPos source = StorageData.forLevel(level).nearestContainerWithItem(
+                level,
+                owner.blockPosition(),
+                stack -> stack.is(Items.LADDER),
+                STORAGE_SEARCH_RADIUS
+        ).orElse(null);
+        if (source == null || !owner.citizenData().canTravelTo(source)) {
+            clearLocalState();
+            return false;
+        }
+
+        BlockPos approach = findApproachPosition(level, source).orElse(null);
+        if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+            clearLocalState();
+            return false;
+        }
+        ladderStorageTarget = source.immutable();
+        ladderBuildPhase = LadderBuildPhase.TO_STORAGE;
+        owner.setBrainState(CitizenBrainState.WORK);
+        return true;
+    }
+
+    private void tickLadderBuild(ServerLevel level) {
+        ExcavationLadderTaskData taskData = ExcavationLadderTaskData.forLevel(level);
+        ExcavationLadderTaskData.LadderTask task = taskData.task(currentJob.target()).orElse(null);
+        CitizenJobBoard board = CitizenJobBoard.forLevel(level);
+        if (task == null) {
+            board.remove(currentJob.id());
+            clearLocalState();
+            owner.setBrainState(CitizenBrainState.IDLE);
+            return;
+        }
+
+        if (level.getBlockState(task.target()).is(Blocks.LADDER)) {
+            taskData.complete(task.target());
+            board.complete(currentJob.id(), owner.getUUID());
+            clearLocalState();
+            owner.setBrainState(CitizenBrainState.IDLE);
+            return;
+        }
+
+        if (ladderBuildPhase == LadderBuildPhase.TO_STORAGE) {
+            if (ladderStorageTarget == null) {
+                deferCurrentJob(level);
+                return;
+            }
+            if (!isWithinWorkRange(ladderStorageTarget)) {
+                if (!owner.commandController().hasActiveCommand()) {
+                    BlockPos approach = findApproachPosition(level, ladderStorageTarget).orElse(null);
+                    if (approach == null
+                            || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                        deferCurrentJob(level);
+                    }
+                }
+                return;
+            }
+
+            owner.commandController().stop();
+            StorageData storage = StorageData.forLevel(level);
+            StorageData.Extraction extraction = storage.extractAt(
+                    level,
+                    ladderStorageTarget,
+                    stack -> stack.is(Items.LADDER),
+                    1
+            );
+            if (extraction.isEmpty()) {
+                deferCurrentJob(level);
+                return;
+            }
+
+            ItemStack material = extraction.stacks().get(0);
+            ItemStack remainder = owner.citizenData().inventory().add(material);
+            if (!remainder.isEmpty()) {
+                storage.insertAt(level, ladderStorageTarget, remainder);
+                deferCurrentJob(level);
+                return;
+            }
+
+            BlockPos approach = findApproachPosition(level, task.target()).orElse(null);
+            if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                deferCurrentJob(level);
+                return;
+            }
+            ladderStorageTarget = null;
+            ladderBuildPhase = LadderBuildPhase.TO_SITE;
+            return;
+        }
+
+        if (ladderBuildPhase == LadderBuildPhase.TO_SITE) {
+            if (!isWithinWorkRange(task.target())) {
+                if (!owner.commandController().hasActiveCommand()) {
+                    BlockPos approach = findApproachPosition(level, task.target()).orElse(null);
+                    if (approach == null
+                            || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+                        deferCurrentJob(level);
+                    }
+                }
+                return;
+            }
+            owner.commandController().stop();
+            ladderBuildPhase = LadderBuildPhase.PLACING;
+        }
+
+        if (ladderBuildPhase == LadderBuildPhase.PLACING) {
+            CitizenInventory inventory = owner.citizenData().inventory();
+            if (inventory.countPersonalItem(Items.LADDER) <= 0) {
+                deferCurrentJob(level);
+                return;
+            }
+            BlockState placement = ExcavationLadderAutomation.placementState(level, task).orElse(null);
+            if (placement == null) {
+                deferCurrentJob(level);
+                return;
+            }
+            if (!level.setBlock(task.target(), placement, 3)) {
+                deferCurrentJob(level);
+                return;
+            }
+            inventory.removePersonalItem(Items.LADDER, 1);
+            taskData.complete(task.target());
+            board.complete(currentJob.id(), owner.getUUID());
+            clearLocalState();
+            owner.setBrainState(CitizenBrainState.IDLE);
+            acquireCooldown = 5;
+        }
     }
 
     private void tickTravelling(ServerLevel level) {
@@ -326,6 +491,16 @@ public final class CitizenWorkController {
         acquireCooldown = UNSAFE_EGRESS_RETRY_TICKS;
     }
 
+    private void deferCurrentJob(ServerLevel level) {
+        if (currentJob != null) {
+            CitizenJobBoard.forLevel(level).release(currentJob.id(), owner.getUUID());
+        }
+        owner.commandController().stop();
+        clearLocalState();
+        owner.setBrainState(CitizenBrainState.IDLE);
+        acquireCooldown = ACQUIRE_INTERVAL_TICKS;
+    }
+
     private void completeCurrentJob(ServerLevel level) {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
@@ -345,6 +520,7 @@ public final class CitizenWorkController {
             }
             DroppedItemHauling.publishIfNeeded(level, job.target());
             if (job.workType() == WorkType.MINING && excavationPlans != null) {
+                ExcavationLadderAutomation.onMiningCompleted(level, excavationPlans, job.target());
                 ExcavationOreDiscovery.scanNewlyExposed(level, excavationPlans, job.target());
             }
             board.complete(job.id(), owner.getUUID());
@@ -486,29 +662,68 @@ public final class CitizenWorkController {
     }
 
     private boolean isJobActionable(ServerLevel level, CitizenJob job) {
-        if (job.workType() != WorkType.HAULING) {
-            return true;
+        if (job.workType() == WorkType.HAULING) {
+            ItemStack firstDrop = DroppedItemHauling.firstStack(level, job.target()).orElse(null);
+            if (firstDrop == null) {
+                return false;
+            }
+            BlockPos storageTarget = StorageData.forLevel(level).nearestAcceptingContainer(
+                    level,
+                    job.target(),
+                    firstDrop,
+                    STORAGE_SEARCH_RADIUS
+            ).orElse(null);
+            return storageTarget != null
+                    && owner.citizenData().canTravelTo(storageTarget)
+                    && findApproachPosition(level, storageTarget).isPresent();
         }
-        ItemStack firstDrop = DroppedItemHauling.firstStack(level, job.target()).orElse(null);
-        if (firstDrop == null) {
-            return false;
+
+        if (isLadderBuildJob(level, job)) {
+            ExcavationLadderTaskData.LadderTask task = ExcavationLadderTaskData.forLevel(level)
+                    .task(job.target())
+                    .orElse(null);
+            if (task == null || ExcavationLadderAutomation.placementState(level, task).isEmpty()) {
+                return false;
+            }
+            if (owner.citizenData().inventory().countPersonalItem(Items.LADDER) > 0) {
+                return findApproachPosition(level, task.target()).isPresent();
+            }
+            BlockPos source = StorageData.forLevel(level).nearestContainerWithItem(
+                    level,
+                    owner.blockPosition(),
+                    stack -> stack.is(Items.LADDER),
+                    STORAGE_SEARCH_RADIUS
+            ).orElse(null);
+            return source != null
+                    && owner.citizenData().canTravelTo(source)
+                    && findApproachPosition(level, source).isPresent()
+                    && findApproachPosition(level, task.target()).isPresent();
         }
-        BlockPos storageTarget = StorageData.forLevel(level).nearestAcceptingContainer(
-                level,
-                job.target(),
-                firstDrop,
-                STORAGE_SEARCH_RADIUS
-        ).orElse(null);
-        return storageTarget != null
-                && owner.citizenData().canTravelTo(storageTarget)
-                && findApproachPosition(level, storageTarget).isPresent();
+        return true;
     }
 
-    private static boolean isJobStillValid(ServerLevel level, CitizenJob job) {
+    private boolean isJobStillValid(ServerLevel level, CitizenJob job) {
         if (job.workType() == WorkType.HAULING) {
             return DroppedItemHauling.hasDroppedItems(level, job.target());
         }
+        if (job.workType() == WorkType.BUILDING) {
+            ExcavationLadderTaskData taskData = ExcavationLadderTaskData.forLevel(level);
+            if (taskData.task(job.target()).isEmpty()) {
+                return false;
+            }
+            if (level.getBlockState(job.target()).is(Blocks.LADDER)) {
+                taskData.complete(job.target());
+                return false;
+            }
+            return true;
+        }
         return WorkTargetRules.isValid(job.workType(), level, job.target());
+    }
+
+    private boolean isLadderBuildJob(ServerLevel level, CitizenJob job) {
+        return job != null
+                && job.workType() == WorkType.BUILDING
+                && ExcavationLadderTaskData.forLevel(level).task(job.target()).isPresent();
     }
 
     private double workRate(CitizenJob job) {
@@ -541,6 +756,8 @@ public final class CitizenWorkController {
         currentJob = null;
         phase = WorkPhase.IDLE;
         workProgress = 0.0D;
+        ladderBuildPhase = LadderBuildPhase.IDLE;
+        ladderStorageTarget = null;
     }
 
     private void resetCargoDelivery() {
@@ -560,5 +777,12 @@ public final class CitizenWorkController {
         WAITING_STORAGE,
         TRAVELLING,
         DEPOSITING
+    }
+
+    private enum LadderBuildPhase {
+        IDLE,
+        TO_STORAGE,
+        TO_SITE,
+        PLACING
     }
 }
