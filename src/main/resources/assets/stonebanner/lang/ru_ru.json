@@ -496,5 +496,8 @@
   "production.stonebanner.ui.crop.wheat": "Пшеница",
   "production.stonebanner.ui.crop.carrots": "Морковь",
   "production.stonebanner.ui.crop.potatoes": "Картофель",
-  "production.stonebanner.ui.crop.beetroots": "Свёкла"
+  "production.stonebanner.ui.crop.beetroots": "Свёкла",
+  "menu.stonebanner.language": "Язык",
+  "screen.stonebanner.language.title": "Выбор языка",
+  "screen.stonebanner.language.current": "Текущий: %s"
 }

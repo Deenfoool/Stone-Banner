@@ -496,5 +496,8 @@
   "production.stonebanner.ui.crop.wheat": "Wheat",
   "production.stonebanner.ui.crop.carrots": "Carrots",
   "production.stonebanner.ui.crop.potatoes": "Potatoes",
-  "production.stonebanner.ui.crop.beetroots": "Beetroot"
+  "production.stonebanner.ui.crop.beetroots": "Beetroot",
+  "menu.stonebanner.language": "Language",
+  "screen.stonebanner.language.title": "Choose language",
+  "screen.stonebanner.language.current": "Current: %s"
 }
