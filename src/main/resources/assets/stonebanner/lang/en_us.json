@@ -323,5 +323,8 @@
   "work_block.stonebanner.occupied": "Worksite occupied",
   "work_block.stonebanner.ore_permission": "Ore approval required",
   "work_block.stonebanner.unsafe_exit": "Unsafe escape route",
-  "screen.stonebanner.citizen.work_block": "Work blocked"
+  "screen.stonebanner.citizen.work_block": "Work blocked",
+  "menu.stonebanner.language": "Language",
+  "screen.stonebanner.language.title": "Choose language",
+  "screen.stonebanner.language.current": "Current: %s"
 }
