@@ -28,6 +28,15 @@ class NetworkPacketCodecTest {
     }
 
     @Test
+    void queuedMoveCitizenPacketRoundTrips() {
+        MoveCitizenPacket source = new MoveCitizenPacket(37, new BlockPos(-15, 72, 900), true);
+        FriendlyByteBuf buffer = buffer();
+        MoveCitizenPacket.encode(source, buffer);
+        assertEquals(source, MoveCitizenPacket.decode(buffer));
+        assertEquals(0, buffer.readableBytes());
+    }
+
+    @Test
     void stopCitizenPacketRoundTrips() {
         StopCitizenPacket source = new StopCitizenPacket(8192);
         FriendlyByteBuf buffer = buffer();
@@ -41,6 +50,7 @@ class NetworkPacketCodecTest {
     void workPriorityPacketRoundTrips() {
         SetWorkPriorityPacket source = new SetWorkPriorityPacket(
                 12,
+                java.util.UUID.randomUUID(),net.minecraft.resources.ResourceLocation.parse("minecraft:overworld"),
                 WorkType.MINING.ordinal(),
                 WorkPriority.HIGH.code()
         );

@@ -21,6 +21,7 @@ build
 # other
 eclipse
 run
+run-gametest
 logs
 
 # Files from Forge MDK

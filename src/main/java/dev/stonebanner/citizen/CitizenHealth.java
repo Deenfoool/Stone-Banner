@@ -11,6 +11,8 @@ public final class CitizenHealth {
     private static final String TAG_PARTS = "Parts";
 
     private final EnumMap<BodyPart, InjuryState> injuries = new EnumMap<>(BodyPart.class);
+    private final EnumMap<BodyPart, Double> trauma = new EnumMap<>(BodyPart.class);
+    private final EnumMap<BodyPart, Integer> recovery = new EnumMap<>(BodyPart.class);
 
     public CitizenHealth() {
         for (BodyPart part : BodyPart.values()) {
@@ -25,7 +27,71 @@ public final class CitizenHealth {
     public void setInjury(BodyPart part, InjuryState state) {
         if (part != null && state != null) {
             injuries.put(part, state);
+            trauma.put(part, switch (state) { case NORMAL -> 0D; case WOUNDED -> 1D; case HEAVY_WOUND -> 5D; case FRACTURE, MISSING -> 10D; });
+            recovery.remove(part);
         }
+    }
+
+    /** Only actual lost HP enters this model; armour, absorption and cancelled hits stay vanilla. */
+    public void damage(BodyPart part, double amount) {
+        if (part == null || !Double.isFinite(amount) || amount <= 0 || injury(part) == InjuryState.MISSING) return;
+        double total = Math.min(20, trauma.getOrDefault(part, 0D) + amount);
+        boolean limb = part != BodyPart.HEAD && part != BodyPart.TORSO;
+        InjuryState state = total >= 10 && limb ? InjuryState.FRACTURE : total >= 5 ? InjuryState.HEAVY_WOUND : InjuryState.WOUNDED;
+        // New damage never heals an existing fracture.
+        if (state.ordinal() < injury(part).ordinal()) state = injury(part);
+        injuries.put(part, state);
+        trauma.put(part, total);
+        recovery.remove(part);
+    }
+
+    public int recoverySeconds(BodyPart part) { return recovery.getOrDefault(part, 0); }
+
+    public boolean canTreat(BodyPart part, boolean splint) {
+        if (part == null || recoverySeconds(part) > 0) return false;
+        return splint ? injury(part) == InjuryState.FRACTURE
+                : injury(part) == InjuryState.WOUNDED || injury(part) == InjuryState.HEAVY_WOUND;
+    }
+
+    public boolean treat(BodyPart part, boolean splint) {
+        if (!canTreat(part, splint)) return false;
+        recovery.put(part, stageSeconds(injury(part)));
+        return true;
+    }
+
+    public boolean isBleeding() {
+        return untreatedCore(BodyPart.HEAD) || untreatedCore(BodyPart.TORSO);
+    }
+
+    private boolean untreatedCore(BodyPart part) {
+        return isDangerous(injury(part)) && recoverySeconds(part) == 0;
+    }
+
+    public boolean needsRecovery() { return !recovery.isEmpty() || hasDangerousCoreInjury(); }
+
+    /** Each stage restores a body state, not just HP. Rest and food are required. */
+    public boolean recoverSecond(boolean resting, boolean fed) {
+        if (!resting || !fed) return false;
+        boolean improved = false;
+        for (BodyPart part : BodyPart.values()) {
+            int seconds = recoverySeconds(part);
+            if (seconds <= 0) continue;
+            if (seconds > 1) { recovery.put(part, seconds - 1); continue; }
+            InjuryState next = switch (injury(part)) {
+                case FRACTURE -> InjuryState.HEAVY_WOUND;
+                case HEAVY_WOUND -> InjuryState.WOUNDED;
+                case WOUNDED -> InjuryState.NORMAL;
+                default -> injury(part);
+            };
+            setInjury(part, next);
+            if (next != InjuryState.NORMAL && next != InjuryState.MISSING) recovery.put(part, stageSeconds(next));
+            improved = true;
+        }
+        return improved;
+    }
+
+    private static int stageSeconds(InjuryState state) {
+        return switch (state) { case WOUNDED -> 60; case HEAVY_WOUND -> 120; case FRACTURE -> 180; default -> 0; };
     }
 
     public Map<BodyPart, InjuryState> injuriesView() {
@@ -74,10 +140,19 @@ public final class CitizenHealth {
             parts.putString(part.serializedName(), injury(part).serializedName());
         }
         root.put(TAG_PARTS, parts);
+        CompoundTag damage = new CompoundTag(), care = new CompoundTag();
+        for (BodyPart part : BodyPart.values()) {
+            damage.putDouble(part.serializedName(), trauma.getOrDefault(part, 0D));
+            care.putInt(part.serializedName(), recoverySeconds(part));
+        }
+        root.put("Trauma", damage);
+        root.put("Recovery", care);
         return root;
     }
 
     public void load(CompoundTag root) {
+        trauma.clear(); recovery.clear();
+        for (BodyPart part : BodyPart.values()) injuries.put(part, InjuryState.NORMAL);
         if (!root.contains(TAG_PARTS, Tag.TAG_COMPOUND)) {
             return;
         }
@@ -87,6 +162,15 @@ public final class CitizenHealth {
             if (parts.contains(part.serializedName(), Tag.TAG_STRING)) {
                 setInjury(part, InjuryState.fromSerializedName(parts.getString(part.serializedName())));
             }
+            CompoundTag damage = root.getCompound("Trauma");
+            double saved = damage.getDouble(part.serializedName());
+            if (damage.contains(part.serializedName(), Tag.TAG_ANY_NUMERIC) && Double.isFinite(saved)) {
+                double minimum = switch (injury(part)) { case NORMAL, WOUNDED -> 0D; case HEAVY_WOUND -> 5D; case FRACTURE, MISSING -> 10D; };
+                trauma.put(part, injury(part) == InjuryState.NORMAL ? 0D : Math.max(minimum, Math.min(20, saved)));
+            }
+            int seconds = root.getCompound("Recovery").getInt(part.serializedName());
+            int maximum = stageSeconds(injury(part));
+            if (seconds > 0 && maximum > 0) recovery.put(part, Math.min(maximum, seconds));
         }
     }
 

@@ -19,6 +19,7 @@ public final class CitizenDecisionPolicy {
         if (needs.isCriticallyHungry()) {
             return CitizenBrainState.EAT;
         }
+        if (data.health().needsRecovery()) return needs.isHungry() ? CitizenBrainState.EAT : CitizenBrainState.SLEEP;
         if (needs.isCriticallyTired()) {
             return CitizenBrainState.SLEEP;
         }
@@ -40,6 +41,6 @@ public final class CitizenDecisionPolicy {
         CitizenNeeds needs = data.needs();
         return needs.isInCriticalDanger()
                 || needs.isCriticallyHungry()
-                || needs.isCriticallyTired();
+                || needs.isCriticallyTired() || data.health().needsRecovery();
     }
 }

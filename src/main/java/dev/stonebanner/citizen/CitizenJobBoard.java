@@ -106,11 +106,13 @@ public final class CitizenJobBoard extends SavedData {
         return true;
     }
 
-    public void touch(long jobId, UUID workerId, long gameTime) {
+    public boolean touch(long jobId, UUID workerId, long gameTime) {
         Entry entry = entries.get(jobId);
         if (entry != null && workerId != null && workerId.equals(entry.reservedBy)) {
             entry.reservedTick = gameTime;
+            return true;
         }
+        return false;
     }
 
     public void release(long jobId, UUID workerId) {

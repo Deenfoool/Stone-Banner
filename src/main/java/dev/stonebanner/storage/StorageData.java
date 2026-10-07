@@ -121,6 +121,24 @@ public final class StorageData extends SavedData {
         return Optional.empty();
     }
 
+    /** Loaded, nearest-first containers holding matching items; query does not remove anything. */
+    public List<BlockPos> containersWithItem(ServerLevel level, BlockPos origin,
+                                             Predicate<ItemStack> predicate, double radius) {
+        if (level == null || origin == null || predicate == null) return List.of();
+        double maxDistanceSqr = radius < 0 ? Double.POSITIVE_INFINITY : radius * radius;
+        List<BlockPos> result = new ArrayList<>();
+        for (BlockPos pos : validLoadedPositions(level, origin)) {
+            if (distanceSquared(origin, pos) > maxDistanceSqr) continue;
+            Container container = liveContainer(level, pos).orElse(null);
+            if (container == null) continue;
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!stack.isEmpty() && predicate.test(stack)) { result.add(pos); break; }
+            }
+        }
+        return List.copyOf(result);
+    }
+
     /** Loaded, nearest-first candidates accepting any carried stack; query does not move items. */
     public List<BlockPos> acceptingContainers(ServerLevel level, BlockPos origin,
                                              List<ItemStack> offered, double maxDistance) {

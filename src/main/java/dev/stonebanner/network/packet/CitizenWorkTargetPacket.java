@@ -14,7 +14,7 @@ public record CitizenWorkTargetPacket(int npcId,BlockPos target) {
         var level=sender.serverLevel();var e=level.getEntity(p.npcId);
         if(sender.isSpectator()||!sender.isAlive()||!level.hasChunkAt(p.target)||!level.mayInteract(sender,p.target)
             ||sender.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(p.target))>256*256
-            ||!(e instanceof HumanNpcEntity npc)||!npc.isAlive()||npc.distanceToSqr(sender)>256*256)return;
+            ||!(e instanceof HumanNpcEntity npc)||!npc.isAlive()||!npc.citizenData().canBeDirectedBy(sender.getUUID())||npc.distanceToSqr(sender)>256*256)return;
         var state=level.getBlockState(p.target);
         WorkType type=state.is(net.minecraft.tags.BlockTags.LOGS)?WorkType.FORESTRY:
             state.is(net.minecraftforge.common.Tags.Blocks.ORES)?WorkType.MINING:null;

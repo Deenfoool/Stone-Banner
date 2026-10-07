@@ -49,6 +49,7 @@ public final class CitizenWorkController {
     private static final double MINING_BASE_WORK_PER_HARDNESS = 40.0D;
 
     private final HumanNpcEntity owner;
+    private final dev.stonebanner.production.CitizenProductionController production;
     private CitizenJob currentJob;
     private WorkPhase phase = WorkPhase.IDLE;
     private int acquireCooldown;
@@ -75,14 +76,16 @@ public final class CitizenWorkController {
 
     public CitizenWorkController(HumanNpcEntity owner) {
         this.owner = owner;
+        production = new dev.stonebanner.production.CitizenProductionController(owner);
     }
 
     public void tick() {
-        if (owner.level().isClientSide || !(owner.level() instanceof ServerLevel serverLevel)) {
+        if (owner.level().isClientSide || !(owner.level() instanceof ServerLevel serverLevel) || !owner.isAlive()) {
             return;
         }
 
         if (currentJob == null && serverLevel.getGameTime() >= blockReasonUntil) clearBlockReason();
+        if(owner.brainState()==CitizenBrainState.SLEEP){if(hasActiveJob())interrupt(true);owner.setBrainState(CitizenBrainState.SLEEP);return;}
         if (currentJob == null && owner.citizenData().inventory().hasHaulCargo()) {
             tickCargoDelivery(serverLevel);
             return;
@@ -99,7 +102,12 @@ public final class CitizenWorkController {
             clearLocalState();
             return;
         }
-        board.touch(currentJob.id(), owner.getUUID(), serverLevel.getGameTime());
+        // A lease can be reassigned while this entity's chunk is unloaded.
+        if (!board.touch(currentJob.id(), owner.getUUID(), serverLevel.getGameTime())
+                || !currentJob.canBeDoneBy(owner.citizenData())) {
+            interrupt(true);
+            return;
+        }
 
         if (CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())) {
             interrupt(true);
@@ -118,6 +126,20 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (isProductionJob(currentJob)) {
+            var result=production.tick(currentJob);
+            phase=production.working()?WorkPhase.WORKING:WorkPhase.TRAVELLING;
+            if(result!=dev.stonebanner.production.CitizenProductionController.Result.RUNNING){
+                var why=production.reason();
+                if(result==dev.stonebanner.production.CitizenProductionController.Result.COMPLETE){
+                    owner.citizenData().practice(CitizenSkillRules.skillFor(currentJob.workType()),5);
+                    board.complete(currentJob.id(),owner.getUUID());
+                }else board.release(currentJob.id(),owner.getUUID());
+                owner.commandController().stop();clearLocalState();acquireCooldown=40;
+                if(why!=WorkBlockReason.NONE)blocked(why);
+            }
+            return;
+        }
         if (isLadderBuildJob(serverLevel, currentJob)) {
             tickLadderBuild(serverLevel);
             return;
@@ -205,14 +227,22 @@ public final class CitizenWorkController {
 
     /** Explicit context order still respects skills, safety, travel and reservations. */
     public boolean assign(CitizenJob job) {
-        if(currentJob!=null&&currentJob.id()==job.id())return true;
+        if (owner.citizenData().returningToVillage()) return false;
+        if (!owner.isAlive() || !owner.citizenData().health().canMoveIndependently()) return false;
         if(!(owner.level() instanceof ServerLevel level)||!job.canBeDoneBy(owner.citizenData())
                 ||CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
                 ||!owner.citizenData().canTravelTo(job.target())||!isJobStillValid(level,job)||!isJobActionable(level,job))return false;
+        if (currentJob != null && currentJob.id() == job.id()) {
+            if (CitizenJobBoard.forLevel(level).touch(job.id(), owner.getUUID(), level.getGameTime())) return true;
+            interrupt(true);
+            return false;
+        }
         var approach=findJobApproachPosition(level,job).orElse(null);
         if(approach==null){blocked(WorkBlockReason.NO_PATH);return false;}
         var board=CitizenJobBoard.forLevel(level);
         if(!board.reserve(job.id(),owner.getUUID(),level.getGameTime()))return false;
+        owner.sleepController().cancel(true);
+        owner.foodController().cancel(true);
         interrupt(false);
         if(!owner.commandController().issueSystemMove(approach,CitizenBrainState.WORK)){board.release(job.id(),owner.getUUID());blocked(WorkBlockReason.NO_PATH);return false;}
         clearBlockReason();currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
@@ -355,7 +385,11 @@ public final class CitizenWorkController {
                 return;
             }
             inventory.removePersonalItem(Items.LADDER, 1);
+            owner.citizenData().practice(CitizenSkill.CONSTRUCTION,5);
             taskData.complete(task.target());
+            ExcavationPlanData plans = ExcavationPlanData.forLevel(level);
+            plans.markWorldChanged(task.target());
+            plans.reconcileDirty(level);
             board.complete(currentJob.id(), owner.getUUID());
             clearLocalState();
             owner.setBrainState(CitizenBrainState.IDLE);
@@ -600,9 +634,7 @@ public final class CitizenWorkController {
     private void completeCurrentJob(ServerLevel level) {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
-        ExcavationPlanData excavationPlans = job.workType() == WorkType.MINING
-                ? ExcavationPlanData.forLevel(level)
-                : null;
+        ExcavationPlanData excavationPlans = ExcavationPlanData.forLevel(level);
         Set<UUID> itemEntitiesBefore = nearbyItemEntityIds(level, job.target());
 
         boolean completed = switch (job.workType()) {
@@ -615,14 +647,17 @@ public final class CitizenWorkController {
         };
 
         if (completed) {
+            owner.citizenData().practice(CitizenSkillRules.skillFor(job.workType()),5);
             if (owner.citizenData().workPriority(WorkType.HAULING) != WorkPriority.DISABLED) {
                 collectNewWorkDrops(level, job.target(), itemEntitiesBefore);
             }
             DroppedItemHauling.publishIfNeeded(level, job.target());
-            if (job.workType() == WorkType.MINING && excavationPlans != null) {
+            if (job.workType() == WorkType.MINING) {
                 ExcavationLadderAutomation.onMiningCompleted(level, excavationPlans, job.target());
                 ExcavationOreDiscovery.scanNewlyExposed(level, excavationPlans, job.target());
             }
+            excavationPlans.markWorldChanged(job.target());
+            excavationPlans.reconcileDirty(level);
             board.complete(job.id(), owner.getUUID());
         } else if (!isJobStillValid(level, job)) {
             board.remove(job.id());
@@ -766,6 +801,7 @@ public final class CitizenWorkController {
     }
 
     private boolean isJobActionable(ServerLevel level, CitizenJob job) {
+        if (isProductionJob(job)) return dev.stonebanner.production.ProductionService.allowed(owner,job);
         if (job.workType() == WorkType.HAULING) {
             var drops = DroppedItemHauling.stacksAt(level, job.target());
             var candidates = StorageData.forLevel(level).acceptingContainers(level, job.target(), drops, STORAGE_SEARCH_RADIUS);
@@ -798,6 +834,7 @@ public final class CitizenWorkController {
     }
 
     private boolean isJobStillValid(ServerLevel level, CitizenJob job) {
+        if (isProductionJob(job)) return dev.stonebanner.production.ProductionService.valid(level,job);
         if (job.workType() == WorkType.HAULING) {
             return DroppedItemHauling.hasDroppedItems(level, job.target());
         }
@@ -821,13 +858,10 @@ public final class CitizenWorkController {
                 && ExcavationLadderTaskData.forLevel(level).task(job.target()).isPresent();
     }
 
+    private static boolean isProductionJob(CitizenJob job){return job!=null&&(job.workType()==WorkType.FARMING||job.workType()==WorkType.CRAFTING);}
+
     private double workRate(CitizenJob job) {
-        double healthEfficiency = owner.citizenData().health().workEfficiencyMultiplier();
-        if (job.workType() == WorkType.MINING) {
-            int skill = owner.citizenData().skill(CitizenSkill.MINING);
-            return Math.max(0.20D, healthEfficiency * (1.0D + skill * 0.08D));
-        }
-        return Math.max(0.20D, healthEfficiency);
+        return CitizenSkillRules.workRate(owner.citizenData(),job.workType());
     }
 
     private static double requiredWork(ServerLevel level, CitizenJob job) {
@@ -848,6 +882,7 @@ public final class CitizenWorkController {
     }
 
     private void clearLocalState() {
+        production.clear();
         currentJob = null;
         phase = WorkPhase.IDLE;
         workProgress = 0.0D;

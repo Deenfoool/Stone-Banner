@@ -5,6 +5,7 @@ import dev.stonebanner.config.ClientConfig;
 import net.minecraft.client.Camera;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -26,9 +27,6 @@ import org.lwjgl.glfw.GLFW;
 
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, value = Dist.CLIENT)
 public final class RpgCameraController {
-    private static final double MIN_DISTANCE = 2.0D;
-    private static final double MAX_DISTANCE = 24.0D;
-    private static final double ZOOM_STEP = 1.0D;
     private static final float MIN_PITCH = -15.0F;
     private static final float MAX_PITCH = 80.0F;
     private static final int SAVE_DELAY_TICKS = 20;
@@ -45,6 +43,8 @@ public final class RpgCameraController {
     private static Vec3 focusTarget;
     private static Vec3 focusAnchor;
     private static Vec3 previousFocusAnchor;
+    private static CameraFollowTarget followTarget;
+    private static net.minecraft.client.multiplayer.ClientLevel followWorld;
     private static boolean viewObstructed;
     private static final TacticalCameraRig tacticalRig = new TacticalCameraRig();
     private static boolean wasTactical;
@@ -56,6 +56,7 @@ public final class RpgCameraController {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || !mc.level.hasChunkAt(pos)) return;
         initializeOrientationIfNeeded(mc.player);
+        clearFocus();
         focusAnchor = lastSafeAnchor != null ? lastSafeAnchor : mc.player.getEyePosition();
         previousFocusAnchor = focusAnchor;
         // Focus the exposed face, not a point inside ore or the roof of a narrow tunnel.
@@ -74,7 +75,49 @@ public final class RpgCameraController {
         focusTarget = target;
     }
     public static boolean hasFocus() { return focusTarget != null; }
-    public static void clearFocus() { focusTarget = null; focusAnchor = null; previousFocusAnchor = null; }
+    public static boolean followingEntity() { return followTarget != null; }
+    public static void clearFocus() {
+        focusTarget = null; focusAnchor = null; previousFocusAnchor = null;
+        followTarget = null; followWorld = null;
+    }
+
+    public static void focusSelected() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!isCameraActive(mc)) return;
+        var selected = dev.stonebanner.client.control.CitizenSelectionController.selected();
+        if (selected.isEmpty()) {
+            mc.player.displayClientMessage(Component.translatable("message.stonebanner.focus_no_selection"), true);
+            return;
+        }
+        Entity entity = selected.get();
+        var requested = new CameraFollowTarget(entity.getId(), entity.getUUID());
+        if (!requested.matches(entity.getId(), entity.getUUID(), entity.isAlive(), mc.level.hasChunkAt(entity.blockPosition()),
+                entity.getEyePosition().distanceToSqr(mc.player.getEyePosition()))) {
+            mc.player.displayClientMessage(Component.translatable("message.stonebanner.focus_too_far"), true);
+            return;
+        }
+        initializeOrientationIfNeeded(mc.player);
+        clearFocus();
+        followTarget = requested;
+        followWorld = mc.level;
+        focusAnchor = lastSafeAnchor != null ? lastSafeAnchor : mc.player.getEyePosition();
+        previousFocusAnchor = focusAnchor;
+        focusTarget = entity.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        mc.player.displayClientMessage(Component.translatable("message.stonebanner.focus_following", entity.getDisplayName(),
+                dev.stonebanner.client.ClientKeyMappings.RECENTER_CAMERA.getTranslatedKeyMessage()), true);
+        StoneAndBanner.LOGGER.debug("Camera following NPC {} ({})", entity.getId(), entity.getUUID());
+    }
+
+    private static Entity followedEntity(Minecraft mc) {
+        if (followTarget == null) return null;
+        Entity entity = mc.level == followWorld && mc.level != null ? mc.level.getEntity(followTarget.entityId()) : null;
+        if (mc.player == null || entity == null || !followTarget.matches(entity.getId(), entity.getUUID(), entity.isAlive(),
+                mc.level.hasChunkAt(entity.blockPosition()), entity.getEyePosition().distanceToSqr(mc.player.getEyePosition()))) {
+            recenter();
+            return null;
+        }
+        return entity;
+    }
 
 
     private RpgCameraController() {
@@ -88,6 +131,8 @@ public final class RpgCameraController {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || trackedPlayer != mc.player) clearFocus();
+        Entity following = followedEntity(mc);
+        if (following != null) focusTarget = following.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
         if (focusTarget != null) {
             previousFocusAnchor = focusAnchor;
             focusAnchor = focusAnchor.lerp(focusTarget, .22);
@@ -107,7 +152,8 @@ public final class RpgCameraController {
             double up = (pressed(window, GLFW.GLFW_KEY_PAGE_UP) ? 1 : 0) - (pressed(window, GLFW.GLFW_KEY_PAGE_DOWN) ? 1 : 0);
             if (left != 0 || forward != 0 || up != 0) {
                 clearFocus();
-                tacticalRig.pan(left, forward, up, cameraYaw, pressed(window, GLFW.GLFW_KEY_LEFT_SHIFT) ? .8 : .35);
+                tacticalRig.pan(left, forward, up, cameraYaw,
+                        (pressed(window, GLFW.GLFW_KEY_LEFT_SHIFT) ? .8 : .35) * ClientConfig.CAMERA_PAN_SENSITIVITY.get());
             }
         }
         updateSmoothedDistance();
@@ -122,6 +168,7 @@ public final class RpgCameraController {
 
         Minecraft minecraft = Minecraft.getInstance();
         if (!isCameraActive(minecraft)) {
+            clearFocus();
             trackedPlayer = null;
             rotatingCamera = false;
             viewObstructed = false;
@@ -152,13 +199,7 @@ public final class RpgCameraController {
             return;
         }
 
-        ensureInitialized();
-        targetDistance = Mth.clamp(
-                targetDistance - event.getScrollDelta() * ZOOM_STEP,
-                MIN_DISTANCE,
-                MAX_DISTANCE
-        );
-        saveCountdown = SAVE_DELAY_TICKS;
+        adjustZoom(event.getScrollDelta());
         event.setCanceled(true);
     }
 
@@ -184,6 +225,7 @@ public final class RpgCameraController {
 
         float partialTick = (float) event.getPartialTick();
         Vec3 eyes = focusedEntity.getEyePosition(partialTick);
+        followedEntity(minecraft);
         var dimension = minecraft.level.dimension().location();
         if (!dimension.equals(cameraDimension)) recenter();
         cameraDimension = dimension;
@@ -205,14 +247,16 @@ public final class RpgCameraController {
         var context = CollisionContext.of(focusedEntity);
         java.util.function.Function<AABB, List<AABB>> obstacles = bounds -> obstacles(minecraft, context, bounds);
         // Start at the real eyes, never at an unchecked height offset inside a roof.
-        Vec3 sweepStart = tactical && lastSafeAnchor != null ? lastSafeAnchor : eyes;
+        boolean freeFocus = tactical || followingEntity();
+        Vec3 sweepStart = freeFocus && lastSafeAnchor != null ? lastSafeAnchor : eyes;
         // A free camera stays in the loaded neighbourhood of the hero, but does not follow their movement.
-        if (tactical) {
+        if (freeFocus) {
             Vec3 offset = requestedAnchor.subtract(eyes);
-            if (offset.length() > 64) requestedAnchor = eyes.add(offset.normalize().scale(64));
+            if (offset.length() > CameraFollowTarget.MAX_DISTANCE)
+                requestedAnchor = eyes.add(offset.normalize().scale(CameraFollowTarget.MAX_DISTANCE));
         }
         var lift = CameraCollision.sweep(sweepStart, requestedAnchor, radius, obstacles);
-        if (tactical && lift.blockedStart() && sweepStart != eyes) {
+        if (freeFocus && lift.blockedStart() && sweepStart != eyes) {
             recenter();
             lift = CameraCollision.sweep(eyes, eyes.add(0, ClientConfig.CAMERA_HEIGHT.get(), 0), radius, obstacles);
             requestedAnchor = lift.position();
@@ -240,7 +284,8 @@ public final class RpgCameraController {
         if (!tacticalRig.initialized()) return;
         double length = Math.hypot(dragX, dragY);
         if (length < 1e-6) return;
-        clearFocus(); tacticalRig.pan(dragX / length, dragY / length, 0, cameraYaw, length * .06);
+        clearFocus(); tacticalRig.pan(dragX / length, dragY / length, 0, cameraYaw,
+                length * .06 * ClientConfig.CAMERA_PAN_SENSITIVITY.get());
     }
 
     private static List<AABB> obstacles(Minecraft minecraft, CollisionContext context, AABB bounds) {
@@ -311,8 +356,9 @@ public final class RpgCameraController {
             float yawDelta = Mth.wrapDegrees(currentPlayerYaw - lastPlayerYaw);
             float pitchDelta = currentPlayerPitch - lastPlayerPitch;
 
-            cameraYaw = Mth.wrapDegrees(cameraYaw + yawDelta);
-            cameraPitch = Mth.clamp(cameraPitch + pitchDelta, MIN_PITCH, MAX_PITCH);
+            cameraYaw = CameraInputSettings.yaw(cameraYaw, yawDelta, ClientConfig.CAMERA_ROTATION_SENSITIVITY.get());
+            cameraPitch = CameraInputSettings.pitch(cameraPitch, pitchDelta,
+                    ClientConfig.CAMERA_ROTATION_SENSITIVITY.get(), ClientConfig.CAMERA_INVERT_VERTICAL.get());
 
             player.setYRot(lastPlayerYaw);
             player.setXRot(lastPlayerPitch);
@@ -341,8 +387,9 @@ public final class RpgCameraController {
         }
 
         initializeOrientationIfNeeded(minecraft.player);
-        cameraYaw = Mth.wrapDegrees(cameraYaw - (float) dragX * 0.45F);
-        cameraPitch = Mth.clamp(cameraPitch + (float) dragY * 0.45F, MIN_PITCH, MAX_PITCH);
+        cameraYaw = CameraInputSettings.yaw(cameraYaw, -dragX * .45, ClientConfig.CAMERA_ROTATION_SENSITIVITY.get());
+        cameraPitch = CameraInputSettings.pitch(cameraPitch, dragY * .45,
+                ClientConfig.CAMERA_ROTATION_SENSITIVITY.get(), ClientConfig.CAMERA_INVERT_VERTICAL.get());
         saveCountdown = SAVE_DELAY_TICKS;
     }
 
@@ -351,7 +398,7 @@ public final class RpgCameraController {
             return;
         }
         ensureInitialized();
-        targetDistance = Mth.clamp(targetDistance - scrollDelta * ZOOM_STEP, MIN_DISTANCE, MAX_DISTANCE);
+        targetDistance = CameraInputSettings.zoom(targetDistance, scrollDelta, ClientConfig.CAMERA_ZOOM_SENSITIVITY.get());
         saveCountdown = SAVE_DELAY_TICKS;
     }
 

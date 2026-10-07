@@ -12,6 +12,30 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ExcavationPlanDataTest {
     @Test
+    void worldChangesInvalidateOnlyNearbyExcavationPlans() {
+        ExcavationPlanData loaded = ExcavationPlanData.load(planRoot(
+                planTag(1L, 0, 20, 0, 4, 24, 4),
+                planTag(2L, 100, 20, 100, 104, 24, 104)
+        ));
+
+        assertEquals(1, loaded.markWorldChanged(new BlockPos(6, 23, 2)));
+        assertEquals(1, loaded.dirtyPlanCount());
+        assertEquals(0, loaded.markWorldChanged(new BlockPos(7, 23, 2)));
+        assertEquals(1, loaded.dirtyPlanCount());
+    }
+
+    @Test
+    void distantWorldChangesDoNotScheduleGlobalPlanReconciliation() {
+        ExcavationPlanData loaded = ExcavationPlanData.load(planRoot(
+                planTag(1L, 0, 20, 0, 4, 24, 4),
+                planTag(2L, 100, 20, 100, 104, 24, 104)
+        ));
+
+        assertEquals(0, loaded.markWorldChanged(new BlockPos(50, 64, 50)));
+        assertEquals(0, loaded.dirtyPlanCount());
+    }
+
+    @Test
     void legacyVerticalPlanLoadsAndSavesInGenericSliceFormat() {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", 9L);
@@ -102,5 +126,33 @@ class ExcavationPlanDataTest {
         assertEquals("auto", savedPlan.getString("AccessMode"));
         assertEquals(27, savedPlan.getInt("CurrentSlice"));
         assertEquals(-1, savedPlan.getInt("Step"));
+    }
+
+    private static CompoundTag planRoot(CompoundTag... planTags) {
+        CompoundTag root = new CompoundTag();
+        root.putLong("NextId", planTags.length + 1L);
+        ListTag plans = new ListTag();
+        for (CompoundTag plan : planTags) {
+            plans.add(plan);
+        }
+        root.put("Plans", plans);
+        return root;
+    }
+
+    private static CompoundTag planTag(long id, int minX, int minY, int minZ,
+                                       int maxX, int maxY, int maxZ) {
+        CompoundTag plan = new CompoundTag();
+        plan.putLong("Id", id);
+        plan.putInt("MinX", minX);
+        plan.putInt("MinY", minY);
+        plan.putInt("MinZ", minZ);
+        plan.putInt("MaxX", maxX);
+        plan.putInt("MaxY", maxY);
+        plan.putInt("MaxZ", maxZ);
+        plan.putString("Mode", "vertical");
+        plan.putString("AccessMode", "ramp");
+        plan.putInt("CurrentSlice", maxY);
+        plan.putInt("Step", -1);
+        return plan;
     }
 }

@@ -34,6 +34,11 @@ public final class ClientRuntime {
         }
 
         OreDiscoveryState.checkWorld();
+        while(ClientKeyMappings.PRODUCTION.consumeClick())if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");
+        if (!minecraft.player.isAlive()) PlayerCommandController.stop();
+        while (ClientKeyMappings.DEBUG_OVERLAY.consumeClick()) dev.stonebanner.client.hud.DebugOverlay.toggle();
+        while (ClientKeyMappings.FOCUS_SELECTED.consumeClick()) dev.stonebanner.client.camera.RpgCameraController.focusSelected();
+        while (ClientKeyMappings.RECENTER_CAMERA.consumeClick()) dev.stonebanner.client.camera.RpgCameraController.recenter();
         while (ClientKeyMappings.LAYER_BOUNDARIES.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.BOUNDARIES);
         while (ClientKeyMappings.LAYER_RESOURCES.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES);
         while (ClientKeyMappings.LAYER_FERTILITY.consumeClick()) dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.FERTILITY);

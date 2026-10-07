@@ -45,6 +45,18 @@ public final class CitizenInventory {
         return slots.stream().map(ItemStack::copy).toList();
     }
 
+    public List<ItemStack> personalSnapshot() {
+        var result = new ArrayList<ItemStack>();
+        for (int slot=0;slot<SLOT_COUNT;slot++) result.add(haulCargo[slot]?ItemStack.EMPTY:slots.get(slot).copy());
+        return result;
+    }
+    public ItemStack removePersonalSlot(int slot, int count) {
+        if(slot<0||slot>=SLOT_COUNT||haulCargo[slot]||count<=0)return ItemStack.EMPTY;
+        var removed=slots.get(slot).split(count);
+        if(slots.get(slot).isEmpty())slots.set(slot,ItemStack.EMPTY);
+        return removed;
+    }
+
     /**
      * Inserts personal inventory content and never merges it into a slot reserved for work cargo.
      * The caller retains ownership of its original stack; this method only works on a copy.

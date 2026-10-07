@@ -1,442 +1,178 @@
 package dev.stonebanner.client.screen;
 
-import dev.stonebanner.citizen.BodyPart;
-import dev.stonebanner.citizen.CitizenHudCodec;
-import dev.stonebanner.citizen.CitizenSkill;
-import dev.stonebanner.citizen.InjuryState;
-import dev.stonebanner.citizen.WorkPriority;
-import dev.stonebanner.citizen.WorkType;
+import dev.stonebanner.citizen.*;
 import dev.stonebanner.client.control.CitizenInventoryClientCache;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.network.StoneBannerNetwork;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.*;
+import java.util.*;
 
-import java.util.Comparator;
-import java.util.List;
-
-/** Full Citizen inspector. Work tab doubles as the RimWorld-style nearby work-priority matrix. */
+/** All five tabs share UUID/world identity, paging, authoritative snapshots and access checks. */
 public final class CitizenDetailsScreen extends Screen {
-    private static final int PANEL = 0xEE111418;
-    private static final int PANEL_SOFT = 0xDD1B1F24;
-    private static final int BORDER = 0xFF6E6658;
-    private static final int ACCENT = 0xFFE0B66A;
-    private static final int TEXT = 0xFFF0ECE3;
-    private static final int MUTED = 0xFFAAA49A;
-    private static final int GOOD = 0xFF79C979;
-    private static final int WARNING = 0xFFE2B85C;
-    private static final int DANGER = 0xFFE76F6F;
-
-    private static final int PANEL_WIDTH = 680;
-    private static final int PANEL_HEIGHT = 360;
-    private static final int TAB_HEIGHT = 22;
-    private static final int NAME_COLUMN_WIDTH = 118;
-    private static final int WORK_CELL_WIDTH = 42;
-    private static final int WORK_ROW_HEIGHT = 20;
-    private static final double WORK_TABLE_RANGE = 48.0D;
-    private static final int INVENTORY_COLUMNS = 3;
-    private static final int INVENTORY_SLOT_SIZE = 26;
-    private static final int INVENTORY_REFRESH_TICKS = 20;
-
     private final Screen parent;
     private final int citizenEntityId;
+    private UUID identity;
+    private ResourceLocation dimension;
     private Tab activeTab;
-    private int inventoryRefreshTicks;
-
-    public CitizenDetailsScreen(Screen parent, int citizenEntityId, Tab initialTab) {
-        super(Component.translatable("screen.stonebanner.citizen"));
-        this.parent = parent;
-        this.citizenEntityId = citizenEntityId;
-        this.activeTab = initialTab == null ? Tab.OVERVIEW : initialTab;
+    private int page,workPage,refreshTicks;
+    private CitizenInspectorLayout layout;
+    public CitizenDetailsScreen(Screen parent,int entityId,Tab tab){super(Component.translatable("screen.stonebanner.citizen"));this.parent=parent;citizenEntityId=entityId;activeTab=tab==null?Tab.OVERVIEW:tab;}
+    private HumanNpcEntity citizen(){
+        if(minecraft==null||minecraft.level==null||dimension==null||!minecraft.level.dimension().location().equals(dimension))return null;
+        return minecraft.level.getEntity(citizenEntityId) instanceof HumanNpcEntity npc&&npc.isAlive()&&npc.getUUID().equals(identity)?npc:null;
     }
-
-    @Override
-    protected void init() {
-        super.init();
-        if (activeTab == Tab.INVENTORY) {
-            requestInventorySnapshot(true);
+    private CitizenData data(){return identity==null?null:CitizenInventoryClientCache.snapshot(dimension,identity);}
+    private List<HumanNpcEntity> nearby(){
+        var npc=citizen();if(npc==null)return List.of();var list=minecraft.level.getEntitiesOfClass(HumanNpcEntity.class,npc.getBoundingBox().inflate(48),HumanNpcEntity::isAlive);
+        list.sort(Comparator.comparing((HumanNpcEntity n)->n.getUUID().equals(identity)?0:1).thenComparing(n->n.getDisplayName().getString()).thenComparing(n->n.getUUID().toString()));return list;
+    }
+    private Button button(Component text,int x,int y,int w,Runnable action,boolean enabled){var b=addRenderableWidget(Button.builder(text,ignored->action.run()).bounds(x,y,w,20).build());b.active=enabled;return b;}
+    @Override protected void init(){
+        layout=CitizenInspectorLayout.of(width,height);
+        if(identity==null&&minecraft.level!=null&&minecraft.level.getEntity(citizenEntityId) instanceof HumanNpcEntity npc){identity=npc.getUUID();dimension=minecraft.level.dimension().location();}
+        if(identity!=null){CitizenInventoryClientCache.begin(dimension,identity);request();}
+        widgets();
+    }
+    private int total(){var d=data();return switch(activeTab){case OVERVIEW->overview(citizen(),d).size();case HEALTH->11;case SKILLS->CitizenSkill.values().length+1;case WORK->nearby().size();case INVENTORY->1;};}
+    private int pageRows(){return activeTab==Tab.HEALTH?Math.max(1,layout.rows()-1):layout.dataRows(activeTab==Tab.WORK);}
+    private void widgets(){
+        clearWidgets();int x=layout.x(),y=layout.y(),w=layout.width();int tabWidth=(w-20)/5;
+        for(var tab:Tab.values()){
+            Component label=Component.translatable("screen.stonebanner.citizen.tab."+tab.name().toLowerCase(Locale.ROOT));
+            var b=button(Component.literal(font.plainSubstrByWidth(label.getString(),tabWidth-6)),x+10+tab.ordinal()*tabWidth,y+37,tabWidth,()->{activeTab=tab;page=0;widgets();},activeTab!=tab);b.setTooltip(Tooltip.create(label));
         }
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (activeTab != Tab.INVENTORY) {
-            inventoryRefreshTicks = 0;
-            return;
+        page=layout.clampPage(page,total(),pageRows());workPage=layout.clampPage(workPage,WorkType.values().length,layout.workColumns());
+        int fy=y+layout.height()-26;
+        button(Component.literal("<"),x+10,fy,24,()->{page--;widgets();},page>0);
+        button(Component.literal(">"),x+38,fy,24,()->{page++;widgets();},(page+1)*pageRows()<total());
+        if(activeTab==Tab.WORK){
+            button(Component.literal("<<"),x+76,fy,28,()->{workPage--;widgets();},workPage>0);
+            button(Component.literal(">>"),x+108,fy,28,()->{workPage++;widgets();},(workPage+1)*layout.workColumns()<WorkType.values().length);
         }
-        if (++inventoryRefreshTicks >= INVENTORY_REFRESH_TICKS) {
-            requestInventorySnapshot(false);
+        if (activeTab == Tab.HEALTH) {
+            var npc = citizen();
+            boolean allowed = npc != null && minecraft.player != null && npc.hudCanView(minecraft.player.getUUID()) && minecraft.player.distanceToSqr(npc) <= 36;
+            button(tr("medical.stonebanner.bandage"), x+10, fy-24, 54, () -> StoneBannerNetwork.treatCitizen(citizenEntityId, identity, dimension, false), allowed)
+                    .setTooltip(Tooltip.create(tr("medical.stonebanner.hint")));
+            button(tr("medical.stonebanner.splint"), x+68, fy-24, 54, () -> StoneBannerNetwork.treatCitizen(citizenEntityId, identity, dimension, true), allowed)
+                    .setTooltip(Tooltip.create(tr("medical.stonebanner.hint")));
         }
+        button(Component.translatable("village.stonebanner.journal.refresh"),x+w-136,fy,66,this::request,citizen()!=null&&minecraft.player!=null&&citizen().hudCanView(minecraft.player.getUUID()));
+        button(Component.translatable("gui.done"),x+w-66,fy,56,this::onClose,true);
     }
-
-    @Override
-    public void onClose() {
-        CitizenInventoryClientCache.clear(citizenEntityId);
-        minecraft.setScreen(parent);
+    private void request(){var npc=citizen();if(npc!=null&&minecraft.player!=null&&npc.hudCanView(minecraft.player.getUUID()))StoneBannerNetwork.requestCitizenInventory(citizenEntityId,identity,dimension);refreshTicks=0;}
+    @Override public void tick(){
+        var npc=citizen();if(npc==null){CitizenInventoryClientCache.clear();return;}
+        if(minecraft.player!=null&&!npc.hudCanView(minecraft.player.getUUID()))CitizenInventoryClientCache.clear();
+        if(++refreshTicks>=20){request();widgets();}
     }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0x99000000);
-
-        int panelWidth = Math.min(PANEL_WIDTH, width - 24);
-        int panelHeight = Math.min(PANEL_HEIGHT, height - 24);
-        int x = (width - panelWidth) / 2;
-        int y = (height - panelHeight) / 2;
-        graphics.fill(x, y, x + panelWidth, y + panelHeight, PANEL);
-        graphics.renderOutline(x, y, panelWidth, panelHeight, BORDER);
-
-        HumanNpcEntity citizen = citizen();
-        if (citizen == null) {
-            graphics.drawCenteredString(font, Component.translatable("screen.stonebanner.citizen.missing"),
-                    width / 2, height / 2, DANGER);
-            super.render(graphics, mouseX, mouseY, partialTick);
-            return;
+    @Override public boolean isPauseScreen(){return false;}
+    @Override public void onClose(){CitizenInventoryClientCache.clear();minecraft.setScreen(parent);}
+    private record Line(Component label,Component value,int color){Line(Component label,Component value){this(label,value,0xF0ECE3);}}
+    private static Component tr(String key){return Component.translatable(key);}
+    private static Component number(double value){return Component.literal(String.format(Locale.ROOT,"%.0f%%",value));}
+    private List<Line> overview(HumanNpcEntity npc,CitizenData d){
+        var lines=new ArrayList<Line>();if(npc==null)return lines;
+        lines.add(new Line(tr("screen.stonebanner.citizen.state"),tr("brain_state.stonebanner."+npc.brainState().serializedName())));
+        if (npc.brainState()==CitizenBrainState.SLEEP) {
+            lines.add(new Line(tr("sleep.stonebanner.rest"),tr(npc.hudSeekingBed()?"sleep.stonebanner.seeking":npc.isSleeping()?"sleep.stonebanner.bed":"sleep.stonebanner.ground")));
+            npc.getSleepingPos().ifPresent(pos -> lines.add(new Line(tr("sleep.stonebanner.bed"),Component.literal(pos.toShortString()))));
         }
-
-        graphics.drawString(font, citizen.getDisplayName().copy().withStyle(ChatFormatting.BOLD), x + 12, y + 11, TEXT);
-        graphics.drawString(font,
-                Component.translatable("profession.stonebanner." + citizen.hudProfession().serializedName()),
-                x + 12, y + 23, MUTED);
-
-        renderTabs(graphics, x + 10, y + 40, panelWidth - 20, mouseX, mouseY);
-        int contentY = y + 40 + TAB_HEIGHT + 12;
-        switch (activeTab) {
-            case OVERVIEW -> renderOverview(graphics, citizen, x + 16, contentY);
-            case HEALTH -> renderHealth(graphics, citizen, x + 16, contentY);
-            case SKILLS -> renderSkills(graphics, citizen, x + 16, contentY);
-            case WORK -> renderWork(graphics, citizen, x + 10, contentY, panelWidth - 20, panelHeight - 88, mouseX, mouseY);
-            case INVENTORY -> renderInventory(graphics, x + 16, contentY, mouseX, mouseY);
+        lines.add(new Line(tr("screen.stonebanner.citizen.current_work"),npc.hudWorkType()==null?tr("screen.stonebanner.none"):tr("work_type.stonebanner."+npc.hudWorkType().serializedName())));
+        lines.add(new Line(tr("screen.stonebanner.citizen.work_block"),tr(npc.hudWorkBlockReason().key())));
+        lines.add(new Line(tr("hud.stonebanner.npc.health"),number(npc.getHealth()/npc.getMaxHealth()*100)));
+        lines.add(new Line(tr("hud.stonebanner.npc.hunger"),number(npc.hudHunger())));lines.add(new Line(tr("hud.stonebanner.npc.fatigue"),number(npc.hudFatigue())));lines.add(new Line(tr("hud.stonebanner.npc.danger"),number(npc.hudDanger())));
+        lines.add(new Line(tr("screen.stonebanner.citizen.cargo"),Component.literal(""+npc.hudCargoCount())));
+        lines.add(new Line(tr("screen.stonebanner.citizen.delivery"),tr(npc.hudDeliveryStatus().key())));
+        lines.add(new Line(tr("screen.stonebanner.inspector.queue"),Component.literal(""+npc.hudQueuedMoves())));
+        if(d!=null){
+            lines.add(new Line(tr("screen.stonebanner.inspector.role"),tr("village.stonebanner.recruit.status."+d.participation().serializedName())));
+            if(d.home().hasHome())lines.add(new Line(tr("screen.stonebanner.inspector.home"),Component.literal(d.home().homePos().toShortString())));
+            if(d.returningToVillage())lines.add(new Line(tr("screen.stonebanner.inspector.contract"),tr("village.stonebanner.recruit.status.returning")));
         }
-
-        super.render(graphics, mouseX, mouseY, partialTick);
+        return lines;
     }
-
-    private void renderTabs(GuiGraphics graphics, int x, int y, int availableWidth, int mouseX, int mouseY) {
-        int tabWidth = Math.max(74, availableWidth / Tab.values().length);
-        int cursor = x;
-        for (Tab tab : Tab.values()) {
-            int widthForTab = Math.min(tabWidth, x + availableWidth - cursor);
-            boolean active = tab == activeTab;
-            boolean hovered = inside(mouseX, mouseY, cursor, y, widthForTab, TAB_HEIGHT);
-            graphics.fill(cursor, y, cursor + widthForTab, y + TAB_HEIGHT,
-                    active ? 0xDD373027 : hovered ? 0xCC2A2E33 : PANEL_SOFT);
-            graphics.renderOutline(cursor, y, widthForTab, TAB_HEIGHT, active ? ACCENT : BORDER);
-            Component label = Component.translatable("screen.stonebanner.citizen.tab." + tab.serializedName);
-            graphics.drawCenteredString(font, label, cursor + widthForTab / 2, y + 7, active ? ACCENT : TEXT);
-            cursor += widthForTab;
+    private void text(GuiGraphics g,Component text,int x,int y,int width,int color){g.drawString(font,font.plainSubstrByWidth(text.getString(),Math.max(0,width)),x,y,color,false);}
+    private void lines(GuiGraphics g,List<Line> lines,int mouseX,int mouseY){
+        int x=layout.x()+14,y=layout.y()+68,w=layout.width()-28,keyWidth=Math.min(160,w/2);
+        for(int i=0;i<pageRows()&&page*pageRows()+i<lines.size();i++){
+            var line=lines.get(page*pageRows()+i);int ly=y+i*22;
+            text(g,line.label,x,ly,keyWidth-6,0xAAA49A);text(g,line.value,x+keyWidth,ly,w-keyWidth,line.color);
+            if(mouseX>=x&&mouseX<x+w&&mouseY>=ly&&mouseY<ly+20)g.renderTooltip(font,line.label.copy().append(": ").append(line.value),mouseX,mouseY);
         }
     }
-
-    private void renderOverview(GuiGraphics graphics, HumanNpcEntity citizen, int x, int y) {
-        int line = y;
-        line = keyValue(graphics, x, line, "screen.stonebanner.citizen.state",
-                Component.translatable("brain_state.stonebanner." + citizen.brainState().serializedName()));
-        WorkType work = citizen.hudWorkType();
-        line = keyValue(graphics, x, line, "screen.stonebanner.citizen.current_work",
-                work == null ? Component.translatable("screen.stonebanner.none")
-                        : Component.translatable("work_type.stonebanner." + work.serializedName()));
-        if (citizen.hudWorkBlockReason() != dev.stonebanner.citizen.WorkBlockReason.NONE) {
-            line = keyValue(graphics, x, line, "screen.stonebanner.citizen.work_block", Component.translatable(citizen.hudWorkBlockReason().key()));
-        }
-        if (citizen.hudCargoCount() > 0) {
-            line = keyValue(graphics, x, line, "screen.stonebanner.citizen.cargo", Component.literal(Integer.toString(citizen.hudCargoCount())));
-            line = keyValue(graphics, x, line, "screen.stonebanner.citizen.delivery", Component.translatable(citizen.hudDeliveryStatus().key()));
-        }
-        line = keyValue(graphics, x, line, "hud.stonebanner.npc.health",
-                Component.literal(Math.round(citizen.getHealth() / citizen.getMaxHealth() * 100.0F) + "%"));
-        line = keyValue(graphics, x, line, "hud.stonebanner.npc.hunger", Component.literal(citizen.hudHunger() + "%"));
-        line = keyValue(graphics, x, line, "hud.stonebanner.npc.fatigue", Component.literal(citizen.hudFatigue() + "%"));
-        keyValue(graphics, x, line, "hud.stonebanner.npc.danger", Component.literal(citizen.hudDanger() + "%"));
+    private List<Line> health(CitizenData d){
+        var rows=new ArrayList<Line>();for(var part:BodyPart.values()){var injury=d.health().injury(part);Component state=tr("injury.stonebanner."+injury.serializedName());int seconds=d.health().recoverySeconds(part);if(seconds>0)state=state.copy().append(" · ").append(Component.translatable("medical.stonebanner.recovery",seconds));rows.add(new Line(tr("body_part.stonebanner."+part.serializedName()),state,injury==InjuryState.NORMAL?0x79C979:injury==InjuryState.WOUNDED?0xE2B85C:0xE76F6F));}
+        rows.add(new Line(tr("screen.stonebanner.inspector.mobility"),number(d.health().canMoveIndependently()?d.health().movementMultiplier()*100:0)));
+        rows.add(new Line(tr("screen.stonebanner.inspector.work_rate"),number(d.health().workEfficiencyMultiplier()*100)));
+        rows.add(new Line(tr("screen.stonebanner.inspector.combat_rate"),number(CitizenSkillRules.combatRate(d)*100)));
+        rows.add(new Line(tr("medical.stonebanner.bleeding"),tr(d.health().isBleeding()?"medical.stonebanner.yes":"medical.stonebanner.no"),d.health().isBleeding()?0xE76F6F:0x79C979));
+        rows.add(new Line(tr("medical.stonebanner.care"),tr("medical.stonebanner.hint")));return rows;
     }
-
-    private void renderHealth(GuiGraphics graphics, HumanNpcEntity citizen, int x, int y) {
-        int line = y;
-        for (BodyPart part : BodyPart.values()) {
-            InjuryState injury = citizen.hudInjury(part);
-            Component label = Component.translatable("body_part.stonebanner." + part.serializedName());
-            Component value = Component.translatable("injury.stonebanner." + injury.serializedName());
-            graphics.drawString(font, label, x, line, TEXT);
-            graphics.drawString(font, value, x + 150, line, injuryColor(injury));
-            line += 21;
-        }
+    private List<Line> skills(CitizenData d){
+        var rows=new ArrayList<Line>();for(var skill:CitizenSkill.values())rows.add(new Line(tr("skill.stonebanner."+skill.serializedName()),Component.literal(d.skill(skill)+"/10 · "+(d.skill(skill)>=10?"MAX":d.experience(skill)+"/"+d.experienceNeeded(skill)+" XP"))));
+        rows.add(new Line(tr("screen.stonebanner.inspector.practice"),tr("screen.stonebanner.inspector.practice_hint")));return rows;
     }
-
-    private void renderSkills(GuiGraphics graphics, HumanNpcEntity citizen, int x, int y) {
-        int line = y;
-        for (CitizenSkill skill : CitizenSkill.values()) {
-            Component label = Component.translatable("skill.stonebanner." + skill.serializedName());
-            int value = citizen.hudSkill(skill);
-            graphics.drawString(font, label, x, line, TEXT);
-            graphics.drawString(font, Component.literal(Integer.toString(value)), x + 150, line, skillColor(value));
-            drawMiniBar(graphics, x + 180, line + 2, 140, value, 10);
-            line += 25;
+    private void work(GuiGraphics g,int mx,int my){
+        int x=layout.x()+10,y=layout.y()+68;var citizens=nearby();int start=workPage*layout.workColumns();
+        for(int col=0;col<layout.workColumns()&&start+col<WorkType.values().length;col++){
+            var type=WorkType.values()[start+col];text(g,tr("work_short.stonebanner."+type.serializedName()),x+104+col*38,y,36,0xE0B66A);
+            boolean implemented=switch(type){case MINING,FORESTRY,CLEARING,BUILDING,HAULING,FARMING,CRAFTING->true;default->false;};
+            if(mx>=x+104+col*38&&mx<x+142+col*38&&my>=y&&my<y+18)g.renderTooltip(font,Component.translatable("screen.stonebanner.inspector.work_hint",tr("work_type.stonebanner."+type.serializedName()),tr(implemented?"screen.stonebanner.inspector.implemented":"screen.stonebanner.inspector.planned")),mx,my);
         }
-    }
-
-    private void renderWork(GuiGraphics graphics, HumanNpcEntity selected, int x, int y,
-                            int availableWidth, int availableHeight, int mouseX, int mouseY) {
-        List<HumanNpcEntity> citizens = nearbyCitizens(selected);
-        WorkType[] workTypes = WorkType.values();
-        int requiredWidth = NAME_COLUMN_WIDTH + workTypes.length * WORK_CELL_WIDTH;
-        int tableWidth = Math.min(availableWidth, requiredWidth);
-
-        graphics.drawString(font, Component.translatable("screen.stonebanner.work.hint"), x + 2, y, MUTED);
-        int headerY = y + 20;
-        graphics.fill(x, headerY, x + tableWidth, headerY + WORK_ROW_HEIGHT, PANEL_SOFT);
-        graphics.drawString(font, Component.translatable("screen.stonebanner.work.citizen"),
-                x + 5, headerY + 6, MUTED);
-
-        for (int column = 0; column < workTypes.length; column++) {
-            int cellX = x + NAME_COLUMN_WIDTH + column * WORK_CELL_WIDTH;
-            if (cellX + WORK_CELL_WIDTH > x + tableWidth) {
-                break;
-            }
-            Component label = Component.translatable("work_short.stonebanner." + workTypes[column].serializedName());
-            graphics.drawCenteredString(font, label, cellX + WORK_CELL_WIDTH / 2, headerY + 6, MUTED);
-        }
-
-        int maxRows = Math.max(1, (availableHeight - 48) / WORK_ROW_HEIGHT);
-        int rows = Math.min(maxRows, citizens.size());
-        for (int row = 0; row < rows; row++) {
-            HumanNpcEntity citizen = citizens.get(row);
-            int rowY = headerY + WORK_ROW_HEIGHT + row * WORK_ROW_HEIGHT;
-            boolean selectedRow = citizen.getId() == selected.getId();
-            graphics.fill(x, rowY, x + tableWidth, rowY + WORK_ROW_HEIGHT,
-                    selectedRow ? 0x77372F25 : (row % 2 == 0 ? 0x66171A1E : 0x5521262B));
-            graphics.drawString(font, citizen.getDisplayName(), x + 5, rowY + 6, selectedRow ? ACCENT : TEXT);
-
-            for (int column = 0; column < workTypes.length; column++) {
-                int cellX = x + NAME_COLUMN_WIDTH + column * WORK_CELL_WIDTH;
-                if (cellX + WORK_CELL_WIDTH > x + tableWidth) {
-                    break;
-                }
-                WorkPriority priority = citizen.hudWorkPriority(workTypes[column]);
-                boolean hovered = inside(mouseX, mouseY, cellX, rowY, WORK_CELL_WIDTH, WORK_ROW_HEIGHT);
-                if (hovered) {
-                    graphics.fill(cellX + 1, rowY + 1, cellX + WORK_CELL_WIDTH - 1, rowY + WORK_ROW_HEIGHT - 1,
-                            0x884D463B);
-                }
-                graphics.renderOutline(cellX, rowY, WORK_CELL_WIDTH, WORK_ROW_HEIGHT, 0x554F4A43);
-                graphics.drawCenteredString(font, priorityLabel(priority),
-                        cellX + WORK_CELL_WIDTH / 2, rowY + 6, priorityColor(priority));
+        int rows=Math.max(1,layout.rows()-1);
+        // Work uses one fewer data row because its heading is inside the content rectangle.
+        int offset=page*pageRows();
+        for(int i=0;i<rows&&offset+i<citizens.size();i++){
+            var npc=citizens.get(offset+i);int ry=y+20+i*22;
+            text(g,npc.getDisplayName(),x+2,ry+5,98,npc.getUUID().equals(identity)?0xE0B66A:0xF0ECE3);
+            for(int col=0;col<layout.workColumns()&&start+col<WorkType.values().length;col++){
+                var type=WorkType.values()[start+col];int cx=x+104+col*38;var priority=npc.hudWorkPriority(type);boolean editable=minecraft.player!=null&&npc.hudCanDirect(minecraft.player.getUUID());
+                g.fill(cx,ry,cx+36,ry+20,editable?0xFF29332B:0xFF282828);text(g,Component.literal(priority==WorkPriority.DISABLED?"X":""+priority.code()),cx+12,ry+5,20,editable?0xE0B66A:0x888888);
+                if(mx>=cx&&mx<cx+36&&my>=ry&&my<ry+20)g.renderTooltip(font,tr(editable?"screen.stonebanner.work.hint":"screen.stonebanner.inspector.readonly"),mx,my);
             }
         }
     }
-
-    private void renderInventory(GuiGraphics graphics, int x, int y, int mouseX, int mouseY) {
-        List<ItemStack> stacks = CitizenInventoryClientCache.snapshot(citizenEntityId);
-        if (stacks.isEmpty()) {
-            graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.loading"), x, y, MUTED);
-            return;
+    private void inventory(GuiGraphics g,CitizenData d,int mx,int my){
+        int x=layout.x()+14,y=layout.y()+68;var cargo=d.inventory().haulCargoSnapshot();ItemStack hovered=ItemStack.EMPTY;
+        for(int i=0;i<CitizenInventory.SLOT_COUNT;i++){
+            int sx=x+(i%3)*26,sy=y+(i/3)*26;final int slot=i;boolean hauled=cargo.stream().anyMatch(c->c.slot()==slot);
+            g.fill(sx,sy,sx+24,sy+24,hauled?0xFF514127:0xFF262E34);var stack=d.inventory().stack(i);
+            if(!stack.isEmpty()){g.renderItem(stack,sx+4,sy+4);g.renderItemDecorations(font,stack,sx+4,sy+4);if(mx>=sx&&mx<sx+24&&my>=sy&&my<sy+24)hovered=stack;}
         }
-
-        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.personal"), x, y, TEXT);
-        int gridY = y + 22;
-        ItemStack hovered = ItemStack.EMPTY;
-        for (int slot = 0; slot < stacks.size(); slot++) {
-            int column = slot % INVENTORY_COLUMNS;
-            int row = slot / INVENTORY_COLUMNS;
-            int slotX = x + column * INVENTORY_SLOT_SIZE;
-            int slotY = gridY + row * INVENTORY_SLOT_SIZE;
-            graphics.fill(slotX, slotY, slotX + 22, slotY + 22, PANEL_SOFT);
-            graphics.renderOutline(slotX, slotY, 22, 22, BORDER);
-
-            ItemStack stack = stacks.get(slot);
-            if (!stack.isEmpty()) {
-                graphics.renderItem(stack, slotX + 3, slotY + 3);
-                graphics.renderItemDecorations(font, stack, slotX + 3, slotY + 3);
-                if (inside(mouseX, mouseY, slotX, slotY, 22, 22)) {
-                    hovered = stack;
-                }
+        text(g,tr("screen.stonebanner.inventory.real_items"),x+90,y,layout.width()-120,0xAAA49A);
+        text(g,tr("screen.stonebanner.inspector.cargo_hint"),x+90,y+24,layout.width()-120,0xE0B66A);
+        text(g,tr("screen.stonebanner.inventory.food_hint"),x+90,y+48,layout.width()-120,0xAAA49A);
+        if(!hovered.isEmpty())g.renderTooltip(font,hovered,mx,my);
+    }
+    @Override public void render(GuiGraphics g,int mx,int my,float delta){
+        int x=layout.x(),y=layout.y(),w=layout.width();g.fill(0,0,width,height,0x99000000);g.fill(x,y,x+w,y+layout.height(),0xEE111418);
+        var npc=citizen();var d=data();
+        if(npc==null)text(g,tr("screen.stonebanner.citizen.missing"),x+12,y+12,w-24,0xE76F6F);
+        else{
+            text(g,npc.getDisplayName(),x+12,y+10,w-24,0xF0ECE3);text(g,tr("profession.stonebanner."+npc.hudProfession().serializedName()),x+12,y+23,w-24,0xAAA49A);
+            text(g,Component.literal((page+1)+"/"+Math.max(1,(total()+pageRows()-1)/pageRows())),x+w-46,y+23,34,0xE0B66A);
+            if(activeTab==Tab.OVERVIEW)lines(g,overview(npc,d),mx,my);
+            else if(activeTab==Tab.WORK)work(g,mx,my);
+            else if(d==null)text(g,tr(minecraft.player!=null&&!npc.hudCanView(minecraft.player.getUUID())?"screen.stonebanner.inspector.readonly":"screen.stonebanner.inventory.loading"),x+14,y+68,w-28,0xAAA49A);
+            else switch(activeTab){case HEALTH->lines(g,health(d),mx,my);case SKILLS->lines(g,skills(d),mx,my);case INVENTORY->inventory(g,d,mx,my);default->{}}
+        }
+        super.render(g,mx,my,delta);
+    }
+    @Override public boolean mouseClicked(double mx,double my,int button){
+        if(activeTab==Tab.WORK&&button==0&&minecraft.player!=null){int x=layout.x()+10,y=layout.y()+88;var list=nearby();int offset=page*pageRows();
+            for(int row=0;row<Math.max(1,layout.rows()-1)&&offset+row<list.size();row++)for(int col=0;col<layout.workColumns()&&workPage*layout.workColumns()+col<WorkType.values().length;col++){
+                if(mx<x+104+col*38||mx>=x+140+col*38||my<y+row*22||my>=y+row*22+20)continue;
+                var npc=list.get(offset+row);if(!npc.hudCanDirect(minecraft.player.getUUID()))return true;
+                var type=WorkType.values()[workPage*layout.workColumns()+col];StoneBannerNetwork.sendWorkPriority(npc.getId(),npc.getUUID(),dimension,type.ordinal(),CitizenHudCodec.nextPriority(npc.hudWorkPriority(type)).code());return true;
             }
         }
-
-        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.real_items"),
-                x + 104, gridY + 2, MUTED);
-        graphics.drawString(font, Component.translatable("screen.stonebanner.inventory.food_hint"),
-                x + 104, gridY + 20, MUTED);
-        if (!hovered.isEmpty()) {
-            graphics.renderTooltip(font, hovered, mouseX, mouseY);
-        }
+        return super.mouseClicked(mx,my,button);
     }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) {
-            return super.mouseClicked(mouseX, mouseY, button);
-        }
-
-        int panelWidth = Math.min(PANEL_WIDTH, width - 24);
-        int panelHeight = Math.min(PANEL_HEIGHT, height - 24);
-        int x = (width - panelWidth) / 2;
-        int y = (height - panelHeight) / 2;
-
-        int tabX = x + 10;
-        int tabY = y + 40;
-        int availableWidth = panelWidth - 20;
-        int tabWidth = Math.max(74, availableWidth / Tab.values().length);
-        int cursor = tabX;
-        for (Tab tab : Tab.values()) {
-            int widthForTab = Math.min(tabWidth, tabX + availableWidth - cursor);
-            if (inside(mouseX, mouseY, cursor, tabY, widthForTab, TAB_HEIGHT)) {
-                if (activeTab != tab) {
-                    activeTab = tab;
-                    if (tab == Tab.INVENTORY) {
-                        requestInventorySnapshot(true);
-                    }
-                }
-                return true;
-            }
-            cursor += widthForTab;
-        }
-
-        if (activeTab == Tab.WORK) {
-            HumanNpcEntity selected = citizen();
-            if (selected != null && handleWorkClick(selected, x + 10, y + 40 + TAB_HEIGHT + 12,
-                    panelWidth - 20, panelHeight - 88, mouseX, mouseY)) {
-                return true;
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    private void requestInventorySnapshot(boolean clearOld) {
-        if (clearOld) {
-            CitizenInventoryClientCache.clear(citizenEntityId);
-        }
-        StoneBannerNetwork.requestCitizenInventory(citizenEntityId);
-        inventoryRefreshTicks = 0;
-    }
-
-    private boolean handleWorkClick(HumanNpcEntity selected, int x, int y, int availableWidth, int availableHeight,
-                                    double mouseX, double mouseY) {
-        List<HumanNpcEntity> citizens = nearbyCitizens(selected);
-        WorkType[] workTypes = WorkType.values();
-        int tableWidth = Math.min(availableWidth, NAME_COLUMN_WIDTH + workTypes.length * WORK_CELL_WIDTH);
-        int headerY = y + 20;
-        int maxRows = Math.max(1, (availableHeight - 48) / WORK_ROW_HEIGHT);
-        int rows = Math.min(maxRows, citizens.size());
-
-        for (int row = 0; row < rows; row++) {
-            int rowY = headerY + WORK_ROW_HEIGHT + row * WORK_ROW_HEIGHT;
-            for (int column = 0; column < workTypes.length; column++) {
-                int cellX = x + NAME_COLUMN_WIDTH + column * WORK_CELL_WIDTH;
-                if (cellX + WORK_CELL_WIDTH > x + tableWidth) {
-                    break;
-                }
-                if (!inside(mouseX, mouseY, cellX, rowY, WORK_CELL_WIDTH, WORK_ROW_HEIGHT)) {
-                    continue;
-                }
-
-                HumanNpcEntity citizen = citizens.get(row);
-                WorkType workType = workTypes[column];
-                WorkPriority next = CitizenHudCodec.nextPriority(citizen.hudWorkPriority(workType));
-                StoneBannerNetwork.sendWorkPriority(
-                        citizen.getId(),
-                        workType.ordinal(),
-                        CitizenHudCodec.encodePriority(next)
-                );
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<HumanNpcEntity> nearbyCitizens(HumanNpcEntity selected) {
-        if (minecraft.level == null) {
-            return List.of(selected);
-        }
-        List<HumanNpcEntity> result = minecraft.level.getEntitiesOfClass(
-                HumanNpcEntity.class,
-                selected.getBoundingBox().inflate(WORK_TABLE_RANGE),
-                HumanNpcEntity::isAlive
-        );
-        result.sort(Comparator
-                .comparing((HumanNpcEntity npc) -> npc.getId() == selected.getId() ? 0 : 1)
-                .thenComparing(npc -> npc.getDisplayName().getString(), String.CASE_INSENSITIVE_ORDER)
-                .thenComparingInt(HumanNpcEntity::getId));
-        return result;
-    }
-
-    private HumanNpcEntity citizen() {
-        if (minecraft == null || minecraft.level == null) {
-            return null;
-        }
-        return minecraft.level.getEntity(citizenEntityId) instanceof HumanNpcEntity citizen ? citizen : null;
-    }
-
-    private int keyValue(GuiGraphics graphics, int x, int y, String key, Component value) {
-        graphics.drawString(font, Component.translatable(key), x, y, MUTED);
-        int available = Math.max(35, Math.min(PANEL_WIDTH, width - 24) - 187);
-        graphics.drawString(font, font.plainSubstrByWidth(value.getString(), available), x + 155, y, TEXT);
-        return y + Math.min(22, Math.max(12, (Math.min(PANEL_HEIGHT, height - 24) - 88) / 9));
-    }
-
-    private void drawMiniBar(GuiGraphics graphics, int x, int y, int width, int value, int max) {
-        graphics.fill(x, y, x + width, y + 5, 0xFF282C31);
-        int fill = Math.round(width * (Math.max(0, Math.min(max, value)) / (float) max));
-        graphics.fill(x, y, x + fill, y + 5, ACCENT);
-    }
-
-    private static Component priorityLabel(WorkPriority priority) {
-        return priority == WorkPriority.DISABLED
-                ? Component.literal("X")
-                : Component.literal(Integer.toString(priority.code()));
-    }
-
-    private static int priorityColor(WorkPriority priority) {
-        return switch (priority) {
-            case CRITICAL -> 0xFFFFD166;
-            case HIGH -> GOOD;
-            case NORMAL -> TEXT;
-            case LOW -> MUTED;
-            case DISABLED -> DANGER;
-        };
-    }
-
-    private static int injuryColor(InjuryState injury) {
-        return switch (injury) {
-            case NORMAL -> GOOD;
-            case WOUNDED -> WARNING;
-            case HEAVY_WOUND, FRACTURE, MISSING -> DANGER;
-        };
-    }
-
-    private static int skillColor(int value) {
-        if (value >= 8) {
-            return GOOD;
-        }
-        if (value >= 5) {
-            return ACCENT;
-        }
-        return TEXT;
-    }
-
-    private static boolean inside(double mouseX, double mouseY, int x, int y, int width, int height) {
-        return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
-    }
-
-    public enum Tab {
-        OVERVIEW("overview"),
-        HEALTH("health"),
-        SKILLS("skills"),
-        WORK("work"),
-        INVENTORY("inventory");
-
-        private final String serializedName;
-
-        Tab(String serializedName) {
-            this.serializedName = serializedName;
-        }
-    }
+    public enum Tab {OVERVIEW,HEALTH,SKILLS,WORK,INVENTORY}
 }

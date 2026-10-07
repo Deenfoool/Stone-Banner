@@ -52,7 +52,11 @@ public record TacticalActionPacket(Action action,int entityId,BlockPos block,Dir
             if(entity instanceof ItemEntity||entity instanceof ExperienceOrb||entity instanceof AbstractArrow
                     ||!entity.isAttackable()||player.getAttackStrengthScale(.5f)<.9f||player.isUsingItem())return;
             player.attack(entity);player.swing(InteractionHand.MAIN_HAND,true);
-        } else if(entity instanceof HumanNpcEntity) StoneBannerNetwork.openTacticalNpc(player,entity.getId());
+        } else if(entity instanceof net.minecraft.world.entity.npc.Villager villager
+                &&dev.stonebanner.village.VillageService.talk(player,villager)) { }
+        else if(entity instanceof HumanNpcEntity npc) {
+            if(!dev.stonebanner.village.VillageReturnService.talk(player,npc))StoneBannerNetwork.openTacticalNpc(player,entity.getId());
+        }
         else {
             for (var hand : InteractionHand.values()) {
                 Vec3 local = entity.getBoundingBox().getCenter().subtract(entity.position());

@@ -15,6 +15,15 @@ base {
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// Integration tests live outside the distributable mod and normal client/server runs.
+sourceSets {
+    gameTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+        resources.srcDir layout.buildDirectory.dir('generated/gameTestResources')
+    }
+}
+
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 minecraft {
     // The mappings can be changed at any time and must be in the following format.
@@ -95,7 +104,11 @@ minecraft {
         // By default, the server will crash when no gametests are provided.
         // The gametest system is also enabled by default for other run configs under the /test command.
         gameTestServer {
+            workingDirectory project.file('run-gametest')
             property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" { source sourceSets.gameTest }
+            }
         }
 
         data {
@@ -218,4 +231,38 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+// Minimal compressed structure fixture. Generate it at build time instead of storing binary test assets.
+def gameTestTemplate = layout.buildDirectory.file('generated/gameTestResources/data/stonebanner/structures/empty.nbt')
+tasks.register('generateGameTestTemplate') {
+    outputs.file(gameTestTemplate)
+    doLast {
+        def target = gameTestTemplate.get().asFile
+        target.parentFile.mkdirs()
+        new DataOutputStream(new java.util.zip.GZIPOutputStream(new FileOutputStream(target))).withCloseable { out ->
+            out.writeByte(10); out.writeUTF('')
+            out.writeByte(3); out.writeUTF('DataVersion'); out.writeInt(3465)
+            out.writeByte(9); out.writeUTF('size'); out.writeByte(3); out.writeInt(3)
+            [16, 6, 16].each { out.writeInt(it) }
+            out.writeByte(9); out.writeUTF('palette'); out.writeByte(10); out.writeInt(1)
+            out.writeByte(8); out.writeUTF('Name'); out.writeUTF('minecraft:air'); out.writeByte(0)
+            ['blocks', 'entities'].each { name ->
+                out.writeByte(9); out.writeUTF(name); out.writeByte(10); out.writeInt(0)
+            }
+            out.writeByte(0)
+        }
+    }
+}
+tasks.named('processGameTestResources').configure { dependsOn 'generateGameTestTemplate' }
+
+tasks.register('verifyGameTests') {
+    group = 'verification'
+    description = 'Runs server integration tests and requires an explicit successful test summary.'
+    dependsOn 'runGameTestServer'
+    doLast {
+        def log = file('run-gametest/logs/latest.log')
+        if (!log.exists() || !(log.getText('UTF-8') =~ /All [1-9]\d* required tests passed/).find())
+            throw new GradleException('GameTest server did not report passing tests; inspect run-gametest/logs/latest.log')
+    }
 }

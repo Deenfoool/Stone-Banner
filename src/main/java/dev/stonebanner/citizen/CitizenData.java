@@ -24,12 +24,21 @@ public final class CitizenData {
     private CitizenProfession profession = CitizenProfession.UNEMPLOYED;
     private CitizenParticipation participation = CitizenParticipation.LOCAL_HELPER;
     private final EnumMap<CitizenSkill, Integer> skills = new EnumMap<>(CitizenSkill.class);
+    private final EnumMap<CitizenSkill, Integer> experience = new EnumMap<>(CitizenSkill.class);
     private final EnumMap<WorkType, WorkPriority> workPriorities = new EnumMap<>(WorkType.class);
     private final CitizenNeeds needs = new CitizenNeeds();
     private final CitizenHealth health = new CitizenHealth();
     private final CitizenHome home = new CitizenHome();
     private final CitizenInventory inventory = new CitizenInventory();
     private boolean skillsInitialized;
+    private java.util.UUID recruitedBy;
+    public void setRecruitedBy(java.util.UUID player) { recruitedBy = player; }
+    public boolean canBeViewedBy(java.util.UUID player) { return recruitedBy==null||recruitedBy.equals(player); }
+    public java.util.Optional<java.util.UUID> recruitedBy(){return java.util.Optional.ofNullable(recruitedBy);}
+    private boolean returningToVillage;
+    public boolean returningToVillage() { return returningToVillage; }
+    public void setReturningToVillage(boolean returning) { returningToVillage = returning; }
+    public boolean canBeDirectedBy(java.util.UUID player) { return !returningToVillage && (recruitedBy == null || recruitedBy.equals(player)); }
 
     public CitizenData() {
         for (CitizenSkill skill : CitizenSkill.values()) {
@@ -91,6 +100,14 @@ public final class CitizenData {
     public Map<CitizenSkill, Integer> skillsView() {
         return Map.copyOf(skills);
     }
+    public int experience(CitizenSkill skill){return experience.getOrDefault(skill,0);}
+    public int experienceNeeded(CitizenSkill skill){return 100+skill(skill)*25;}
+    public void practice(CitizenSkill skill,int amount){
+        if(skill==null||amount<=0||skill(skill)>=MAX_SKILL_LEVEL)return;
+        long xp=(long)experience(skill)+amount;
+        while(skill(skill)<MAX_SKILL_LEVEL&&xp>=experienceNeeded(skill)){xp-=experienceNeeded(skill);setSkill(skill,skill(skill)+1);}
+        experience.put(skill,skill(skill)==MAX_SKILL_LEVEL?0:(int)xp);
+    }
 
     public WorkPriority workPriority(WorkType workType) {
         return workPriorities.getOrDefault(workType, WorkPriority.NORMAL);
@@ -121,6 +138,8 @@ public final class CitizenData {
 
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
+        if (recruitedBy != null) root.putUUID("RecruitedBy", recruitedBy);
+        root.putBoolean("ReturningToVillage", returningToVillage);
         root.putString(TAG_PROFESSION, profession.serializedName());
         root.putString(TAG_PARTICIPATION, participation.serializedName());
         root.putBoolean(TAG_SKILLS_INITIALIZED, skillsInitialized);
@@ -130,6 +149,7 @@ public final class CitizenData {
             skillTag.putInt(skill.serializedName(), skill(skill));
         }
         root.put(TAG_SKILLS, skillTag);
+        var xpTag=new CompoundTag();for(var skill:CitizenSkill.values())xpTag.putInt(skill.serializedName(),experience(skill));root.put("Experience",xpTag);
 
         CompoundTag priorityTag = new CompoundTag();
         for (WorkType workType : WorkType.values()) {
@@ -144,6 +164,8 @@ public final class CitizenData {
     }
 
     public void load(CompoundTag root) {
+        recruitedBy = root.hasUUID("RecruitedBy") ? root.getUUID("RecruitedBy") : null;
+        returningToVillage = root.getBoolean("ReturningToVillage");
         profession = CitizenProfession.fromSerializedName(root.getString(TAG_PROFESSION));
         participation = CitizenParticipation.fromSerializedName(root.getString(TAG_PARTICIPATION));
         applyProfessionDefaults();
@@ -157,6 +179,9 @@ public final class CitizenData {
             }
         }
         skillsInitialized = root.getBoolean(TAG_SKILLS_INITIALIZED) || root.contains(TAG_SKILLS, Tag.TAG_COMPOUND);
+        experience.clear();var xpTag=root.getCompound("Experience");for(var skill:CitizenSkill.values()){
+            experience.put(skill,skill(skill)>=MAX_SKILL_LEVEL?0:Math.max(0,Math.min(experienceNeeded(skill)-1,xpTag.getInt(skill.serializedName()))));
+        }
 
         if (root.contains(TAG_WORK_PRIORITIES, Tag.TAG_COMPOUND)) {
             CompoundTag priorityTag = root.getCompound(TAG_WORK_PRIORITIES);

@@ -16,18 +16,48 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 .\gradlew.bat build
 .\gradlew.bat runClient
 .\gradlew.bat runServer
+.\gradlew.bat verifyGameTests
 ```
 
 ## Current prototype
 
-Version: `0.1.0-alpha.17`.
+Version: `0.1.0-alpha.34`.
+
+Fields and production are available with **K** or `/sbproduction menu`: four crops with physical hoe/seed fetching, tilling, optional bone meal, mature harvest, cargo delivery and replanting; persistent MAKE/MAINTAIN bills with actual shaped/shapeless 3×3 recipes, ingredients and recipe remainders. New carpenter/forge workbenches also support manual crafting. Orders wait for materials/output storage and honor NPC priorities/ownership. See [PRODUCTION.md](PRODUCTION.md) for setup and limitations. This does not yet include furnace/stonecutter/brewing/loom automation or animal farming. Current client/server protocol: **20**.
+
+NPCs search for reachable free beds in loaded chunks within 32 blocks, reserve a bed while walking, and use Minecraft's actual sleeping pose/occupied state on arrival. Walking restores neither fatigue nor treatment progress. Wake-up, hunger, danger, manual orders, damage, removal and destroyed beds release the place; NBT reload revalidates it instead of keeping a phantom reservation. Without a reachable bed, ground rest remains available. Overview distinguishes approach, bed sleep and ground rest. See [SLEEP.md](SLEEP.md).
+
+Roadmap block 5.5 now has playable localized injuries and first aid: actual HP loss creates body trauma after vanilla/Forge damage processing; untreated severe head/torso injuries bleed and interrupt jobs. Craft bandages (paper + string, two) and splints (two sticks + string, one), then right-click a nearby NPC or use the Health tab buttons. One real supply treats the worst eligible injury; recovery requires rest and hunger below 60, changes body states in stages and persists across saves. Ownership, UUID/world, range and line of sight are checked server-side. See [MEDICINE.md](MEDICINE.md). Automatic doctors, patient transport, hospitals and limb loss remain separate future work.
+
+NPC inspector overhaul: all five tabs share world/UUID identity and server snapshots, refreshing once per second. Long summaries, body/skill lists, all eleven work columns and nearby NPC rows are paged. Health shows actual body movement/work/combat efficiency; Skills shows persistent XP, including Forestry; gold inventory slots indicate real work cargo. Foreign recruited NPCs cannot expose private inventory data or accept priority edits; returning NPCs remain inspectable by their owner but read-only. Work tooltips identify implemented jobs versus planned priorities. See [NPC_LOGIC_AUDIT.md](NPC_LOGIC_AUDIT.md).
+
+AI practice now follows successful block work (5 XP), ladder placement (5 XP), farm/crafting operations (5 XP), hits (2 XP) and completed geology surveys (25 XP), with persistent level thresholds and cap 10. Skills affect implemented work and combat; injuries scale actual attack damage without replacing vanilla damage hooks. Fatigue rest continues until fatigue reaches 25; medical rest continues while treatment is active or core injuries remain dangerous. Neither can be hijacked by cargo delivery/home return. Accessible beds and farming/crafting cycles are implemented; automatic doctors are not.
+
+The village/quest journal is available through `/sbvillage journal` or the "Open journal" chat link at a board/resident. It uses Minecraft fonts and item icons, pages registered villages and quests, and shows population, trust, elder, recipient coordinates, actual supply/kill progress and reward. Accept/submit buttons still require the server's normal distance, visibility and item checks; use Refresh for a new snapshot. Client and server must use matching mod versions.
+
+Recruitment UI: use the journal's Recruit button, the village chat link, `/sbvillage recruitment`, or `/sbvillage manage` for your contracts. Shift+right-click a recruited NPC also opens their village's contract tab. The window shows professions, prices, status and coordinates; hover an action button for eligibility/refusal details. Hiring and dismissal require confirmation. The server rechecks conditions and the confirmed price, without trusting client eligibility; stale-price attempts do not charge emeralds. Server-side pages contain four residents or own contracts, never foreign contracts.
+
+Village contracts now support dismissal and physical return to the original village. Use `/sbvillage contracts` or Shift+right-click your recruited NPC, then select the dismissal link near the NPC. See [VILLAGES.md](VILLAGES.md) for return rules and legacy-contract limitations.
+
+- Village loop: a loaded bell with three adult villagers creates a persistent independent community and notice board. An elder is elected and replaced on death; local trust, authored supply/defence quests and contracts survive saves. Right-click the board/elder, or Shift+right-click another resident; open chat with T to use translated action links. Vanilla villagers retain their normal AI/trades until explicitly recruited into a Human NPC.
+- Companions require trust 20; settlers require 40 plus an active provisioned camp and a reachable loaded route within 64 blocks. Contracts use real emeralds; the elder, last professional specialist and villages with only three residents are protected. Recruits transfer their personal inventory, have persistent player authority and settlers walk to their new home. Dismissal supports physical return for new contracts; recurring wages and named overhaul adapters are still pending. See [VILLAGES.md](VILLAGES.md).
+
+- Hungry citizens eat personal food first, then walk to reachable registered food storage within 64 blocks. One real portion is extracted on arrival; bowls/bottles are retained or physically dropped if the personal bag is full. No remote consumption or virtual food stock. Ordinary hunger respects manual movement/work; critical hunger overrides orders. Beds are implemented; advance portion reservations are not implemented yet.
+
+- NPC lifecycle hardening: reservation ownership and disabled-work checks, bounded follow retries, failed-route recovery, UUID-bound targets, active guard defense, immediate death cleanup and physical inventory/cargo death drops. See [NPC_LOGIC_AUDIT.md](NPC_LOGIC_AUDIT.md) for coverage and remaining gaps.
 
 - Forge project foundation and dedicated client configuration.
+- Dedicated-server packet registration no longer resolves GUI classes. Server movement-queue integration tests run with `verifyGameTests` in the isolated `run-gametest` world; test classes and generated structure fixtures are excluded from the mod JAR and ordinary runs.
+- Rebindable `F9` read-only diagnostics for camera, hero path, selected NPC and excavation snapshots; hidden with F1 and reset on disconnect.
 - Two hero movement profiles (WASD / mouse) and a separate group-order mode (Tab).
+- Hero mouse profile: `Alt + LMB` appends ground movement waypoints (16 pending). A normal click, RMB action, control-mode change, death or failed route cancels the queue. Menus suspend movement; direct free-swimming, combat and interactions are not queued. Pending count is shown in diagnostics. No additional server packets are used for hero waypoints.
+- In orders mode, `Alt + RMB` on a block appends a movement waypoint for selected citizens (up to 16 pending points per NPC). An idle NPC starts immediately; normal movement replaces the queue, Stop clears it, and failure/critical preemption cancels pending points. Queues are transient, not saved. Follow, attack and work orders do not yet support queuing. Protocol 17 requires matching client/server mod versions.
+- In orders mode, `Ctrl+1–9` saves the selection to a group, `1–9` recalls it and `Shift+1–9` adds it. Save an empty selection to clear a group. Groups use NPC UUIDs, retain temporarily unloaded members and reset on disconnect/world or dimension change; they are not saved to disk. Hero mode keeps normal hotbar number keys.
 - In-game mode cycling with `V` (rebindable in Minecraft controls).
 - Third-person perspective enforcement.
 - Smooth mouse-wheel camera zoom from 2 to 24 blocks.
 - Configurable camera height and smoothing.
+- Independent rotation, pan and zoom sensitivity, optional inverted pitch and switchable edge scrolling.
 - Camera collision checks swept volumes and the near plane against visual block shapes.
 - Independent camera yaw and pitch while holding the middle mouse button.
 - WASD movement is transformed relative to the camera direction.
@@ -55,7 +85,26 @@ Version: `0.1.0-alpha.17`.
 - Press `N` (rebindable) to open the ore discovery journal, including dismissed findings.
 - Mining permission covers surveyed blocks within an existing excavation zone. New exposed blocks require renewed permission; outside-zone ore requires extending the designation.
 - Camera focus moves to a loaded vein without teleporting the hero; use Return to hero in the journal to restore the camera.
+- Select a citizen in orders mode (Tab), then press `F10` to smoothly follow that NPC with the camera. `Home` returns to the hero; both keys are rebindable. Camera panning cancels follow, while rotation and zoom keep it. Death, unloading, world changes or moving farther than 64 blocks from the hero reset follow. This does not transfer control or teleport the hero; focus remains on the original NPC until changed explicitly.
 - Excavation safety queries require an exact route through the access structure to an exterior cell, avoiding the block being mined and ladder attachments that would be removed. Automated tests and the build pass; in-game verification is pending. See the roadmap.
+- Nearby block changes invalidate only affected excavation plans; their current slices are repaired at the end of the server tick while the periodic full reconciliation remains a fallback.
+
+### Camera preferences
+
+Edit the `[camera]` section in `config/stonebanner-client.toml` with the game closed, then restart it:
+
+```toml
+rotationSensitivity = 1.0
+panSensitivity = 1.0
+zoomSensitivity = 1.0
+invertVertical = false
+edgePan = true
+```
+
+Sensitivity multipliers range from `0.1` to `4.0`; `1.0` preserves the original controls.
+`edgePan = false` disables cursor-edge scrolling without disabling WASD/arrow camera movement
+or Shift + middle-button dragging in group-order mode. Vertical inversion affects only camera rotation,
+not hero aiming. These preferences do not yet have an in-game settings screen.
 
 The pathfinder now has prototype handling for stairs, bottom slabs, water, wooden doors, ladders,
 trapdoors and open iron doors. Closed iron access still requires a player-operated redstone mechanism.

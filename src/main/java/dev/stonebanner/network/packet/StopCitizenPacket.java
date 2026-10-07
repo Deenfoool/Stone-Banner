@@ -34,6 +34,7 @@ public record StopCitizenPacket(int entityId) {
         Entity entity = sender.serverLevel().getEntity(packet.entityId);
         if (!(entity instanceof HumanNpcEntity npc)
                 || !npc.isAlive()
+                || !npc.citizenData().canBeDirectedBy(sender.getUUID())
                 || npc.distanceToSqr(sender) > MAX_COMMAND_DISTANCE_SQR) {
             return;
         }

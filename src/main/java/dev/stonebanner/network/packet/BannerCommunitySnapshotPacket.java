@@ -1,6 +1,6 @@
 package dev.stonebanner.network.packet;
 
-import dev.stonebanner.client.screen.BannerCommunityScreen;
+import dev.stonebanner.client.network.ClientScreenPacketHandlers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -26,7 +26,7 @@ public record BannerCommunitySnapshotPacket(ResourceLocation dimension, BlockPos
     }
     public static void handle(BannerCommunitySnapshotPacket p, Supplier<NetworkEvent.Context> supplier) {
         var context = supplier.get();
-        context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> BannerCommunityScreen.open(p)));
+        context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientScreenPacketHandlers.community(p)));
         context.setPacketHandled(true);
     }
 }

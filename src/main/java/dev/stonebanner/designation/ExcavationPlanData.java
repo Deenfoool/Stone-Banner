@@ -17,6 +17,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,9 +49,11 @@ public final class ExcavationPlanData extends SavedData {
     private static final String TAG_CURRENT_Y_LEGACY = "CurrentY";
     private static final String TAG_STEP = "Step";
     private static final long RECONCILE_INTERVAL_TICKS = 20L;
+    private static final int LOCAL_RECONCILE_MARGIN = 8;
     private static final int MAX_SYNC_PLANS = 256;
 
     private final Map<Long, Plan> plans = new LinkedHashMap<>();
+    private final LinkedHashSet<Long> dirtyPlanIds = new LinkedHashSet<>();
     private long nextId = 1L;
     private long lastReconcileTick = Long.MIN_VALUE;
 
@@ -100,6 +103,7 @@ public final class ExcavationPlanData extends SavedData {
      * so a cleared slice naturally exposes the next one without a global world scan.
      */
     public void reconcileIfDue(ServerLevel level) {
+        reconcileDirty(level);
         long gameTime = level.getGameTime();
         if (lastReconcileTick != Long.MIN_VALUE
                 && gameTime - lastReconcileTick < RECONCILE_INTERVAL_TICKS) {
@@ -118,6 +122,50 @@ public final class ExcavationPlanData extends SavedData {
         if (hadPlans || !plans.isEmpty()) {
             syncAll(level);
         }
+    }
+
+    /**
+     * Marks only plans whose work volume or immediate access area may be affected by a block change.
+     * The actual world query is deferred until the end of the server tick, after break/place events
+     * have finished mutating the level.
+     */
+    public int markWorldChanged(BlockPos changed) {
+        if (changed == null || plans.isEmpty()) {
+            return 0;
+        }
+        int marked = 0;
+        for (Plan plan : plans.values()) {
+            if (plan.isInsideLocalInfluence(changed, LOCAL_RECONCILE_MARGIN)
+                    && dirtyPlanIds.add(plan.id)) {
+                marked++;
+            }
+        }
+        return marked;
+    }
+
+    /** Reconciles only locally invalidated plans and publishes one compact snapshot afterwards. */
+    public int reconcileDirty(ServerLevel level) {
+        if (level == null || dirtyPlanIds.isEmpty()) {
+            return 0;
+        }
+        List<Long> ids = List.copyOf(dirtyPlanIds);
+        dirtyPlanIds.clear();
+        int reconciled = 0;
+        for (Long id : ids) {
+            Plan plan = plans.get(id);
+            if (plan != null) {
+                reconcile(level, plan);
+                reconciled++;
+            }
+        }
+        if (reconciled > 0) {
+            syncAll(level);
+        }
+        return reconciled;
+    }
+
+    int dirtyPlanCount() {
+        return dirtyPlanIds.size();
     }
 
     /** Cancels every excavation intersecting the selected box and removes its active jobs. */
@@ -147,6 +195,7 @@ public final class ExcavationPlanData extends SavedData {
 
         for (Plan plan : removedPlans) {
             plans.remove(plan.id);
+            dirtyPlanIds.remove(plan.id);
         }
         setDirty();
         syncAll(level);
@@ -697,6 +746,12 @@ public final class ExcavationPlanData extends SavedData {
             return maxX >= other.minX && minX <= other.maxX
                     && maxY >= other.minY && minY <= other.maxY
                     && maxZ >= other.minZ && minZ <= other.maxZ;
+        }
+
+        private boolean isInsideLocalInfluence(BlockPos pos, int margin) {
+            return (long) pos.getX() >= (long) minX - margin && (long) pos.getX() <= (long) maxX + margin
+                    && (long) pos.getY() >= (long) minY - margin && (long) pos.getY() <= (long) maxY + margin
+                    && (long) pos.getZ() >= (long) minZ - margin && (long) pos.getZ() <= (long) maxZ + margin;
         }
     }
 

@@ -11,20 +11,22 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /** Serverbound request to move one selected Human NPC to a loaded block position. */
-public record MoveCitizenPacket(int entityId, BlockPos target) {
+public record MoveCitizenPacket(int entityId, BlockPos target, boolean append) {
     private static final double MAX_COMMAND_DISTANCE_SQR = 256.0D * 256.0D;
 
     public MoveCitizenPacket {
         target = target.immutable();
     }
+    public MoveCitizenPacket(int entityId, BlockPos target) { this(entityId, target, false); }
 
     public static void encode(MoveCitizenPacket packet, FriendlyByteBuf buffer) {
         buffer.writeVarInt(packet.entityId);
         buffer.writeBlockPos(packet.target);
+        buffer.writeBoolean(packet.append);
     }
 
     public static MoveCitizenPacket decode(FriendlyByteBuf buffer) {
-        return new MoveCitizenPacket(buffer.readVarInt(), buffer.readBlockPos());
+        return new MoveCitizenPacket(buffer.readVarInt(), buffer.readBlockPos(), buffer.readBoolean());
     }
 
     public static void handle(MoveCitizenPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -37,17 +39,23 @@ public record MoveCitizenPacket(int entityId, BlockPos target) {
     }
 
     private static void handleOnServer(ServerPlayer sender, MoveCitizenPacket packet) {
-        if (!sender.serverLevel().hasChunkAt(packet.target)) {
+        if (!sender.isAlive() || sender.isSpectator() || !sender.serverLevel().hasChunkAt(packet.target)) {
             return;
         }
 
         Entity entity = sender.serverLevel().getEntity(packet.entityId);
         if (!(entity instanceof HumanNpcEntity npc)
                 || !npc.isAlive()
+                || !npc.citizenData().canBeDirectedBy(sender.getUUID())
                 || npc.distanceToSqr(sender) > MAX_COMMAND_DISTANCE_SQR) {
             return;
         }
 
-        npc.issueCommand(new ActorCommand.MoveTo(packet.target));
+        if (packet.append) {
+            boolean accepted = npc.commandController().queueMove(packet.target);
+            sender.displayClientMessage(net.minecraft.network.chat.Component.translatable(accepted
+                    ? "message.stonebanner.move_queued" : "message.stonebanner.move_queue_rejected",
+                    npc.getDisplayName(), npc.commandController().queuedMoveCount()), true);
+        } else npc.issueCommand(new ActorCommand.MoveTo(packet.target));
     }
 }

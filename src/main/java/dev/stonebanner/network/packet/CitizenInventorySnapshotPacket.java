@@ -1,43 +1,19 @@
 package dev.stonebanner.network.packet;
 
-import dev.stonebanner.citizen.CitizenInventory;
-import dev.stonebanner.client.control.CitizenInventoryClientCache;
+import dev.stonebanner.client.network.ClientScreenPacketHandlers;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 
-/** One-shot server-to-client snapshot for the Citizen inventory inspector tab. */
-public record CitizenInventorySnapshotPacket(int entityId, List<ItemStack> stacks) {
-    public CitizenInventorySnapshotPacket {
-        stacks = stacks == null ? List.of() : stacks.stream().map(ItemStack::copy).toList();
-    }
-
-    public static void encode(CitizenInventorySnapshotPacket packet, FriendlyByteBuf buffer) {
-        buffer.writeVarInt(packet.entityId);
-        int size = Math.min(CitizenInventory.SLOT_COUNT, packet.stacks.size());
-        buffer.writeVarInt(size);
-        for (int index = 0; index < size; index++) {
-            buffer.writeItem(packet.stacks.get(index));
-        }
-    }
-
-    public static CitizenInventorySnapshotPacket decode(FriendlyByteBuf buffer) {
-        int entityId = buffer.readVarInt();
-        int size = Math.min(CitizenInventory.SLOT_COUNT, Math.max(0, buffer.readVarInt()));
-        List<ItemStack> stacks = new ArrayList<>(size);
-        for (int index = 0; index < size; index++) {
-            stacks.add(buffer.readItem());
-        }
-        return new CitizenInventorySnapshotPacket(entityId, stacks);
-    }
-
-    public static void handle(CitizenInventorySnapshotPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
-        context.enqueueWork(() -> CitizenInventoryClientCache.update(packet.entityId, packet.stacks));
-        context.setPacketHandled(true);
-    }
+public record CitizenInventorySnapshotPacket(int entityId,UUID citizen,ResourceLocation dimension,CompoundTag data){
+    public CitizenInventorySnapshotPacket {data=data.copy();}
+    @Override public CompoundTag data(){return data.copy();}
+    public static void encode(CitizenInventorySnapshotPacket p,FriendlyByteBuf b){b.writeVarInt(p.entityId);b.writeUUID(p.citizen);b.writeResourceLocation(p.dimension);b.writeNbt(p.data);}
+    public static CitizenInventorySnapshotPacket decode(FriendlyByteBuf b){int id=b.readVarInt();UUID citizen=b.readUUID();var dimension=b.readResourceLocation();var data=b.readNbt();if(data==null)throw new IllegalArgumentException("Missing citizen snapshot");return new CitizenInventorySnapshotPacket(id,citizen,dimension,data);}
+    public static void handle(CitizenInventorySnapshotPacket p,Supplier<NetworkEvent.Context> supplier){var ctx=supplier.get();ctx.enqueueWork(()->DistExecutor.unsafeRunWhenOn(Dist.CLIENT,()->()->ClientScreenPacketHandlers.inventory(p)));ctx.setPacketHandled(true);}
 }

@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Server-side executor for high-level Human NPC commands. */
 public final class CitizenCommandController {
@@ -33,8 +34,11 @@ public final class CitizenCommandController {
 
     private final HumanNpcEntity owner;
     private final Deque<BlockPos> path = new ArrayDeque<>();
+    private final dev.stonebanner.command.MoveOrderQueue queuedMoves = new dev.stonebanner.command.MoveOrderQueue();
 
     private ActorCommand activeCommand;
+    private UUID targetIdentity;
+    private boolean defensiveAttack;
     private CitizenBrainState movementState = CitizenBrainState.IDLE;
     private CommandStatus status = CommandStatus.IDLE;
     private BlockPos moveDestination;
@@ -50,7 +54,7 @@ public final class CitizenCommandController {
     }
 
     public boolean issue(ActorCommand command) {
-        if (command == null || owner.level().isClientSide) {
+        if (command == null || owner.level().isClientSide || !owner.isAlive()) {
             return false;
         }
 
@@ -58,16 +62,18 @@ public final class CitizenCommandController {
             stop();
             return true;
         }
+        if (!owner.citizenData().health().canMoveIndependently()) return false;
         if (command instanceof ActorCommand.MoveTo moveTo) {
             if (!owner.citizenData().canTravelTo(moveTo.target())) {
                 return false;
             }
+            queuedMoves.clear();
             return issueMove(moveTo.target(), CitizenBrainState.MOVE);
         }
         if(command instanceof ActorCommand.EntityAction action && action.action()==ActorCommand.EntityActionType.ATTACK) {
             Entity target=owner.level().getEntity(action.entityId());
             if(!(target instanceof net.minecraft.world.entity.monster.Monster)||!isUsableTarget(target)||!owner.citizenData().canTravelTo(target.blockPosition()))return false;
-            stop(); activeCommand=command; movementState=CitizenBrainState.FOLLOW; status=CommandStatus.FOLLOWING; return true;
+            stop(); activeCommand=command; targetIdentity=target.getUUID(); movementState=CitizenBrainState.FOLLOW; status=CommandStatus.FOLLOWING; return true;
         }
         if (command instanceof ActorCommand.FollowEntity follow) {
             Entity target = owner.level().getEntity(follow.entityId());
@@ -76,6 +82,9 @@ public final class CitizenCommandController {
                 return false;
             }
             activeCommand = command;
+            targetIdentity = target.getUUID();
+            defensiveAttack = false;
+            queuedMoves.clear();
             moveDestination = null;
             movementState = CitizenBrainState.FOLLOW;
             path.clear();
@@ -92,11 +101,15 @@ public final class CitizenCommandController {
 
     /** Internal Citizen AI movement, e.g. flee/return-home, deliberately bypasses player travel limits. */
     public boolean issueSystemMove(BlockPos target, CitizenBrainState state) {
+        if (!owner.isAlive() || !owner.citizenData().health().canMoveIndependently()) return false;
+        queuedMoves.clear();
         CitizenBrainState resolvedState = state == null ? CitizenBrainState.MOVE : state;
         return issueMove(target, resolvedState);
     }
 
     private boolean issueMove(BlockPos target, CitizenBrainState state) {
+        targetIdentity = null;
+        defensiveAttack = false;
         BlockPos immutableTarget = target.immutable();
         activeCommand = new ActorCommand.MoveTo(immutableTarget);
         moveDestination = immutableTarget;
@@ -111,13 +124,23 @@ public final class CitizenCommandController {
     }
 
     public void tick() {
-        if (owner.level().isClientSide || activeCommand == null) {
+        if (owner.level().isClientSide) {
             return;
+        }
+        if (!owner.isAlive()) { stop(); return; }
+        if (activeCommand == null) {
+            BlockPos next = queuedMoves.poll();
+            if (next == null) return;
+            if (!owner.level().hasChunkAt(next) || !owner.citizenData().canTravelTo(next)) {
+                failMove();
+                return;
+            }
+            if (!issueMove(next, CitizenBrainState.MOVE) || activeCommand == null) return;
         }
 
         if(activeCommand instanceof ActorCommand.EntityAction action) {
             var target=owner.level().getEntity(action.entityId());
-            if(!isUsableTarget(target)||!owner.citizenData().canTravelTo(target.blockPosition())){stop();return;}
+            if(!isCurrentTarget(target)||!owner.citizenData().canTravelTo(target.blockPosition())){stop();return;}
             if(attackCooldown>0)attackCooldown--;
             owner.getLookControl().setLookAt(target,30,30);
             if(owner.distanceToSqr(target)<4 && owner.getSensing().hasLineOfSight(target)) {
@@ -127,6 +150,10 @@ public final class CitizenCommandController {
                 tickFollow(new ActorCommand.FollowEntity(action.entityId(),1));
             }
             if(activeCommand!=null)activeCommand=action;
+            if (activeCommand != null && defensiveAttack) {
+                movementState = CitizenBrainState.DEFEND;
+                owner.setBrainState(CitizenBrainState.DEFEND);
+            }
             return;
         }
         if (activeCommand instanceof ActorCommand.MoveTo) {
@@ -140,7 +167,7 @@ public final class CitizenCommandController {
 
     private void tickFollow(ActorCommand.FollowEntity follow) {
         Entity target = owner.level().getEntity(follow.entityId());
-        if (!isUsableTarget(target) || !owner.citizenData().canTravelTo(target.blockPosition())) {
+        if (!isCurrentTarget(target) || !owner.citizenData().canTravelTo(target.blockPosition())) {
             stop();
             return;
         }
@@ -157,7 +184,7 @@ public final class CitizenCommandController {
             return;
         }
 
-        if (followRepathCooldown <= 0 || path.isEmpty()) {
+        if (followRepathCooldown <= 0) {
             if (!rebuildPath(BlockPos.containing(target.position()), CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING)) {
                 status = CommandStatus.UNREACHABLE;
                 movementState = CitizenBrainState.FOLLOW;
@@ -173,6 +200,9 @@ public final class CitizenCommandController {
             followRepathCooldown--;
         }
 
+        // Preserve UNREACHABLE and the retry delay instead of retrying every empty-path tick.
+        if (path.isEmpty()) return;
+
         if (tickPath(CitizenBrainState.FOLLOW, CommandStatus.FOLLOWING)) {
             activeCommand = follow;
         }
@@ -181,6 +211,8 @@ public final class CitizenCommandController {
     private boolean tickPath(CitizenBrainState state, CommandStatus movingStatus) {
         BlockPos next = path.peekFirst();
         if (next == null) {
+            if (state != CitizenBrainState.FOLLOW && moveDestination != null && status == CommandStatus.REPATHING)
+                return recoverMove(state, movingStatus);
             if (state == CitizenBrainState.FOLLOW) {
                 status = CommandStatus.FOLLOWING;
                 return true;
@@ -393,6 +425,10 @@ public final class CitizenCommandController {
     }
 
     public void stop() {
+        targetIdentity = null;
+        defensiveAttack = false;
+        attackCooldown = 0;
+        queuedMoves.clear();
         activeCommand = null;
         moveDestination = null;
         path.clear();
@@ -419,6 +455,7 @@ public final class CitizenCommandController {
     }
 
     private void failMove() {
+        queuedMoves.clear();
         activeCommand = null;
         moveDestination = null;
         path.clear();
@@ -441,8 +478,40 @@ public final class CitizenCommandController {
         return target != null && target.isAlive() && target != owner;
     }
 
+    private boolean isCurrentTarget(Entity target) {
+        return isUsableTarget(target) && target.getUUID().equals(targetIdentity);
+    }
+
+    public void defendFrom(Entity target) {
+        if (!(activeCommand instanceof ActorCommand.EntityAction) || !isCurrentTarget(target)) {
+            if (!issue(new ActorCommand.EntityAction(target.getId(), ActorCommand.EntityActionType.ATTACK))) {
+                stop();
+                owner.setBrainState(CitizenBrainState.DEFEND);
+                return;
+            }
+        }
+        defensiveAttack = true;
+        movementState = CitizenBrainState.DEFEND;
+        owner.setBrainState(CitizenBrainState.DEFEND);
+    }
+
+    public boolean isDefensiveAttack() { return defensiveAttack; }
+
     public boolean hasActiveCommand() {
-        return activeCommand != null;
+        return activeCommand != null || queuedMoves.size() > 0;
+    }
+
+    public int queuedMoveCount() { return queuedMoves.size(); }
+
+    public boolean queueMove(BlockPos target) {
+        if (owner.level().isClientSide || !owner.isAlive() || owner.citizenData().health().needsRecovery() || !owner.citizenData().health().canMoveIndependently()
+                || !owner.level().hasChunkAt(target)
+                || !owner.citizenData().canTravelTo(target)) return false;
+        // Work, fleeing and indefinite follow/attack are not silently converted into a waypoint queue.
+        if (activeCommand != null && (!(activeCommand instanceof ActorCommand.MoveTo)
+                || movementState != CitizenBrainState.MOVE)) return false;
+        if (activeCommand == null && queuedMoves.size() == 0) return owner.issueCommand(new ActorCommand.MoveTo(target));
+        return queuedMoves.offer(target);
     }
 
     public CitizenBrainState movementState() {

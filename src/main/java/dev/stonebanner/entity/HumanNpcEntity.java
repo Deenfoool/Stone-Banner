@@ -93,19 +93,31 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_CARGO_COUNT =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_QUEUED_MOVES =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
 
     private static final EntityDataAccessor<Integer> DATA_WORK_BLOCK_REASON =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<java.util.Optional<java.util.UUID>> DATA_OWNER=SynchedEntityData.defineId(HumanNpcEntity.class,EntityDataSerializers.OPTIONAL_UUID);
+    private static final EntityDataAccessor<Boolean> DATA_RETURNING=SynchedEntityData.defineId(HumanNpcEntity.class,EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_SEEKING_BED=SynchedEntityData.defineId(HumanNpcEntity.class,EntityDataSerializers.BOOLEAN);
+    private static final java.util.UUID COMBAT_MODIFIER=java.util.UUID.fromString("cfc2456b-c42f-4998-a2bf-2a99524fbe92");
 
     private final CitizenCommandController commandController;
     private final CitizenWorkController workController;
+    private final dev.stonebanner.citizen.CitizenFoodController foodController;
     private final CitizenData citizenData;
+    private final dev.stonebanner.citizen.CitizenSleepController sleepController;
+    private boolean medicalBleedingDamage;
+    private int bleedingSeconds;
 
     public HumanNpcEntity(EntityType<? extends HumanNpcEntity> entityType, Level level) {
         super(entityType, level);
         citizenData = new CitizenData();
         commandController = new CitizenCommandController(this);
         workController = new CitizenWorkController(this);
+        foodController = new dev.stonebanner.citizen.CitizenFoodController(this);
+        sleepController = new dev.stonebanner.citizen.CitizenSleepController(this);
         setPersistenceRequired();
     }
 
@@ -132,7 +144,10 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.define(DATA_WORK_TYPE, -1);
         entityData.define(DATA_DELIVERY_STATUS, 0);
         entityData.define(DATA_CARGO_COUNT, 0);
+        entityData.define(DATA_QUEUED_MOVES, 0);
         entityData.define(DATA_WORK_BLOCK_REASON, 0);
+        entityData.define(DATA_OWNER,java.util.Optional.empty());entityData.define(DATA_RETURNING,false);
+        entityData.define(DATA_SEEKING_BED,false);
         entityData.define(DATA_SKILLS_PACKED, 0);
         entityData.define(DATA_INJURIES_PACKED, 0);
         entityData.define(DATA_PRIORITIES_PACKED, 0L);
@@ -147,14 +162,23 @@ public class HumanNpcEntity extends PathfinderMob {
     @Override
     public void tick() {
         super.tick();
-        if (level().isClientSide) {
+        if (level().isClientSide || !isAlive()) {
             return;
         }
 
+        updateCombatEfficiency();
         commandController.tick();
+        sleepController.tick();
+        foodController.tick();
+        if (citizenData.returningToVillage()) {
+            if (tickCount % 20 == 0) tickCitizenSecond();
+            dev.stonebanner.village.VillageReturnService.tick(this);
+            syncHudData();
+            return;
+        }
         if (dev.stonebanner.geology.GeologyService.surveying(this) && !commandController.hasActiveCommand())
             getNavigation().stop();
-        if (!dev.stonebanner.geology.GeologyService.surveying(this)) workController.tick();
+        if (!sleepController.engaged() && !citizenData.health().needsRecovery() && !foodController.isSeeking() && !dev.stonebanner.geology.GeologyService.surveying(this)) workController.tick();
         if (tickCount % 20 == 0) {
             tickCitizenSecond();
         }
@@ -163,7 +187,17 @@ public class HumanNpcEntity extends PathfinderMob {
 
     private void tickCitizenSecond() {
         CitizenNeeds needs = citizenData.needs();
-        needs.tickSecond(brainState() == CitizenBrainState.SLEEP);
+        boolean resting = brainState() == CitizenBrainState.SLEEP && !sleepController.isSeeking();
+        needs.tickSecond(resting);
+        if (citizenData.health().recoverSecond(resting, !needs.isHungry())) heal(2.0F);
+        if (citizenData.health().isBleeding()) {
+            if (++bleedingSeconds >= 10) {
+                bleedingSeconds = 0;
+                medicalBleedingDamage = true;
+                try { hurt(damageSources().generic(), 0.5F); } finally { medicalBleedingDamage = false; }
+                if (!isAlive()) return;
+            }
+        } else bleedingSeconds = 0;
 
         Monster threat = nearestThreat();
         if (threat != null) {
@@ -175,9 +209,11 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         if (!CitizenDecisionPolicy.isCriticalPreemption(citizenData)
-                && citizenData.participation() == CitizenParticipation.LOCAL_HELPER
+                && !(brainState()==CitizenBrainState.SLEEP&&needs.fatigue()>25)
+                && citizenData.participation() != CitizenParticipation.COMPANION
                 && citizenData.home().hasHome()
                 && !citizenData.home().contains(blockPosition())) {
+            foodController.cancel(true);
             if (workController.hasActiveJob()) {
                 workController.interrupt(true);
             }
@@ -188,15 +224,17 @@ public class HumanNpcEntity extends PathfinderMob {
             return;
         }
 
-        CitizenBrainState commandedState = dev.stonebanner.geology.GeologyService.surveying(this)
+        CitizenBrainState commandedState = sleepController.engaged() ? CitizenBrainState.SLEEP : foodController.isSeeking() ? CitizenBrainState.EAT : dev.stonebanner.geology.GeologyService.surveying(this)
                 && !commandController.hasActiveCommand() ? CitizenBrainState.WORK : workController.hasActiveJob()
                 ? CitizenBrainState.WORK
                 : commandController.hasActiveCommand()
                 ? commandController.movementState()
-                : CitizenBrainState.IDLE;
+                : brainState()==CitizenBrainState.SLEEP&&needs.fatigue()>25?CitizenBrainState.SLEEP:CitizenBrainState.IDLE;
         CitizenBrainState decision = CitizenDecisionPolicy.chooseState(citizenData, commandedState);
 
         if (decision == CitizenBrainState.FLEE) {
+            sleepController.cancel(true);
+            foodController.cancel(true);
             if (workController.hasActiveJob()) {
                 workController.interrupt(true);
             }
@@ -210,34 +248,37 @@ public class HumanNpcEntity extends PathfinderMob {
         }
 
         if (decision == CitizenBrainState.DEFEND) {
+            sleepController.cancel(true);
+            foodController.cancel(true);
             if (workController.hasActiveJob()) {
                 workController.interrupt(true);
             }
-            if (!commandController.hasActiveCommand()) commandController.stop();
+            if (threat != null) commandController.defendFrom(threat);
+            else commandController.stop();
             setBrainState(CitizenBrainState.DEFEND);
             return;
         }
 
+        if (commandController.isDefensiveAttack() && threat == null) commandController.stop();
+
         if (decision == CitizenBrainState.EAT) {
-            if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
+            sleepController.cancel(true);
+            if (foodController.isSeeking() || CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
                 if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
                     workController.interrupt(true);
                 }
-                commandController.stop();
-                setBrainState(CitizenBrainState.EAT);
-                citizenData.inventory().consumeFood(this)
-                        .ifPresent(consumption -> needs.eat(consumption.hungerRelief()));
+                foodController.eatSecond();
             }
             return;
         }
 
         if (decision == CitizenBrainState.SLEEP) {
+            foodController.cancel(true);
             if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) || !commandController.hasActiveCommand()) {
                 if (CitizenDecisionPolicy.isCriticalPreemption(citizenData) && workController.hasActiveJob()) {
                     workController.interrupt(true);
                 }
-                commandController.stop();
-                setBrainState(CitizenBrainState.SLEEP);
+                sleepController.sleepSecond();
             }
             return;
         }
@@ -284,11 +325,68 @@ public class HumanNpcEntity extends PathfinderMob {
     }
 
     public boolean issueCommand(ActorCommand command) {
+        if (!isAlive()) return false;
+        if (citizenData.health().needsRecovery() && !(command instanceof ActorCommand.Stop)) return false;
+        sleepController.cancel(true);
+        foodController.cancel(true);
         if (level() instanceof ServerLevel serverLevel)
             dev.stonebanner.geology.GeologyService.cancelSurvey(serverLevel, getUUID());
         workController.interrupt(false);
         workController.clearBlockReason();
         return commandController.issue(command);
+    }
+
+    @Override
+    protected void actuallyHurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
+        float before = getHealth();
+        super.actuallyHurt(source, amount);
+        float lost = before - getHealth();
+        if (level().isClientSide || medicalBleedingDamage || lost <= 0 || citizenData == null) return;
+        sleepController.cancel(true);
+        BodyPart part;
+        if (source.is(net.minecraft.tags.DamageTypeTags.IS_FALL)) {
+            part = random.nextBoolean() ? BodyPart.LEFT_LEG : BodyPart.RIGHT_LEG;
+        } else if (source.is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE)
+                && source.getDirectEntity() != null && source.getDirectEntity().getY() > getY() + getBbHeight() * 0.75) {
+            part = BodyPart.HEAD;
+        } else if (source.getEntity() == null) {
+            part = BodyPart.TORSO;
+        } else {
+            part = BodyPart.values()[random.nextInt(BodyPart.values().length)];
+        }
+        citizenData.health().damage(part, lost);
+        if (citizenData.health().needsRecovery()) {
+            workController.interrupt(true);
+            commandController.stop();
+            if (level() instanceof ServerLevel serverLevel) dev.stonebanner.geology.GeologyService.cancelSurvey(serverLevel, getUUID());
+            setBrainState(CitizenDecisionPolicy.chooseState(citizenData, CitizenBrainState.IDLE));
+        }
+        syncHudData();
+    }
+
+    @Override
+    public void die(net.minecraft.world.damagesource.DamageSource source) {
+        if (!level().isClientSide) {
+            foodController.cancel(true);
+            sleepController.cancel(true);
+            workController.interrupt(true);
+            if (level() instanceof ServerLevel serverLevel)
+                dev.stonebanner.geology.GeologyService.cancelSurvey(serverLevel, getUUID());
+        }
+        super.die(source);
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(net.minecraft.world.damagesource.DamageSource source,
+                                       int looting, boolean recentlyHit) {
+        super.dropCustomDeathLoot(source, looting, recentlyHit);
+        // Called by vanilla's loot pipeline (doMobLoot and Forge death/drop hooks still apply).
+        var contents = citizenData.inventory().snapshot();
+        citizenData.inventory().clear();
+        for (var stack : contents) {
+            if (!stack.isEmpty() && !net.minecraft.world.item.enchantment.EnchantmentHelper.hasVanishingCurse(stack))
+                spawnAtLocation(stack);
+        }
     }
 
     public CitizenCommandController commandController() {
@@ -299,8 +397,30 @@ public class HumanNpcEntity extends PathfinderMob {
         return workController;
     }
 
+    public dev.stonebanner.citizen.CitizenFoodController foodController() { return foodController; }
+    public dev.stonebanner.citizen.CitizenSleepController sleepController() { return sleepController; }
+
+    @Override public void remove(net.minecraft.world.entity.Entity.RemovalReason reason) {
+        if (sleepController != null && !level().isClientSide) sleepController.cancel(true);
+        super.remove(reason);
+    }
+
     public CitizenData citizenData() {
         return citizenData;
+    }
+    public boolean hudCanDirect(java.util.UUID player){return !entityData.get(DATA_RETURNING)&&entityData.get(DATA_OWNER).map(player::equals).orElse(true);}
+    public boolean hudCanView(java.util.UUID player){return entityData.get(DATA_OWNER).map(player::equals).orElse(true);}
+    private void updateCombatEfficiency(){
+        var attribute=getAttribute(Attributes.ATTACK_DAMAGE);if(attribute==null)return;
+        double amount=dev.stonebanner.citizen.CitizenSkillRules.combatRate(citizenData)-1;
+        var old=attribute.getModifier(COMBAT_MODIFIER);if(old!=null&&Math.abs(old.getAmount()-amount)<1e-6)return;
+        attribute.removeModifier(COMBAT_MODIFIER);
+        if(Math.abs(amount)>1e-6)attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(COMBAT_MODIFIER,"Citizen combat efficiency",amount,net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+    }
+    @Override public boolean doHurtTarget(net.minecraft.world.entity.Entity target){
+        if(!isAlive())return false;
+        updateCombatEfficiency();boolean hit=super.doHurtTarget(target);
+        if(hit)citizenData.practice(CitizenSkill.COMBAT,2);return hit;
     }
 
     public void ensureIdentity() {
@@ -348,6 +468,8 @@ public class HumanNpcEntity extends PathfinderMob {
         return dev.stonebanner.citizen.WorkBlockReason.byId(entityData.get(DATA_WORK_BLOCK_REASON));
     }
     public int hudCargoCount() { return entityData.get(DATA_CARGO_COUNT); }
+    public int hudQueuedMoves() { return entityData.get(DATA_QUEUED_MOVES); }
+    public boolean hudSeekingBed() { return entityData.get(DATA_SEEKING_BED); }
 
     public int hudHunger() {
         return entityData.get(DATA_HUNGER);
@@ -393,12 +515,15 @@ public class HumanNpcEntity extends PathfinderMob {
             return;
         }
         entityData.set(DATA_PROFESSION, citizenData.profession().ordinal());
+        entityData.set(DATA_SEEKING_BED,sleepController.isSeeking());
+        entityData.set(DATA_OWNER,citizenData.recruitedBy());entityData.set(DATA_RETURNING,citizenData.returningToVillage());
         entityData.set(DATA_HUNGER, (int) Math.round(citizenData.needs().hunger()));
         entityData.set(DATA_FATIGUE, (int) Math.round(citizenData.needs().fatigue()));
         entityData.set(DATA_DANGER, (int) Math.round(citizenData.needs().danger()));
         entityData.set(DATA_WORK_TYPE, workController.activeWorkType().map(Enum::ordinal).orElse(-1));
         entityData.set(DATA_DELIVERY_STATUS, workController.deliveryStatus().ordinal());
         entityData.set(DATA_WORK_BLOCK_REASON, workController.blockReason().ordinal());
+        entityData.set(DATA_QUEUED_MOVES, commandController.queuedMoveCount());
         entityData.set(DATA_CARGO_COUNT, citizenData.inventory().haulCargoSnapshot().stream()
                 .mapToInt(cargo -> cargo.stack().getCount()).sum());
         entityData.set(DATA_SKILLS_PACKED, CitizenHudCodec.packSkills(citizenData));
@@ -415,11 +540,16 @@ public class HumanNpcEntity extends PathfinderMob {
         tag.putBoolean(TAG_SLIM_MODEL, usesSlimModel());
         tag.putString(TAG_BRAIN_STATE, brainState().serializedName());
         tag.put(TAG_CITIZEN_DATA, citizenData.save());
+        tag.putInt("MedicalBleedingSeconds", bleedingSeconds);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        sleepController.cancel(true);
+        bleedingSeconds = Math.max(0, Math.min(9, tag.getInt("MedicalBleedingSeconds")));
+        foodController.cancel(true);
+        workController.interrupt(true);
         // Older worlds persisted the prototype's 0.10 base speed in entity NBT. Reset only the base
         // value here; temporary attribute modifiers and the injury multiplier continue to work.
         AttributeInstance movementSpeed = getAttribute(Attributes.MOVEMENT_SPEED);
@@ -445,7 +575,9 @@ public class HumanNpcEntity extends PathfinderMob {
             citizenData.initializeStarterSkills(variantSeed());
         }
 
-        setBrainState(CitizenBrainState.fromSerializedName(tag.getString(TAG_BRAIN_STATE)));
+        // Orders and reservations are runtime-only; don't restore a phantom WORK/MOVE/FOLLOW state.
+        setBrainState(CitizenDecisionPolicy.chooseState(citizenData,
+            tag.getString(TAG_BRAIN_STATE).equals(CitizenBrainState.SLEEP.serializedName())&&citizenData.needs().fatigue()>25?CitizenBrainState.SLEEP:CitizenBrainState.IDLE));
         syncHudData();
     }
 }

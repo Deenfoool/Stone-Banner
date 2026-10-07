@@ -12,6 +12,11 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.DoubleValue CAMERA_HEIGHT;
     public static final ForgeConfigSpec.DoubleValue CAMERA_PITCH;
     public static final ForgeConfigSpec.DoubleValue CAMERA_SMOOTHING;
+    public static final ForgeConfigSpec.DoubleValue CAMERA_ROTATION_SENSITIVITY;
+    public static final ForgeConfigSpec.DoubleValue CAMERA_PAN_SENSITIVITY;
+    public static final ForgeConfigSpec.DoubleValue CAMERA_ZOOM_SENSITIVITY;
+    public static final ForgeConfigSpec.BooleanValue CAMERA_INVERT_VERTICAL;
+    public static final ForgeConfigSpec.BooleanValue CAMERA_EDGE_PAN;
     public static final ForgeConfigSpec.BooleanValue SHOW_PATH_PREVIEW;
 
     public static final ForgeConfigSpec SPEC;
@@ -44,6 +49,21 @@ public final class ClientConfig {
         CAMERA_SMOOTHING = BUILDER
                 .comment("Camera smoothing, from immediate (0) to very smooth (1).")
                 .defineInRange("smoothing", 0.35D, 0.0D, 1.0D);
+        CAMERA_ROTATION_SENSITIVITY = BUILDER
+                .comment("Camera rotation multiplier, independent of hero aiming sensitivity.")
+                .defineInRange("rotationSensitivity", 1.0D, 0.1D, 4.0D);
+        CAMERA_PAN_SENSITIVITY = BUILDER
+                .comment("Tactical camera movement multiplier for keys, edge scrolling and Shift + middle drag.")
+                .defineInRange("panSensitivity", 1.0D, 0.1D, 4.0D);
+        CAMERA_ZOOM_SENSITIVITY = BUILDER
+                .comment("Mouse-wheel zoom multiplier.")
+                .defineInRange("zoomSensitivity", 1.0D, 0.1D, 4.0D);
+        CAMERA_INVERT_VERTICAL = BUILDER
+                .comment("Invert vertical camera rotation; does not invert hero aiming.")
+                .define("invertVertical", false);
+        CAMERA_EDGE_PAN = BUILDER
+                .comment("Move the tactical camera when the cursor reaches the screen edge.")
+                .define("edgePan", true);
         BUILDER.pop();
 
         SPEC = BUILDER.build();

@@ -34,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "13";
+    private static final String PROTOCOL_VERSION = "20";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -54,6 +54,24 @@ public final class StoneBannerNetwork {
             return;
         }
         registered = true;
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.ProductionSnapshotPacket.class,
+            dev.stonebanner.network.packet.ProductionSnapshotPacket::encode,dev.stonebanner.network.packet.ProductionSnapshotPacket::decode,
+            dev.stonebanner.network.packet.ProductionSnapshotPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextPacketId++, dev.stonebanner.network.packet.TreatCitizenPacket.class,
+                dev.stonebanner.network.packet.TreatCitizenPacket::encode, dev.stonebanner.network.packet.TreatCitizenPacket::decode,
+                dev.stonebanner.network.packet.TreatCitizenPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.VillageRecruitmentPacket.class,
+            dev.stonebanner.network.packet.VillageRecruitmentPacket::encode,dev.stonebanner.network.packet.VillageRecruitmentPacket::decode,
+            dev.stonebanner.network.packet.VillageRecruitmentPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.VillageRecruitmentActionPacket.class,
+            dev.stonebanner.network.packet.VillageRecruitmentActionPacket::encode,dev.stonebanner.network.packet.VillageRecruitmentActionPacket::decode,
+            dev.stonebanner.network.packet.VillageRecruitmentActionPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.VillageJournalPacket.class,
+            dev.stonebanner.network.packet.VillageJournalPacket::encode,dev.stonebanner.network.packet.VillageJournalPacket::decode,
+            dev.stonebanner.network.packet.VillageJournalPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.VillageJournalActionPacket.class,
+            dev.stonebanner.network.packet.VillageJournalActionPacket::encode,dev.stonebanner.network.packet.VillageJournalActionPacket::decode,
+            dev.stonebanner.network.packet.VillageJournalActionPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.CitizenWorkTargetPacket.class,
             dev.stonebanner.network.packet.CitizenWorkTargetPacket::encode,dev.stonebanner.network.packet.CitizenWorkTargetPacket::decode,
             dev.stonebanner.network.packet.CitizenWorkTargetPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
@@ -118,7 +136,7 @@ public final class StoneBannerNetwork {
                 SetWorkPriorityPacket.class,
                 SetWorkPriorityPacket::encode,
                 SetWorkPriorityPacket::decode,
-                SetWorkPriorityPacket::handle
+                SetWorkPriorityPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER)
         );
         CHANNEL.registerMessage(
                 nextPacketId++,
@@ -132,14 +150,14 @@ public final class StoneBannerNetwork {
                 RequestCitizenInventoryPacket.class,
                 RequestCitizenInventoryPacket::encode,
                 RequestCitizenInventoryPacket::decode,
-                RequestCitizenInventoryPacket::handle
+                RequestCitizenInventoryPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER)
         );
         CHANNEL.registerMessage(
                 nextPacketId++,
                 CitizenInventorySnapshotPacket.class,
                 CitizenInventorySnapshotPacket::encode,
                 CitizenInventorySnapshotPacket::decode,
-                CitizenInventorySnapshotPacket::handle
+                CitizenInventorySnapshotPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT)
         );
         CHANNEL.registerMessage(
                 nextPacketId++,
@@ -151,6 +169,13 @@ public final class StoneBannerNetwork {
     }
 
     public static void sendTacticalAction(TacticalActionPacket packet) { CHANNEL.sendToServer(packet); }
+    public static void sendProduction(ServerPlayer player,boolean opening){CHANNEL.send(PacketDistributor.PLAYER.with(()->player),dev.stonebanner.network.packet.ProductionSnapshotPacket.forPlayer(player,opening));}
+    public static void sendVillageJournal(ServerPlayer player,dev.stonebanner.network.packet.VillageJournalPacket packet) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(()->player),packet);
+    }
+    public static void sendVillageJournalAction(dev.stonebanner.network.packet.VillageJournalActionPacket packet) { CHANNEL.sendToServer(packet); }
+    public static void sendVillageRecruitment(ServerPlayer player,dev.stonebanner.network.packet.VillageRecruitmentPacket packet) { CHANNEL.send(PacketDistributor.PLAYER.with(()->player),packet); }
+    public static void sendVillageRecruitmentAction(dev.stonebanner.network.packet.VillageRecruitmentActionPacket packet) { CHANNEL.sendToServer(packet); }
     public static void openTacticalNpc(ServerPlayer player, int entityId) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenTacticalNpcPacket(player.serverLevel().dimension().location(), entityId));
     }
@@ -187,6 +212,9 @@ public final class StoneBannerNetwork {
     public static void sendMoveCitizen(int entityId, BlockPos target) {
         CHANNEL.sendToServer(new MoveCitizenPacket(entityId, target));
     }
+    public static void sendQueuedMoveCitizen(int entityId, BlockPos target) {
+        CHANNEL.sendToServer(new MoveCitizenPacket(entityId, target, true));
+    }
 
     public static void sendStopCitizen(int entityId) {
         CHANNEL.sendToServer(new StopCitizenPacket(entityId));
@@ -205,8 +233,12 @@ public final class StoneBannerNetwork {
         CHANNEL.sendToServer(new ExtendExcavationPacket(planId, additionalLength));
     }
 
-    public static void sendWorkPriority(int entityId, int workTypeId, int priorityCode) {
-        CHANNEL.sendToServer(new SetWorkPriorityPacket(entityId, workTypeId, priorityCode));
+    public static void sendWorkPriority(int entityId,java.util.UUID citizen,ResourceLocation dimension,int workTypeId, int priorityCode) {
+        CHANNEL.sendToServer(new SetWorkPriorityPacket(entityId,citizen,dimension,workTypeId, priorityCode));
+    }
+
+    public static void treatCitizen(int entityId, java.util.UUID citizen, ResourceLocation dimension, boolean splint) {
+        CHANNEL.sendToServer(new dev.stonebanner.network.packet.TreatCitizenPacket(entityId, citizen, dimension, splint));
     }
 
     public static void sendExcavationSnapshot(
@@ -219,14 +251,14 @@ public final class StoneBannerNetwork {
         );
     }
 
-    public static void requestCitizenInventory(int entityId) {
-        CHANNEL.sendToServer(new RequestCitizenInventoryPacket(entityId));
+    public static void requestCitizenInventory(int entityId,java.util.UUID citizen,ResourceLocation dimension) {
+        CHANNEL.sendToServer(new RequestCitizenInventoryPacket(entityId,citizen,dimension));
     }
 
-    public static void sendCitizenInventorySnapshot(ServerPlayer player, int entityId, List<ItemStack> stacks) {
+    public static void sendCitizenInventorySnapshot(ServerPlayer player,CitizenInventorySnapshotPacket snapshot) {
         CHANNEL.send(
                 PacketDistributor.PLAYER.with(() -> player),
-                new CitizenInventorySnapshotPacket(entityId, stacks)
+                snapshot
         );
     }
 

@@ -18,6 +18,14 @@ class LocalizationParityTest {
         JsonObject russian = load("assets/stonebanner/lang/ru_ru.json");
 
         assertEquals(english.keySet(), russian.keySet());
+        for (String key : english.keySet()) {
+            assertEquals(placeholders(english.get(key).getAsString()),
+                    placeholders(russian.get(key).getAsString()), "Placeholder mismatch: " + key);
+        }
+    }
+
+    private static long placeholders(String text) {
+        return java.util.regex.Pattern.compile("%(?:\\d+\\$)?[sd]").matcher(text).results().count();
     }
 
     private static JsonObject load(String path) {

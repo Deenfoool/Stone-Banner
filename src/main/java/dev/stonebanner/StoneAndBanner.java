@@ -16,7 +16,10 @@ public final class StoneAndBanner {
 
     public StoneAndBanner(FMLJavaModLoadingContext context) {
         ModEntities.register(context.getModEventBus());
+        dev.stonebanner.citizen.MedicalItems.register(context.getModEventBus());
+        dev.stonebanner.production.ProductionBlocks.register(context.getModEventBus());
         dev.stonebanner.geology.ResearchBlocks.register(context.getModEventBus());
+        dev.stonebanner.village.VillageBlocks.register(context.getModEventBus());
         StoneBannerNetwork.register();
 
         context.registerConfig(

@@ -46,6 +46,7 @@ public final class PlayerCommandController {
     private static final int STUCK_REPLAN_TICKS = 30;
     private static final int REPLAN_COOLDOWN_TICKS = 20;
     private static final Deque<BlockPos> path = new ArrayDeque<>();
+    private static final dev.stonebanner.command.MoveOrderQueue queuedMoves = new dev.stonebanner.command.MoveOrderQueue();
     private static BlockPos destination;
     private static CommandStatus status = CommandStatus.IDLE;
     private static Vec3 lastProgressPosition;
@@ -77,6 +78,26 @@ public final class PlayerCommandController {
     }
 
     public static boolean moving() { return !path.isEmpty() || swimTarget != null; }
+    public static int queuedMoveCount() { return queuedMoves.size(); }
+
+    public static void queueMoveTo(BlockHitResult hit) {
+        Minecraft mc = Minecraft.getInstance();
+        ensureWorld(mc);
+        if (mc.player == null || mc.level == null || !mc.player.isAlive()) return;
+        BlockPos target = hit.getDirection() == Direction.UP ? hit.getBlockPos().above()
+                : hit.getBlockPos().relative(hit.getDirection());
+        boolean accepted = false;
+        // Direct free-swimming and interaction commands are not mixed with ground waypoints.
+        if (pendingBlock == null && pendingAction == PendingAction.NONE && swimTarget == null
+                && mc.level.hasChunkAt(target) && !(mc.player.isInWater() && !mc.level.getFluidState(hit.getBlockPos()).isEmpty())) {
+            if (!moving() && queuedMoves.size() == 0) {
+                issue(new ActorCommand.MoveTo(target));
+                accepted = status != CommandStatus.UNREACHABLE;
+            } else accepted = queuedMoves.offer(target);
+        }
+        mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable(accepted
+                ? "message.stonebanner.hero_move_queued" : "message.stonebanner.hero_move_queue_rejected", queuedMoves.size()), true);
+    }
     public static void approach(Vec3 point, BlockPos block, double reach) {
         var mc = Minecraft.getInstance(); ensureWorld(mc); stopInternal(); createInteractionPath(point, block, reach);
     }
@@ -155,6 +176,7 @@ public final class PlayerCommandController {
         ensureWorld(minecraft);
         pendingBlock = null;
         if (command instanceof ActorCommand.MoveTo moveTo) {
+            stopInternal();
             selectedEntityId = null;
             pendingAction = PendingAction.NONE;
             createPath(moveTo.target());
@@ -166,6 +188,7 @@ public final class PlayerCommandController {
             if (entity == null || !entity.isAlive() || entity == minecraft.player) {
                 return;
             }
+            stopInternal();
             issueEntityAction(minecraft.player, entity, entityAction.action());
         }
     }
@@ -192,6 +215,7 @@ public final class PlayerCommandController {
     }
 
     private static void stopInternal() {
+        queuedMoves.clear();
         pendingBlock = null;
         actionGoal = null; swimTarget = null;
         path.clear();
@@ -217,6 +241,10 @@ public final class PlayerCommandController {
 
     public static List<BlockPos> pathSnapshot() {
         return List.copyOf(path);
+    }
+
+    public static int remainingPathNodes() {
+        return path.size();
     }
 
     public static Optional<BlockPos> destination() {
@@ -247,7 +275,7 @@ public final class PlayerCommandController {
             return;
         }
 
-        if (!ClientConfig.ENFORCE_THIRD_PERSON.get()) return;
+        if (!ClientConfig.ENFORCE_THIRD_PERSON.get() || !minecraft.player.isAlive()) { stop(); return; }
         if (!HeroInputController.commandMode() && ClientConfig.controlMode() == ControlMode.ACTION
                 && HeroInputController.manualMovement()) {
             stop(); RpgCameraController.clearFocus(); return;
@@ -262,6 +290,15 @@ public final class PlayerCommandController {
         if (level == null) {
             stop();
             return;
+        }
+
+        BlockPos queuedTarget = queuedMoves.takeWhenIdle(moving());
+        if (queuedTarget != null) {
+            if (!level.hasChunkAt(queuedTarget)) {
+                stopInternal(); status = CommandStatus.UNREACHABLE; return;
+            }
+            selectedEntityId = null;
+            createPath(queuedTarget);
         }
 
         if (pendingBlock != null) {
@@ -296,6 +333,7 @@ public final class PlayerCommandController {
         updateProgressAndReplan(player, level);
         BlockPos nextNode = path.peekFirst();
         if (nextNode == null) {
+            if (status == CommandStatus.UNREACHABLE) return;
             finishMovement();
             return;
         }
@@ -437,6 +475,7 @@ public final class PlayerCommandController {
         status = result.isPresent() ? (path.isEmpty() ? CommandStatus.IDLE : CommandStatus.MOVING)
                 : CommandStatus.UNREACHABLE;
         if (result.isEmpty()) {
+            queuedMoves.clear();
             destination = null;
         }
         resetProgressTracking();
@@ -481,6 +520,7 @@ public final class PlayerCommandController {
             destination = null;
         }
         if (result.isEmpty()) {
+            queuedMoves.clear();
             destination = null;
         }
         stuckTicks = 0;

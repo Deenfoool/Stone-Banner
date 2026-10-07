@@ -12,6 +12,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenJobBoardTest {
     @Test
+    void heartbeatCannotStealReassignedReservation() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.MINING, BlockPos.ZERO, 0);
+        UUID oldWorker = UUID.randomUUID();
+        UUID newWorker = UUID.randomUUID();
+        assertTrue(board.reserve(id, oldWorker, 0));
+        assertTrue(board.touch(id, oldWorker, 10));
+        assertTrue(board.reserve(id, newWorker, 311));
+        assertFalse(board.touch(id, oldWorker, 312));
+        board.release(id, oldWorker);
+        assertTrue(board.touch(id, newWorker, 313));
+        assertFalse(board.touch(id + 1, newWorker, 313));
+    }
+
+    @Test
     void deduplicatesSameWorkAtSameBlock() {
         CitizenJobBoard board = new CitizenJobBoard();
         BlockPos target = new BlockPos(4, 70, -2);

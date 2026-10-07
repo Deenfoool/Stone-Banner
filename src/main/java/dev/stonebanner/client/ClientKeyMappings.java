@@ -13,6 +13,7 @@ import org.lwjgl.glfw.GLFW;
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientKeyMappings {
     public static final String CATEGORY = "key.categories.stonebanner";
+    public static final KeyMapping PRODUCTION=new KeyMapping("key.stonebanner.production",KeyConflictContext.IN_GAME,InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_K,CATEGORY);
 
     public static final KeyMapping CYCLE_CONTROL_MODE = new KeyMapping(
             "key.stonebanner.cycle_control_mode",
@@ -34,6 +35,17 @@ public final class ClientKeyMappings {
             "key.stonebanner.ore_journal", KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
 
+    public static final KeyMapping DEBUG_OVERLAY = new KeyMapping(
+            "key.stonebanner.debug_overlay", KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9, CATEGORY);
+
+    public static final KeyMapping FOCUS_SELECTED = new KeyMapping(
+            "key.stonebanner.focus_selected", KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F10, CATEGORY);
+    public static final KeyMapping RECENTER_CAMERA = new KeyMapping(
+            "key.stonebanner.recenter_camera", KeyConflictContext.IN_GAME,
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_HOME, CATEGORY);
+
     public static final KeyMapping LAYER_BOUNDARIES = new KeyMapping("key.stonebanner.layer_boundaries", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, CATEGORY);
     public static final KeyMapping LAYER_RESOURCES = new KeyMapping("key.stonebanner.layer_resources", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, CATEGORY);
     public static final KeyMapping LAYER_FERTILITY = new KeyMapping("key.stonebanner.layer_fertility", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY);
@@ -42,7 +54,11 @@ public final class ClientKeyMappings {
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(PRODUCTION);
         event.register(ORE_JOURNAL);
+        event.register(DEBUG_OVERLAY);
+        event.register(FOCUS_SELECTED);
+        event.register(RECENTER_CAMERA);
         event.register(LAYER_BOUNDARIES); event.register(LAYER_RESOURCES); event.register(LAYER_FERTILITY);
         event.register(CYCLE_CONTROL_MODE);
         event.register(CYCLE_DESIGNATION_MODE);

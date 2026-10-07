@@ -1,8 +1,7 @@
 package dev.stonebanner.network.packet;
 
 import dev.stonebanner.geology.GeologyRules;
-import dev.stonebanner.client.control.MapLayerState;
-import dev.stonebanner.client.screen.GeologyResearchScreen;
+import dev.stonebanner.client.network.ClientScreenPacketHandlers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -32,5 +31,5 @@ public record GeologySnapshotPacket(ResourceLocation dimension,boolean research,
         n=bounded(b,128);var claims=new ArrayList<Claim>();for(int i=0;i<n;i++)claims.add(new Claim(b.readUtf(32),b.readInt(),b.readInt(),b.readBlockPos(),b.readBoolean(),b.readBoolean()));
         return new GeologySnapshotPacket(dim,research,table,tier,remaining,tiles,claims);
     }
-    public static void handle(GeologySnapshotPacket p,Supplier<NetworkEvent.Context> supplier){var ctx=supplier.get();ctx.enqueueWork(()->DistExecutor.unsafeRunWhenOn(Dist.CLIENT,()->()->{if(p.research)GeologyResearchScreen.open(p);else MapLayerState.accept(p);}));ctx.setPacketHandled(true);}
+    public static void handle(GeologySnapshotPacket p,Supplier<NetworkEvent.Context> supplier){var ctx=supplier.get();ctx.enqueueWork(()->DistExecutor.unsafeRunWhenOn(Dist.CLIENT,()->()->ClientScreenPacketHandlers.geology(p)));ctx.setPacketHandled(true);}
 }

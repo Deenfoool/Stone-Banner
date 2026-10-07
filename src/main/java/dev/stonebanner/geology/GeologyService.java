@@ -107,7 +107,7 @@ public final class GeologyService {
             int seconds=Math.max(8,24-npc.citizenData().skill(CitizenSkill.GEOLOGY));
             if(progress.progress>=seconds&&profile!=null) {
                 data.surveyed(task.community,task.target.getX()>>4,task.target.getZ()>>4,task.tier);
-                npc.citizenData().setSkill(CitizenSkill.GEOLOGY,npc.citizenData().skill(CitizenSkill.GEOLOGY)+1);
+                npc.citizenData().practice(CitizenSkill.GEOLOGY,25);
                 tasks.remove(task.npc);npc.setBrainState(CitizenBrainState.IDLE);feedback(owner,"survey_completed");
             }
         }
