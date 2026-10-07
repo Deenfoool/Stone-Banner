@@ -323,5 +323,8 @@
   "work_block.stonebanner.occupied": "Участок занят существом",
   "work_block.stonebanner.ore_permission": "Нужно разрешение на руду",
   "work_block.stonebanner.unsafe_exit": "Небезопасный выход",
-  "screen.stonebanner.citizen.work_block": "Остановка работы"
+  "screen.stonebanner.citizen.work_block": "Остановка работы",
+  "menu.stonebanner.language": "Язык",
+  "screen.stonebanner.language.title": "Выбор языка",
+  "screen.stonebanner.language.current": "Текущий: %s"
 }
