@@ -563,5 +563,12 @@
   "construction.stonebanner.result.created": "План дома создан",
   "construction.stonebanner.result.updated": "План обновлён",
   "construction.stonebanner.result.forbidden": "Недостаточно прав",
-  "construction.stonebanner.result.overlap": "Планы пересекаются или достигнут лимит"
+  "construction.stonebanner.result.overlap": "Планы пересекаются или достигнут лимит",
+  "construction.stonebanner.ui.materials": "Следующие материалы",
+  "construction.stonebanner.status.blueprint_changed": "Схема отсутствует или изменена: создайте новый план",
+  "construction.stonebanner.result.blueprint_changed": "Схема отсутствует или изменена: создайте новый план",
+  "construction.stonebanner.status.unsupported": "Схема содержит неподдерживаемые блоки",
+  "construction.stonebanner.result.unsupported": "Схема содержит неподдерживаемые блоки",
+  "construction.stonebanner.status.no_path": "Нет доступа: нужны лестницы или площадка для рабочего",
+  "construction.stonebanner.result.no_path": "Нет доступа: нужны лестницы или площадка для рабочего"
 }

@@ -12,8 +12,10 @@ public final class ConstructionData extends SavedData {
     public static final int LIMIT=64;
     public static final class Plan {
         public final long id;public final UUID owner;public final BlockPos origin;public final Rotation rotation;
+        public final String blueprintId,fingerprint;public final int sizeX,sizeY,sizeZ;
+        public net.minecraft.world.phys.AABB bounds(){return BuildingBlueprint.bounds(origin,rotation,sizeX,sizeY,sizeZ);}
         public boolean paused,completed;public String status="ready";
-        private Plan(long id,UUID owner,BlockPos origin,Rotation rotation){this.id=id;this.owner=owner;this.origin=origin.immutable();this.rotation=rotation;}
+        private Plan(long id,UUID owner,BlockPos origin,Rotation rotation,String blueprintId,String fingerprint,int sizeX,int sizeY,int sizeZ){this.id=id;this.owner=owner;this.origin=origin.immutable();this.rotation=rotation;this.blueprintId=blueprintId;this.fingerprint=fingerprint;this.sizeX=sizeX;this.sizeY=sizeY;this.sizeZ=sizeZ;}
     }
     private final Map<Long,Plan> plans=new LinkedHashMap<>();
     private long nextId=1;
@@ -21,10 +23,11 @@ public final class ConstructionData extends SavedData {
     public List<Plan> plans(){return List.copyOf(plans.values());}
     public Plan plan(long id){return plans.get(id);}
     public Plan at(BlockPos anchor){return plans.values().stream().filter(p->p.origin.equals(anchor)).findFirst().orElse(null);}
-    public long add(UUID owner,BlockPos origin,Rotation rotation){
+    public long add(UUID owner,BlockPos origin,Rotation rotation){return add(owner,origin,rotation,BuildingBlueprint.cottage());}
+    public long add(UUID owner,BlockPos origin,Rotation rotation,BuildingBlueprint blueprint){
         if(owner==null||origin==null||rotation==null||plans.size()>=LIMIT||nextId>=Long.MAX_VALUE-1024
-                ||plans.values().stream().anyMatch(p->CottageBlueprint.bounds(p.origin,p.rotation).intersects(CottageBlueprint.bounds(origin,rotation))))return -1;
-        long id=nextId++;plans.put(id,new Plan(id,owner,origin,rotation));setDirty();return id;
+                ||plans.values().stream().anyMatch(p->p.bounds().intersects(blueprint.bounds(origin,rotation))))return -1;
+        long id=nextId++;plans.put(id,new Plan(id,owner,origin,rotation,blueprint.id(),blueprint.fingerprint(),blueprint.sizeX(),blueprint.sizeY(),blueprint.sizeZ()));setDirty();return id;
     }
     public boolean edit(UUID owner,long id,String action){
         var plan=plans.get(id);if(plan==null||!plan.owner.equals(owner))return false;
@@ -34,7 +37,7 @@ public final class ConstructionData extends SavedData {
     public void complete(Plan plan){plan.completed=true;plan.status="complete";setDirty();}
     @Override public CompoundTag save(CompoundTag root){
         root.putLong("Next",nextId);var list=new ListTag();
-        for(var p:plans.values()){var t=new CompoundTag();t.putLong("Id",p.id);t.putUUID("Owner",p.owner);t.putLong("Origin",p.origin.asLong());t.putInt("Rotation",p.rotation.ordinal());t.putBoolean("Paused",p.paused);t.putBoolean("Completed",p.completed);list.add(t);}
+        for(var p:plans.values()){var t=new CompoundTag();t.putLong("Id",p.id);t.putUUID("Owner",p.owner);t.putLong("Origin",p.origin.asLong());t.putInt("Rotation",p.rotation.ordinal());t.putString("Blueprint",p.blueprintId);t.putString("Fingerprint",p.fingerprint);t.putInt("SizeX",p.sizeX);t.putInt("SizeY",p.sizeY);t.putInt("SizeZ",p.sizeZ);t.putBoolean("Paused",p.paused);t.putBoolean("Completed",p.completed);list.add(t);}
         root.put("Plans",list);return root;
     }
     public static ConstructionData load(CompoundTag root){
@@ -44,8 +47,12 @@ public final class ConstructionData extends SavedData {
             if(data.plans.size()>=LIMIT||id<1||id>=Long.MAX_VALUE-1024||data.plans.containsKey(id)||!t.hasUUID("Owner")
                     ||!t.contains("Origin",Tag.TAG_LONG)||rotation<0||rotation>=Rotation.values().length)continue;
             var origin=BlockPos.of(t.getLong("Origin"));var orientation=Rotation.values()[rotation];
-            if(data.plans.values().stream().anyMatch(p->CottageBlueprint.bounds(p.origin,p.rotation).intersects(CottageBlueprint.bounds(origin,orientation))))continue;
-            var p=new Plan(id,t.getUUID("Owner"),origin,orientation);p.paused=t.getBoolean("Paused");p.completed=t.getBoolean("Completed");p.status=p.completed?"complete":"ready";
+            boolean legacy=!t.contains("Blueprint",Tag.TAG_STRING);
+            String blueprint=legacy?"stonebanner:cottage":t.getString("Blueprint"),hash=legacy?"cottage-v1":t.getString("Fingerprint");
+            int x=legacy?5:t.getInt("SizeX"),y=legacy?5:t.getInt("SizeY"),z=legacy?7:t.getInt("SizeZ");
+            if(blueprint.isEmpty()||blueprint.length()>256||hash.isEmpty()||hash.length()>96||x<1||y<1||z<1||x>64||y>64||z>64||(long)x*y*z>BuildingBlueprint.MAX_VOLUME)continue;
+            if(data.plans.values().stream().anyMatch(p->p.bounds().intersects(BuildingBlueprint.bounds(origin,orientation,x,y,z))))continue;
+            var p=new Plan(id,t.getUUID("Owner"),origin,orientation,blueprint,hash,x,y,z);p.paused=t.getBoolean("Paused");p.completed=t.getBoolean("Completed");p.status=p.completed?"complete":"ready";
             data.plans.put(id,p);maximum=Math.max(maximum,id);
         }
         long next=root.getLong("Next");data.nextId=Math.max(maximum+1,next>0&&next<Long.MAX_VALUE-1024?next:1);return data;

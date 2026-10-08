@@ -25,4 +25,16 @@ class ConstructionCodecTest {
     @Test void oversizedAndNegativeCountsRejectedBeforeAllocation(){
         for(int count:new int[]{-1,65}){var b=new FriendlyByteBuf(Unpooled.buffer());try{b.writeResourceLocation(dimension);b.writeBoolean(false);b.writeUtf("ready",32);b.writeVarInt(count);assertThrows(IllegalArgumentException.class,()->ConstructionSnapshotPacket.decode(b));}finally{b.release();}}
     }
+    @Test void selectedGeometryAndRejectedCatalogEntryRoundTrip(){
+        net.minecraft.SharedConstants.tryDetectVersion();net.minecraft.server.Bootstrap.bootStrap();
+        var blueprint=dev.stonebanner.construction.BuildingBlueprint.cottage();
+        var packet=new ConstructionSnapshotPacket(dimension,true,"ready",List.of(),List.of(
+            new ConstructionSnapshotPacket.Entry(blueprint.id(),blueprint.title(),""),
+            new ConstructionSnapshotPacket.Entry("local:bad.blueprint","Bad house","Unsupported block")),blueprint);
+        var b=new FriendlyByteBuf(Unpooled.buffer());try{
+            ConstructionSnapshotPacket.encode(packet,b);assertEquals(packet,ConstructionSnapshotPacket.decode(b));assertEquals(0,b.readableBytes());
+            b.clear();var command=new ConstructionActionPacket(dimension,ConstructionService.Action.CREATE,new BlockPos(1,64,2),2,-1,"local:house.blueprint","immutable-hash");
+            ConstructionActionPacket.encode(command,b);assertEquals(command,ConstructionActionPacket.decode(b));
+        }finally{b.release();}
+    }
 }

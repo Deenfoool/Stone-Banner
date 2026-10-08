@@ -34,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "22";
+    private static final String PROTOCOL_VERSION = "23";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),

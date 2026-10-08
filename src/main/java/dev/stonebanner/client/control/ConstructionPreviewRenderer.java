@@ -19,8 +19,8 @@ public final class ConstructionPreviewRenderer {
         var poses=event.getPoseStack();var camera=event.getCamera().getPosition();var buffers=mc.renderBuffers().bufferSource();var lines=buffers.getBuffer(RenderType.lines());
         boolean allowed=ConstructionPreviewController.allowed();float red=allowed?.35f:1,green=allowed?.9f:.25f;
         poses.pushPose();poses.translate(-camera.x,-camera.y,-camera.z);
-        LevelRenderer.renderLineBox(poses,lines,CottageBlueprint.bounds(origin,rotation).inflate(.008),red,green,.35f,.5f);
-        for(var placement:CottageBlueprint.placements())for(var cell:placement.cells()){
+        LevelRenderer.renderLineBox(poses,lines,ConstructionPreviewController.blueprint().bounds(origin,rotation).inflate(.008),red,green,.35f,.5f);
+        for(var placement:ConstructionPreviewController.blueprint().placements())for(var cell:placement.cells()){
             var at=cell.at(origin,rotation);var shape=cell.oriented(rotation).getShape(mc.level,at);
             for(var box:shape.toAabbs())LevelRenderer.renderLineBox(poses,lines,box.move(at).inflate(.002),red,green,.35f,.75f);
         }

@@ -21,7 +21,7 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.37`.
+Version: `0.1.0-alpha.38`.
 
 Cottage construction is implemented in source: **B** / the Build tab opens a fixed 5×7 blueprint with rotation and a world outline preview. One NPC fetches real supplies from registered storage, builds in stages, and places a door/two beds with one item per furniture piece. Plans, ownership and pause persist; removing a plan keeps blocks and carried items. Existing sleep/camp provision detects the ordinary beds. See [CONSTRUCTION.md](CONSTRUCTION.md). Build and gameplay verification remain deferred.
 
@@ -191,3 +191,7 @@ system and settlement simulation are later roadmap stages.
 В раскрытой карточке и обзоре Citizen показана причина: нет пути к работе, участок занят, требуется разрешение на руду или небезопасный выход. При прямом приказе и успешном начале другой работы старое сообщение сбрасывается; неактуальная причина у свободного NPC исчезает через шесть игровых секунд. Диагностика не сохраняется отдельно от мира и пересчитывается после загрузки. При переносимом грузе компактная карточка отдаёт приоритет строке доставки, полный обзор показывает обе причины.
 
 Ручные проверки нужны для обычной добычи собственной опоры, плит/ограждений под другим NPC, занятого игроком блока, восстановления выхода и разрешения руды.
+
+### Каталог домов (alpha.38)
+
+Читатель MineColonies/Structurize `.blueprint` v1, серверный каталог, предпросмотр выбранного дома и явные ванильные замены служебных/декоративных блоков. [Установка и ограничения](BLUEPRINTS.md). [Отдельный стартовый пакет: два дома Medieval Oak](blueprint-packs/stonebanner-minecolonies-medievaloak.zip). Сборка и игровые проверки этой версии отложены.

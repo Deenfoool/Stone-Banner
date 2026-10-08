@@ -266,3 +266,16 @@ tasks.register('verifyGameTests') {
             throw new GradleException('GameTest server did not report passing tests; inspect run-gametest/logs/latest.log')
     }
 }
+
+// Optional GPL blueprint data remains separate from the mod JAR and its source license.
+tasks.register('minecoloniesBlueprintPack', Zip) {
+    group = 'distribution'
+    description = 'Packages the separately licensed Medieval Oak starter houses for extraction into a game folder.'
+    from('blueprint-packs/minecolonies-medievaloak/config') { into 'config' }
+    from('blueprint-packs/minecolonies-medievaloak') {
+        include 'LICENSE', 'SOURCE.md'
+        into 'config/stonebanner/blueprints/minecolonies'
+    }
+    archiveFileName = 'stonebanner-minecolonies-medievaloak.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}

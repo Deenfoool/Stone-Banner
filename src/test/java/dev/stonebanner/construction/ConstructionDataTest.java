@@ -37,4 +37,13 @@ class ConstructionDataTest {
         var d=new ConstructionData();for(int i=0;i<ConstructionData.LIMIT;i++)assertTrue(d.add(UUID.randomUUID(),new BlockPos(i*10,0,0),Rotation.NONE)>0);
         assertEquals(-1,d.add(owner,new BlockPos(10000,0,0),Rotation.NONE));
     }
+    @Test void legacyPlansMigrateAndMissingBlueprintStillReservesOriginalDimensions(){
+        var d=new ConstructionData();long id=d.add(owner,BlockPos.ZERO,Rotation.NONE);var tag=d.save(new CompoundTag());
+        var entry=tag.getList("Plans",10).getCompound(0);
+        for(String key:new String[]{"Blueprint","Fingerprint","SizeX","SizeY","SizeZ"})entry.remove(key);
+        var migrated=ConstructionData.load(tag);assertEquals("stonebanner:cottage",migrated.plan(id).blueprintId);assertEquals("cottage-v1",migrated.plan(id).fingerprint);
+        entry.putString("Blueprint","local:removed.blueprint");entry.putString("Fingerprint","original-hash");entry.putInt("SizeX",20);entry.putInt("SizeY",12);entry.putInt("SizeZ",20);
+        var missing=ConstructionData.load(tag);assertEquals(20,missing.plan(id).sizeX);assertEquals("original-hash",missing.plan(id).fingerprint);
+        assertEquals(-1,missing.add(owner,new BlockPos(15,0,15),Rotation.NONE));
+    }
 }

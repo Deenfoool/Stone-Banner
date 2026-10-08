@@ -63,3 +63,5 @@ with credit to it's authors.
 Forge Mod Loader downloads components from the Minecraft Coder Pack
 (http://mcp.ocean-labs.de/index.php/Main_Page) with kind permission from the MCP team.
 
+
+Optional MineColonies Medieval Oak blueprint starter pack: residence1/residence2 by Carlansor. Original source: ldtteam/minecolonies, commit 4eb1b870b7cb2339b79f231033df5bbef27b2646. Separately licensed GPLv3 data, outside the mod JAR; see blueprint-packs/minecolonies-medievaloak/SOURCE.md and LICENSE. No upstream Java implementation or images copied.

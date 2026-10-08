@@ -17,8 +17,9 @@ public final class CottageBlueprint {
         public BlockPos at(BlockPos origin,Rotation rotation){return origin.offset(offset.rotate(rotation));}
         public BlockState oriented(Rotation rotation){return state.rotate(rotation);}
     }
-    public record Placement(Item item,List<Cell> cells) {
-        public Placement {cells=List.copyOf(cells);}
+    public record Placement(Item item,int count,List<Cell> cells) {
+        public Placement(Item item,List<Cell> cells){this(item,1,cells);}
+        public Placement {cells=List.copyOf(cells);if(count<1||count>64||cells.isEmpty()||cells.size()>2)throw new IllegalArgumentException("Invalid placement");}
         public boolean matches(Level level,BlockPos origin,Rotation rotation){
             return cells.stream().allMatch(cell->level.hasChunkAt(cell.at(origin,rotation))
                     &&same(level.getBlockState(cell.at(origin,rotation)),cell.oriented(rotation)));
@@ -36,10 +37,12 @@ public final class CottageBlueprint {
     }
     public static boolean same(BlockState actual,BlockState expected){
         if(!actual.is(expected.getBlock()))return false;
-        // Neighbor connections, open/powered doors and occupied beds are allowed to change after placement.
-        for(Property<?> property:new Property<?>[]{BlockStateProperties.HORIZONTAL_FACING,BlockStateProperties.DOUBLE_BLOCK_HALF,
-                BlockStateProperties.BED_PART,BlockStateProperties.SLAB_TYPE,BlockStateProperties.AXIS})
-            if(expected.hasProperty(property)&&!Objects.equals(actual.getValue(property),expected.getValue(property)))return false;
+        // Only runtime/neighbor-derived properties may drift; orientation and geometry must match.
+        for(Property<?> property:expected.getProperties()) {
+            String name=property.getName();
+            if(Set.of("open","powered","occupied","lit","waterlogged","north","south","east","west","up","down","shape","distance","persistent","signal_fire").contains(name))continue;
+            if(!Objects.equals(actual.getValue(property),expected.getValue(property)))return false;
+        }
         return true;
     }
     private static void add(List<Placement> out,Item item,BlockState state,int x,int y,int z){out.add(new Placement(item,List.of(new Cell(new BlockPos(x,y,z),state))));}

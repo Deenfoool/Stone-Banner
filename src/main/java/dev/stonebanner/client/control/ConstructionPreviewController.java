@@ -11,6 +11,8 @@ import net.minecraft.world.phys.*;
 
 /** Local geometry feedback only; placement and permissions belong to the server. */
 public final class ConstructionPreviewController {
+    private static BuildingBlueprint blueprint=BuildingBlueprint.cottage();
+    public static BuildingBlueprint blueprint(){return blueprint;}
     private static boolean active;
     private static BlockPos origin;
     private static Rotation rotation=Rotation.NONE;
@@ -23,7 +25,9 @@ public final class ConstructionPreviewController {
     public static Rotation rotation(){return rotation;}
     public static String status(){return status;}
     public static boolean allowed(){return active&&origin!=null&&status.equals("ready");}
-    public static void start(){
+    public static void start(){start(BuildingBlueprint.cottage());}
+    public static void start(BuildingBlueprint selected){
+        if(selected==null)return;blueprint=selected;
         var mc=Minecraft.getInstance();if(mc.level==null)return;
         HeroInputController.cancel();PlayerCommandController.stop();DesignationController.deactivate();TunnelExtensionController.deactivate();
         active=true;origin=null;rotation=Rotation.NONE;dimension=mc.level.dimension().location();checkedAt=Long.MIN_VALUE;
@@ -38,10 +42,10 @@ public final class ConstructionPreviewController {
         BlockPos next=hit instanceof BlockHitResult block&&block.getDirection()==Direction.UP?block.getBlockPos().above():null;
         if(next==null){origin=null;status="site";return;}
         if(!next.equals(origin)||mc.level.getGameTime()-checkedAt>=5||checkedAt==Long.MIN_VALUE){
-            origin=next;checkedAt=mc.level.getGameTime();status=mc.player.distanceToSqr(Vec3.atCenterOf(origin))>64*64?"site":ConstructionService.site(mc.level,origin,rotation);
+            origin=next;checkedAt=mc.level.getGameTime();status=mc.player.distanceToSqr(Vec3.atCenterOf(origin))>64*64?"site":ConstructionService.site(mc.level,origin,rotation,blueprint);
         }
     }
     public static void confirm(){
-        if(!allowed())return;StoneBannerNetwork.sendConstructionAction(new ConstructionActionPacket(dimension,ConstructionService.Action.CREATE,origin,rotation.ordinal(),-1));cancel();
+        if(!allowed())return;StoneBannerNetwork.sendConstructionAction(new ConstructionActionPacket(dimension,ConstructionService.Action.CREATE,origin,rotation.ordinal(),-1,blueprint.id(),blueprint.fingerprint()));cancel();
     }
 }

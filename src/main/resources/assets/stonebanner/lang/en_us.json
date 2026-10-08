@@ -563,5 +563,12 @@
   "construction.stonebanner.result.created": "Cottage plan created",
   "construction.stonebanner.result.updated": "Plan updated",
   "construction.stonebanner.result.forbidden": "Permission denied",
-  "construction.stonebanner.result.overlap": "Overlapping plans or plan limit reached"
+  "construction.stonebanner.result.overlap": "Overlapping plans or plan limit reached",
+  "construction.stonebanner.ui.materials": "Next materials",
+  "construction.stonebanner.status.blueprint_changed": "Blueprint missing or changed: create a new plan",
+  "construction.stonebanner.result.blueprint_changed": "Blueprint missing or changed: create a new plan",
+  "construction.stonebanner.status.unsupported": "Blueprint contains unsupported blocks",
+  "construction.stonebanner.result.unsupported": "Blueprint contains unsupported blocks",
+  "construction.stonebanner.status.no_path": "No access: provide stairs or a work platform",
+  "construction.stonebanner.result.no_path": "No access: provide stairs or a work platform"
 }

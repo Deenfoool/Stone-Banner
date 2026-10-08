@@ -37,8 +37,8 @@ public final class CitizenConstructionController {
         return false;
     }
     private boolean walk(ServerLevel level,BlockPos pos,ConstructionData.Plan plan,CottageBlueprint.Placement placement){
-        var candidates=new ArrayList<BlockPos>();int base=plan==null?pos.getY():plan.origin.getY();
-        for(int dx=-2;dx<=2;dx++)for(int dz=-2;dz<=2;dz++)for(int y=base-1;y<=base+1;y++){
+        var candidates=new ArrayList<BlockPos>();int base=pos.getY();
+        for(int dx=-2;dx<=2;dx++)for(int dz=-2;dz<=2;dz++)for(int y=base-3;y<=base+1;y++){
             var p=new BlockPos(pos.getX()+dx,y,pos.getZ()+dz);
             if(!level.hasChunkAt(p)||!npc.citizenData().canTravelTo(p)||!BlockPathfinder.isWalkable(level,p))continue;
             var feet=BlockPathfinder.waypoint(level,p);var eyes=feet.add(0,npc.getEyeHeight(),0);
@@ -58,7 +58,8 @@ public final class CitizenConstructionController {
                 if(!npc.commandController().hasActiveCommand()){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}return Result.RUNNING;
             }
             npc.commandController().stop();
-            int needed=(int)CottageBlueprint.placements().stream().filter(p->p.item()==item&&!p.matches(level,plan.origin,plan.rotation)).count();
+            var blueprint=BlueprintCatalog.forPlan(level,plan);if(blueprint==null)return Result.DEFER;
+            int needed=blueprint.placements().stream().filter(p->p.item()==item&&!p.matches(level,plan.origin,plan.rotation)).mapToInt(CottageBlueprint.Placement::count).sum();
             var removed=stores.extractAt(level,source,s->s.is(item),Math.min(16,needed));
             if(removed.isEmpty()){reason=WorkBlockReason.MATERIALS;return Result.DEFER;}
             boolean full=false;
@@ -96,10 +97,10 @@ public final class CitizenConstructionController {
                 plan.status="blocked";reason=WorkBlockReason.OCCUPIED;return Result.DEFER;
             }
         }
-        if(npc.citizenData().inventory().countPersonalItem(placement.item())<1){plan.status="materials";return fetch(level,placement.item(),plan);}
+        if(npc.citizenData().inventory().countPersonalItem(placement.item())<placement.count()){plan.status="materials";return fetch(level,placement.item(),plan);}
         if(!placement.cells().stream().allMatch(c->near(level,c.at(plan.origin,plan.rotation)))||overlaps(level,plan,placement,npc.getBoundingBox())){
             plan.status="travelling";
-            if(!npc.commandController().hasActiveCommand()&&!walk(level,pos,plan,placement)){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
+            if(!npc.commandController().hasActiveCommand()&&!walk(level,pos,plan,placement)){plan.status="no_path";reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
             return Result.RUNNING;
         }
         for(var cell:placement.cells())if(!level.getEntitiesOfClass(LivingEntity.class,new AABB(cell.at(plan.origin,plan.rotation)),e->e.isAlive()&&!e.isSpectator()).isEmpty()){
@@ -109,16 +110,22 @@ public final class CitizenConstructionController {
         npc.getLookControl().setLookAt(Vec3.atCenterOf(pos));if(npc.tickCount%10==0)npc.swing(InteractionHand.MAIN_HAND);
         progress+=CitizenSkillRules.workRate(npc.citizenData(),WorkType.BUILDING);if(progress<40)return Result.RUNNING;
         // The board lease and plan validity were checked this tick; commit all furniture cells or restore all snapshots.
+        for(var cell:placement.cells()){
+            var state=cell.oriented(plan.rotation);var at=cell.at(plan.origin,plan.rotation);
+            boolean pairedUpper=state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.DOUBLE_BLOCK_HALF)
+                    &&state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.DOUBLE_BLOCK_HALF)==net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER;
+            if(!pairedUpper&&!state.canSurvive(level,at)){plan.status="foundation";reason=WorkBlockReason.OCCUPIED;return Result.DEFER;}
+        }
         var snapshots=new ArrayList<BlockSnapshot>();boolean placed=true;
         for(var cell:placement.cells()){
             var at=cell.at(plan.origin,plan.rotation);snapshots.add(BlockSnapshot.create(level.dimension(),level,at));
             if(!level.getBlockState(at).equals(cell.oriented(plan.rotation))&&!level.setBlock(at,cell.oriented(plan.rotation),2)){placed=false;break;}
         }
-        if(!placed||ForgeEventFactory.onMultiBlockPlace(npc,snapshots,Direction.UP)||npc.citizenData().inventory().countPersonalItem(placement.item())<1){
+        if(!placed||ForgeEventFactory.onMultiBlockPlace(npc,snapshots,Direction.UP)||npc.citizenData().inventory().countPersonalItem(placement.item())<placement.count()){
             for(int i=snapshots.size()-1;i>=0;i--)snapshots.get(i).restore(true,false);
             plan.status="protected";reason=WorkBlockReason.PROTECTED;return Result.DEFER;
         }
-        npc.citizenData().inventory().removePersonalItem(placement.item(),1);
+        npc.citizenData().inventory().removePersonalItem(placement.item(),placement.count());
         for(var cell:placement.cells()){var at=cell.at(plan.origin,plan.rotation);level.updateNeighborsAt(at,cell.state().getBlock());}
         npc.citizenData().practice(CitizenSkill.CONSTRUCTION,5);progress=0;target=null;plan.status="ready";
         return ConstructionService.next(level,plan).isEmpty()?Result.COMPLETE:Result.RUNNING;
