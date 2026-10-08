@@ -51,7 +51,7 @@ public final class HeroInputController {
     public static void toggleCommands() {
         resetGroundClicks();cancel(); PlayerCommandController.cancelPendingActions();commands=!commands;
         CitizenSelectionController.clear(); DesignationController.deactivate(); TunnelExtensionController.deactivate();
-        RpgCameraController.recenter();
+        RpgCameraController.commandsChanged(commands);
     }
     public static boolean moveHeld(){return moveHeld;}
     public static void setMoveHeld(boolean held) { moveHeld=held; }
