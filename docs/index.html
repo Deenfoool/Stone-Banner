@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#121b19">
+<meta name="description" content="Stone & Banner: интерактивный HUD Playground по исходникам alpha.49">
+<title>Stone & Banner — HUD Playground</title>
+<style>
+:root{--gold:#f6d36c;--muted:#adb5a8;--panel:#131b1aee;--edge:#75603d;--ink:#edeadd;--green:#7fc886}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#12221d;color:var(--ink);font:12px system-ui,Segoe UI,sans-serif}button,input{font:inherit}button{color:var(--ink);cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--gold)}[hidden]{display:none!important}
+#root{position:relative;width:100vw;height:100dvh;overflow:hidden}canvas#field{display:block;width:100%;height:100%;background:#385b37;cursor:crosshair;touch-action:none}
+.frame{background:linear-gradient(160deg,#242925f4,var(--panel));border:2px solid #6f593b;box-shadow:0 3px 0 #18140c,0 12px 23px #0008,inset 0 0 0 1px #987e4755;border-radius:3px;backdrop-filter:blur(5px)}
+button.tiny,button.tab,button.tool,button.slot,button.square{background:linear-gradient(#313a31,#161e1d);border:1px solid #686149;border-radius:2px}button:hover{filter:brightness(1.27)}button.active{color:var(--gold);border-color:var(--gold);background:#4a3e26}
+#head{position:absolute;z-index:3;top:6px;left:6px;right:6px;height:50px;display:flex;align-items:center;gap:5px;padding:4px}
+#settlement{display:flex;align-items:center;gap:7px;flex:0 0 245px;min-width:0}#flag{font-size:26px;color:var(--gold);width:32px;text-align:center;background:#3f3624;border:1px solid #87703e}#settlement strong{font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#settlement small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+#stats,#materials{display:flex;gap:3px;border-left:1px solid #78674d;padding-left:5px;min-width:0;height:100%}#stats{flex:0 0 191px}#materials{flex:1}
+.metric{flex:1;min-width:0;background:#1c2622;border:1px solid #42463d;display:grid;place-items:center;align-content:center;font-size:13px}.metric b{font-size:10px;margin-top:2px;font-variant-numeric:tabular-nums}
+#topActions{display:flex;gap:4px;padding-right:2px}.square{width:28px;height:30px;font-size:17px}
+#subtitle{position:absolute;left:50%;top:64px;transform:translateX(-50%);pointer-events:none;color:#d4cba9;background:#152222ed;border:1px solid #756948;border-radius:12px;z-index:3;padding:6px 14px;font-size:10px;letter-spacing:.08em;white-space:nowrap}
+#mode{position:absolute;top:68px;left:10px;z-index:3;background:#172322db;border:1px solid #876d36;padding:7px 10px;font-size:10px;color:var(--gold);font-weight:bold}
+#alerts{position:absolute;top:66px;right:6px;z-index:3;width:245px;pointer-events:none}#alerts>div{background:#28241de8;border:1px solid #956f3c;border-left:3px solid #f9c06c;font-size:11px;padding:8px;margin-bottom:5px}
+#info{position:absolute;bottom:6px;left:6px;z-index:5;width:235px;min-height:44px;padding:7px}#info .face{width:52px;height:52px;display:grid;place-items:center;font-size:29px;background:#405c3f;border:2px solid #988257;flex:0 0 52px}#info .person{display:flex;gap:9px}#info .name{flex:1;min-width:0}#info strong{font-size:13px}#info small{font-size:11px;color:var(--muted);display:block;margin-top:3px}#info .work{color:var(--gold);font-size:11px;margin-top:4px}#info .fold{position:absolute;right:5px;top:5px}.tiny{padding:5px 8px}.bar{display:flex;gap:4px;align-items:center;margin:7px 0;font-size:10px}.bar label{width:59px;color:#e1dfd0}.bar>div{height:9px;background:#0b1110;border:1px solid #555045;flex:1}.bar>div>i{display:block;height:100%;background:#79b974}.bar>output{min-width:27px;text-align:right;color:#c0beaf}.skillrow{display:flex;gap:4px;margin:9px 0}.skillrow>span{flex:1;background:#29312c;border:1px solid #4c4c3e;padding:4px;text-align:center;font-size:10px}.personTabs{display:flex;gap:3px}.personTabs button{flex:1;font-size:17px;padding:5px 0;background:#28352d;border:1px solid #685d46}
+#rail{position:absolute;bottom:6px;right:6px;width:178px;height:216px;z-index:5;padding:5px}#speeds{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}#speeds button{height:28px}#layers{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:4px}#layers button{height:24px;font-size:16px}
+#clock{height:42px;background:#1f2b27;border:1px solid #4b4a3c;margin-top:6px;padding:6px;font-size:11px}#clock small{display:block;color:var(--muted);margin-top:4px}#minimap{display:block;width:100%;height:86px;border:1px solid #797052;margin-top:5px;image-rendering:pixelated;cursor:pointer}
+#panelwrap{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:min(680px,calc(100vw - 470px));min-width:340px;z-index:5}#panelToggle{display:block;width:48px;height:16px;font-size:12px;line-height:12px;margin:0 auto -1px;background:#302e23;border:1px solid #b0924f;border-radius:5px 5px 0 0}#dock{height:142px;padding:5px;display:flex;gap:4px;flex-direction:column}#panelwrap.closed #dock{height:42px}#panelwrap.closed #tabs,#panelwrap.closed #tools{display:none}
+#tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;height:34px}#tabs button{font-size:11px;padding:4px 3px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#tabs button span{font-size:15px;margin-right:3px}#tools{display:flex;justify-content:center;gap:3px;flex:1;min-height:33px}#tools button{flex:1;min-width:0;padding:2px;font-size:11px}#tools button b{display:block;font-size:16px}
+#hotbar{display:flex;justify-content:center;gap:3px;height:33px}#hotbar button{position:relative;width:min(42px,10%);font-size:18px}#hotbar sup{position:absolute;right:2px;bottom:0;font-size:9px;color:#b5ad99}
+#actions{position:absolute;bottom:164px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:4}#actions button{background:#1a2928e6;border:1px solid #8d7752;padding:6px 9px;white-space:nowrap;font-size:11px}#tips{position:absolute;top:111px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:1;background:#172421dd;border:1px solid #657754;padding:8px 12px;font-size:11px;text-align:center;max-width:375px}
+#message{position:absolute;top:156px;left:50%;transform:translateX(-50%);z-index:15;background:#212b24f5;border:1px solid #d6b661;color:var(--gold);padding:11px 17px;opacity:0;transition:opacity .15s;pointer-events:none;min-width:180px;text-align:center}#message.show{opacity:1}
+#overlay{position:absolute;inset:0;background:#060b0ac9;z-index:30;display:grid;place-items:center;padding:15px}#window{width:min(620px,100%);max-height:calc(100dvh - 30px);overflow:hidden;display:flex;flex-direction:column}#windowHead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #645a42}#windowHead b{color:var(--gold);font-size:18px}#close{background:#354237;border:1px solid #766e50;padding:3px 10px;font-size:23px}#windowBody{padding:13px 16px;overflow-y:auto;max-height:70vh;font-size:13px;line-height:1.6}#windowBody .row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #42473a;padding:7px 0}#windowBody button{background:#3b4737;border:1px solid #8f7748;padding:6px 11px}#windowBody h3{font-size:13px;color:var(--gold)}#windowBody p{margin:8px 0}.muted{color:var(--muted)}.note{padding:8px 10px;background:#293026;border-left:3px solid #a18a4b;margin:10px 0}.chips{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.chips button.active{color:var(--gold)}#windowBody button.cta{background:#625029;color:#fff0c7}
+@media(max-width:1200px){#settlement{flex-basis:205px}#stats{flex-basis:155px}#materials .metric:nth-child(n+5){display:none}#panelwrap{min-width:310px}}@media(max-width:900px){#materials{display:none}#stats{flex:1}#panelwrap{width:min(510px,calc(100vw - 18px));bottom:3px}#info{bottom:153px;width:210px}#rail{bottom:153px}#actions{bottom:150px}}
+@media(max-width:610px){#head{height:46px}#settlement{flex-basis:145px}#settlement strong{font-size:10px}#settlement small{font-size:9px}#stats{flex:1}.metric{font-size:11px}#topActions button:first-child{display:none}#subtitle{top:58px;font-size:8px}#mode{top:86px}#tips{top:126px;max-width:170px;font-size:9px}#info{bottom:145px;width:166px}#info .face{width:32px;height:32px;flex-basis:32px;font-size:20px}#info .skillrow{display:none}#info .name small{font-size:9px}#rail{bottom:145px;width:144px;height:191px}#speeds button{height:22px}#layers button{height:22px}#clock{height:38px}#minimap{height:67px}#dock{height:132px}#tabs button{font-size:9px}#tabs button span{display:none}#tools button{font-size:10px}#actions{bottom:139px}#alerts{display:none}}
+</style>
+</head>
+<body>
+<div id="root">
+<canvas id="field" aria-label="Интерактивная демонстрационная карта Stone & Banner"></canvas>
+<div id="subtitle">● HUD PLAYGROUND · alpha.49 · автономная браузерная симуляция</div>
+<div id="mode">ПРИКАЗЫ · ORDERS</div>
+<div id="tips">ЛКМ: выбрать NPC · ПКМ: двигаться · Shift+ЛКМ: несколько · Tab: режим</div>
+<div id="head" class="frame"><div id="settlement"><span id="flag">⚑</span><div><strong>Застава Серебряного ручья</strong><small id="weather">☀ День 1 · 08:00</small></div></div><div id="stats"></div><div id="materials"></div><div id="topActions"><button class="square" data-action="journal" title="Журнал">☷</button><button class="square" data-action="settings" title="Настройки">⚙</button><button class="square" data-action="help" title="Справка">?</button></div></div>
+<div id="alerts" aria-live="polite"></div><div id="info" class="frame"></div>
+<div id="rail" class="frame"><div id="speeds"></div><div id="layers"></div><div id="clock"></div><canvas id="minimap" width="336" height="172" title="Кликните для перемещения камеры"></canvas></div>
+<div id="panelwrap"><button id="panelToggle" title="Свернуть панель">⌄</button><div id="dock" class="frame"><div id="tabs"></div><div id="tools"></div><div id="hotbar"></div></div></div>
+<div id="actions"><button data-action="mode">⇄ Tab · Hero / Orders</button><button data-action="reset">↻ Сброс демонстрации</button></div>
+<div id="message" role="status" aria-live="polite"></div>
+<div id="overlay" hidden><section id="window" class="frame" role="dialog" aria-modal="true" aria-label="Панель Stone & Banner"><div id="windowHead"><b id="windowTitle"></b><button id="close" title="Закрыть">×</button></div><div id="windowBody"></div></section></div>
+</div>
+<script>
+"use strict";
+(function(){
+const $ = id => document.getElementById(id);
+const field=$("field"),ctx=field.getContext("2d"),mini=$("minimap"),mc=mini.getContext("2d");
+const defs=[
+{id:1,name:"Эрик",role:"Строитель",icon:"🔨",x:14,y:13,hp:94,hunger:23,fatigue:28,level:[2,6,1],color:"#e5af6e",bag:["Доски ×12","Факелы ×4"]},
+{id:2,name:"Мира",role:"Фермер",icon:"🌾",x:19,y:15,hp:100,hunger:32,fatigue:18,level:[1,2,1],color:"#e2c17e",bag:["Пшеница ×8","Семена ×16"]},
+{id:3,name:"Бор",role:"Шахтёр",icon:"⛏",x:24,y:12,hp:72,hunger:64,fatigue:49,level:[2,1,7],color:"#bb9b80",bag:["Железо ×3","Камень ×12"]},
+{id:4,name:"Лина",role:"Лесоруб",icon:"🪓",x:10,y:17,hp:97,hunger:19,fatigue:34,level:[3,2,1],color:"#bbd193",bag:["Брёвна ×10"]},
+{id:5,name:"Свен",role:"Страж",icon:"🛡",x:18,y:10,hp:100,hunger:15,fatigue:16,level:[7,1,1],color:"#9ab6d7",bag:["Железный меч","Щит"]},
+{id:6,name:"Тея",role:"Геолог",icon:"🔎",x:26,y:18,hp:88,hunger:42,fatigue:41,level:[1,1,4],color:"#d8a9db",bag:["Карта","Компас"]}
+];
+const baseResources={wood:125,stone:84,iron:17,gold:6,redstone:13,grain:96};
+let s;
+let view={w:innerWidth,h:innerHeight,dpr:1};
+let pointer=null,dragStart=null,dragEnd=null,movingCamera=false,moveOrigin=null,toastTimer=0;
+const icons=["🗡","⛏","🪓","🏗","🍞","🏹","🛡","🧭","🗺"];
+const tabs=[["build","▦","Строительство"],["orders","☷","Приказы"],["zones","▥","Зоны"],["research","✦","Исследование"],["craft","⚒","Производство"]];
+const categories={root:[["res","♣","Ресурсы"],["earth","◆","Земля"],["control","⚑","Управление"]],res:[["chop","🪓","Рубить"],["mine","⛏","Добыть"],["clear","✂","Расчистить"],["back","←","Назад"]],earth:[["excavate","▤","Выемка"],["tunnel","⌑","Тоннель"],["back","←","Назад"]],control:[["cancel","✕","Отмена работ"],["back","←","Назад"]]};
+function reset(){
+ s={units:defs.map(a=>Object.assign({},a,{queue:[],target:null,work:"Ожидает приказ",progress:0})),selected:[1],groups:{},mode:"orders",profile:"wasd",speed:1,day:1,clock:480,cam:{x:19,y:15,zoom:1},layers:{borders:false,resources:false,fertility:false},tab:"orders",cat:"root",tool:null,hot:0,collapsed:false,fold:false,modal:null,modalTab:"overview",settings:{markers:true,hints:true,autoApproach:true,edgePan:true},resources:Object.assign({},baseResources),buildings:[{x:15,y:9,type:"hall"},{x:23,y:17,type:"storage"},{x:14,y:20,type:"farm"}],marks:[],logs:["Лагерь готов к управлению.","Шесть NPC доступны для команд."],tick:0};
+ $("overlay").hidden=true;notify("Демонстрация сброшена");renderUI();
+}
+function selectedUnits(){return s.units.filter(u=>s.selected.includes(u.id));}
+function note(t){s.logs.unshift("День "+s.day+" · "+t);s.logs.length=Math.min(45,s.logs.length);notify(t);}
+function notify(text){$("message").textContent=text;$("message").classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("message").classList.remove("show"),2200);}
+function el(tag,attrs,text){const e=document.createElement(tag);if(attrs)Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(text!==undefined)e.textContent=text;return e;}
+function rectBar(name,v,invert){return '<div class="bar"><label>'+name+'</label><div><i style="width:'+Math.max(0,Math.min(100,v))+'%;background:'+(invert?(v>75?"#e36c65":"#cfad69"):(v<35?"#dd6e5b":"#70bf78"))+'"></i></div><output>'+Math.round(v)+'%</output></div>';}
+function renderUI(){
+ $("mode").textContent=(s.mode==="orders"?"ПРИКАЗЫ · ORDERS":"ГЕРОЙ · HERO")+"  /  "+s.profile.toUpperCase();
+ $("weather").textContent="☀ День "+s.day+" · "+formatTime();
+ $("stats").innerHTML=[["♟",s.units.length],["⌂",3],["🍞",s.resources.grain],["🛡",37]].map(v=>'<span class="metric" title="'+v[0]+'"><span>'+v[0]+'</span><b>'+v[1]+'</b></span>').join("");
+ $("materials").innerHTML=[["🪵",s.resources.wood],["🪨",s.resources.stone],["⚙",s.resources.iron],["◆",s.resources.gold],["🔻",s.resources.redstone],["🌾",s.resources.grain]].map(v=>'<span class="metric"><span>'+v[0]+'</span><b>'+v[1]+'</b></span>').join("");
+ $("speeds").innerHTML=[["0","Ⅱ"],["1","▶"],["2","▶▶"],["3","»»"]].map(v=>'<button class="tiny '+(s.speed===+v[0]?"active":"")+'" data-speed="'+v[0]+'">'+v[1]+'</button>').join("");
+ $("layers").innerHTML=[["borders","▣","Границы F6"],["resources","◆","Ресурсы F7"],["fertility","♣","Плодородие F8"]].map(v=>'<button class="tiny '+(s.layers[v[0]]?"active":"")+'" data-layer="'+v[0]+'" title="'+v[2]+'">'+v[1]+'</button>').join("");
+ $("clock").innerHTML="⏱ "+formatTime()+" · День "+s.day+"<small>Скорость: "+s.speed+"× · Игровой полигон</small>";
+ $("tips").textContent=s.tool?"Инструмент «"+toolLabel(s.tool)+"»: ЛКМ по клетке / ПКМ для отмены":s.mode==="orders"?"ЛКМ: выбрать NPC · Shift: группа · ПКМ: приказ · Alt+ПКМ: очередь":"Герой: "+s.profile.toUpperCase()+" · WASD или ЛКМ по земле · Tab: приказы";
+ let alerts=[];let group=selectedUnits();
+ if(group.some(u=>u.hunger>65))alerts.push("⚠ Некоторым жителям необходима еда");
+ if(group.some(u=>u.hp<=75))alerts.push("✚ Раненому жителю требуется лечение");
+ if(s.resources.wood<32)alerts.push("⚒ Недостаточно древесины");
+ $("alerts").innerHTML=alerts.slice(0,3).map(t=>"<div>"+t+"</div>").join("");
+ const box=$("info");
+ if(s.mode==="hero"){box.innerHTML='<div class="no-selection"><strong>⚔ Режим героя</strong><small>Тактическая карточка скрыта, выделение NPC сохранено.</small></div>';box.style.display="block";}
+ else if(group.length===0){box.innerHTML='<div class="no-selection"><strong>Нет выделения</strong><small>ЛКМ по жителю, Shift+ЛКМ для группы. Зажмите ЛКМ и выделите рамкой.</small></div>';}
+ else if(group.length>1){box.innerHTML='<div class="group"><strong>⚑ Отряд · '+group.length+' NPC</strong><div style="margin:9px 0">Заняты: '+group.filter(u=>u.target).length+' · Приказов в очереди: '+group.reduce((n,u)=>n+u.queue.length,0)+'</div><small>'+group.map(u=>u.name).join(", ")+'</small><p><button class="tiny" data-action="stop">■ Стоп</button></p></div>';}
+ else {
+ const u=group[0];
+ box.innerHTML='<div class="person"><div class="face">'+u.icon+'</div><div class="name"><strong>'+u.name+'</strong><small>'+u.role+'</small><div class="work">'+u.work+'</div></div><button class="tiny fold" data-action="fold">'+(s.fold?"+":"−")+'</button></div>'+
+ (s.fold?"":'<div>'+rectBar("❤ Здоровье",u.hp,false)+rectBar("🍞 Голод",u.hunger,true)+rectBar("☾ Усталость",u.fatigue,true)+'</div><div class="skillrow"><span>⚔ '+u.level[0]+'</span><span>▦ '+u.level[1]+'</span><span>⛏ '+u.level[2]+'</span></div><div class="personTabs">'+[["overview","📖"],["health","✚"],["skills","✦"],["work","☷"],["inventory","📦"]].map(a=>'<button data-detail="'+a[0]+'" title="'+a[0]+'">'+a[1]+'</button>').join("")+'</div>');
+ }
+ $("panelwrap").classList.toggle("closed",s.collapsed);
+ $("panelToggle").textContent=s.collapsed?"⌃":"⌄";
+ $("tabs").innerHTML=tabs.map(a=>'<button class="tab '+(s.tab===a[0]?"active":"")+'" data-tab="'+a[0]+'"><span>'+a[1]+'</span>'+a[2]+'</button>').join("");
+ let ts=[];
+ if(s.tab==="orders")ts=categories[s.cat]||categories.root;
+ else if(s.tab==="build")ts=[["cottage","⌂","Коттедж 5×7"],["scaffold","▤","Площадка"],["bclose","×","Сбросить"]];
+ else if(s.tab==="zones")ts=[["farm","🌾","Поле"],["stock","▣","Склад"],["bclose","×","Сбросить"]];
+ else if(s.tab==="research")ts=[["study","✦","Исследовать геологию"],["map","◈","Обзор земель"]];
+ else ts=[["crafting","⚒","Заказы мастерской"],["stock","▣","Склады"]];
+ $("tools").innerHTML=ts.map(a=>'<button class="tool '+(s.tool===a[0]?"active":"")+'" data-tool="'+a[0]+'"><b>'+a[1]+'</b>'+a[2]+'</button>').join("");
+ $("hotbar").innerHTML=icons.map((v,i)=>'<button class="slot '+(s.hot===i?"active":"")+'" data-hot="'+i+'">'+v+'<sup>'+(i+1)+'</sup></button>').join("");
+}
+function toolLabel(a){let all=[].concat(...Object.values(categories),[["cottage",0,"Коттедж"],["scaffold",0,"Площадка"],["farm",0,"Поле"],["stock",0,"Склад"]]);return (all.find(x=>x[0]===a)||[a,0,a])[2];}
+function formatTime(){let minutes=Math.floor(s.clock%1440);return String(Math.floor(minutes/60)).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0");}
+function resize(){let d=Math.min(2,devicePixelRatio||1);view={w:innerWidth,h:innerHeight,dpr:d};field.width=Math.round(view.w*d);field.height=Math.round(view.h*d);ctx.setTransform(d,0,0,d,0,0);}
+function sz(){return 38*s.cam.zoom;}function project(x,y){return {x:view.w/2+(x-s.cam.x)*sz(),y:view.h/2+(y-s.cam.y)*sz()};}function unproject(px,py){return {x:s.cam.x+(px-view.w/2)/sz(),y:s.cam.y+(py-view.h/2)/sz()};}
+function noise(x,y){let v=Math.sin(x*127.1+y*311.7)*43758.5453;return v-Math.floor(v);}
+function tileColor(x,y){if(x<0||y<0||x>=40||y>=30)return "#233e33";if(y>=25&&(x+Math.sin(x/3)*1.4)>7)return "#416f89";if(x>26&&y<8)return "#8d8b67";let z=noise(x,y);return z<.12?"#486c3d":z>.85?"#62854c":"#557747";}
+function draw(){
+ let w=view.w,h=view.h,t=sz();ctx.clearRect(0,0,w,h);
+ ctx.fillStyle="#183326";ctx.fillRect(0,0,w,h);
+ let min=unproject(0,0),max=unproject(w,h),x0=Math.max(-1,Math.floor(min.x)),x1=Math.min(41,Math.ceil(max.x)),y0=Math.max(-1,Math.floor(min.y)),y1=Math.min(31,Math.ceil(max.y));
+ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){let p=project(x,y);
+ ctx.fillStyle=tileColor(x,y);ctx.fillRect(Math.round(p.x),Math.round(p.y),Math.ceil(t+.5),Math.ceil(t+.5));
+ ctx.strokeStyle="#183a2233";ctx.strokeRect(Math.round(p.x)+.5,Math.round(p.y)+.5,Math.ceil(t),Math.ceil(t));
+ if((x===18||y===13)&&x>=8&&x<=30&&y>=6&&y<=23){ctx.fillStyle="#a89a715e";ctx.fillRect(p.x+4,p.y+4,t-8,t-8);}
+ if(noise(x,y+90)<.13&&y<24){ctx.fillStyle="#d4ba6c7d";ctx.fillRect(p.x+t*.46,p.y+t*.5,3,4);}
+ }
+ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+ if(x>3&&y>3&&x<35&&y<24&&noise(x+8,y+17)>.89&&!s.buildings.some(b=>Math.abs(b.x-x)<3&&Math.abs(b.y-y)<3)){
+ let p=project(x+.5,y+.5);ctx.fillStyle="#15282283";ctx.beginPath();ctx.ellipse(p.x+3,p.y+9,t*.27,t*.1,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=noise(x,y)>.5?"#285335":"#35694b";ctx.beginPath();ctx.moveTo(p.x,p.y-t*.5);ctx.lineTo(p.x+t*.28,p.y+t*.25);ctx.lineTo(p.x-t*.28,p.y+t*.25);ctx.closePath();ctx.fill();ctx.strokeStyle="#1b4835";ctx.stroke();}
+ }
+ if(s.layers.fertility){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){if(tileColor(x,y).startsWith("#4")||tileColor(x,y).startsWith("#5")){let p=project(x,y);ctx.fillStyle="rgba(243,212,100,"+(.04+noise(x,y)*.25)+")";ctx.fillRect(p.x,p.y,t,t);}}}
+ if(s.layers.resources){for(let i=0;i<12;i++){let x=8+i*2,y=5+(i*7)%15,p=project(x+.5,y+.5);ctx.fillStyle="#ffe8a0aa";ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();}}
+ if(s.layers.borders){let a=project(9,6),b=project(29,23);ctx.strokeStyle="#f9d873";ctx.setLineDash([11,7]);ctx.lineWidth=2;ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.setLineDash([]);ctx.lineWidth=1;}
+ for(let b of s.buildings)building(b);
+ for(let m of s.marks){let p=project(m.x+.5,m.y+.5);ctx.strokeStyle=m.tool==="cancel"?"#ff746c":"#e8c063";ctx.lineWidth=2;ctx.strokeRect(p.x-t*.5,p.y-t*.5,t,t);ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.fillStyle="#ffe7a8";ctx.fillText(m.label,p.x,p.y+5);ctx.lineWidth=1;}
+ for(let u of s.units){
+ let p=project(u.x+.5,u.y+.5);
+ if(u.target){let q=project(u.target.x+.5,u.target.y+.5);ctx.strokeStyle="#e9c36f88";ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]);}
+ ctx.fillStyle="#111b18aa";ctx.beginPath();ctx.ellipse(p.x,p.y+8,10,4,0,0,7);ctx.fill();
+ if(s.selected.includes(u.id)&&s.mode==="orders"){ctx.strokeStyle="#ffdc75";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y+6,14,7,0,0,7);ctx.stroke();ctx.lineWidth=1;}
+ ctx.fillStyle=u.color;ctx.fillRect(p.x-7,p.y-9,14,16);ctx.fillStyle="#efc39a";ctx.fillRect(p.x-6,p.y-18,12,10);ctx.fillStyle="#222e28";ctx.fillRect(p.x-3,p.y-14,2,2);ctx.fillRect(p.x+2,p.y-14,2,2);ctx.fillStyle="#414136";ctx.fillRect(p.x-6,p.y+7,5,4);ctx.fillRect(p.x+1,p.y+7,5,4);
+ ctx.font="11px system-ui";ctx.textAlign="center";ctx.fillStyle="#121d18";ctx.fillText(u.name,p.x+1,p.y-24);ctx.fillStyle=s.selected.includes(u.id)?"#fbd36e":"#fff8df";ctx.fillText(u.name,p.x,p.y-25);
+ }
+ if(dragEnd&&dragStart){ctx.fillStyle="#e9d77922";ctx.strokeStyle="#fbdd8e";ctx.setLineDash([5,4]);let a=project(dragStart.x,dragStart.y),b=project(dragEnd.x,dragEnd.y);ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.setLineDash([]);}
+ if(s.mode==="hero"){let p=project(s.hero?.x||18,s.hero?.y||14);ctx.fillStyle="#61c2e2";ctx.beginPath();ctx.arc(p.x,p.y,9,0,7);ctx.fill();ctx.strokeStyle="#f2ffff";ctx.stroke();}
+ drawMinimap();
+}
+function building(b){let p=project(b.x,b.y),t=sz();ctx.fillStyle="#20221aaa";ctx.fillRect(p.x-3,p.y+t*.2,t*2.6,t*1.6);
+ if(b.type==="farm"){ctx.fillStyle="#816542";ctx.fillRect(p.x,p.y,t*2.2,t*1.15);for(let i=0;i<4;i++){ctx.fillStyle="#acc16a";ctx.fillRect(p.x+5+i*t*.52,p.y+7,7,t*.9)}return;}
+ ctx.fillStyle=b.type==="storage"?"#8b7556":"#b2a38a";ctx.fillRect(p.x,p.y,t*2.2,t*1.4);
+ ctx.fillStyle=b.type==="storage"?"#60644b":"#6f493b";ctx.beginPath();ctx.moveTo(p.x-5,p.y+3);ctx.lineTo(p.x+t*1.1,p.y-t*.7);ctx.lineTo(p.x+t*2.3,p.y+3);ctx.closePath();ctx.fill();ctx.fillStyle="#38271e";ctx.fillRect(p.x+t*.8,p.y+t*.75,t*.4,t*.65);ctx.fillStyle="#ead789";ctx.fillRect(p.x+t*1.5,p.y+t*.38,t*.35,t*.32);}
+function drawMinimap(){let w=mini.width,h=mini.height;mc.clearRect(0,0,w,h);for(let y=0;y<30;y++)for(let x=0;x<40;x++){mc.fillStyle=tileColor(x,y);mc.fillRect(x*w/40,y*h/30,w/40+1,h/30+1)}for(let b of s.buildings){mc.fillStyle="#f0c789";mc.fillRect(b.x*w/40,b.y*h/30,13,9);}for(let u of s.units){mc.fillStyle=s.selected.includes(u.id)?"#fff0a5":"#e3e5cc";mc.beginPath();mc.arc(u.x*w/40,u.y*h/30,4,0,7);mc.fill();}let a=project(0,0);mc.strokeStyle="#f9df9a";mc.lineWidth=2;mc.strokeRect((s.cam.x-view.w/(2*sz()))*w/40,(s.cam.y-view.h/(2*sz()))*h/30,view.w/ (40*sz())*w,view.h/(30*sz())*h);}
+function findUnit(pt){return s.units.find(u=>Math.hypot(u.x+.5-pt.x,u.y+.5-pt.y)<.52);}
+function setOrder(pt,append){
+ if(s.selected.length===0){notify("Сначала выберите NPC");return;}
+ for(let u of selectedUnits()){let dest={x:Math.max(0,Math.min(39,Math.floor(pt.x))),y:Math.max(0,Math.min(29,Math.floor(pt.y)))};if(append){if(u.queue.length<16)u.queue.push(dest);}else{u.queue=[];u.target=dest;}u.work="Приказ: движение";}
+ note(append?"Точка добавлена в очередь приказов":"Группа отправлена к цели");renderUI();}
+function designation(pt){let x=Math.floor(pt.x),y=Math.floor(pt.y);if(x<0||y<0||x>=40||y>=30)return;
+ if(s.tool==="cancel"){s.marks=s.marks.filter(m=>m.x!==x||m.y!==y);note("Назначение снято");}
+ else if(s.tool==="cottage"){if(s.resources.wood<32||s.resources.stone<20){notify("Нет материалов (32 дерева, 20 камня)");return;}s.resources.wood-=32;s.resources.stone-=20;s.buildings.push({x,y,type:"hall"});note("Демонстрация: коттедж построен, материалы списаны");s.tool=null;}
+ else if(s.tool==="farm"){s.buildings.push({x,y,type:"farm"});note("Демонстрация: поле создано");s.tool=null;}
+ else if(s.tool==="stock"){s.buildings.push({x,y,type:"storage"});note("Демонстрация: склад создан");s.tool=null;}
+ else{s.marks.push({x,y,tool:s.tool,label:s.tool==="chop"?"🪓":s.tool==="mine"?"⛏":"◆"});let u=selectedUnits()[0]||s.units[0];u.work="Работа: "+toolLabel(s.tool);u.target={x,y};note("Разметка: "+toolLabel(s.tool)+" (учебный сценарий)");}
+ renderUI();
+}
+function chooseTool(action){
+ if(action==="back"){s.cat="root";s.tool=null;}
+ else if(["res","earth","control"].includes(action)){s.cat=action;s.tool=null;}
+ else if(["study","map","crafting"].includes(action)){openModal(action);}
+ else if(action==="bclose"){s.tool=null;}
+ else{s.tool=action===s.tool?null:action;if(s.tool&&s.mode==="hero")s.mode="orders";}
+ renderUI();}
+function switchMode(){s.mode=s.mode==="hero"?"orders":"hero";s.tool=null;note("Режим: "+(s.mode==="orders"?"Приказы":"Герой"));renderUI();}
+function doAction(action){switch(action){case"help":openModal("help");break;case"settings":openModal("settings");break;case"journal":openModal("journal");break;case"mode":switchMode();break;case"reset":reset();break;case"stop":stop();break;case"fold":s.fold=!s.fold;renderUI();break;}}
+function stop(){selectedUnits().forEach(u=>{u.queue=[];u.target=null;u.work="Ожидает приказ";});note("Стоп: очередь отменена");renderUI();}
+function modalShell(title,content){s.modal=title;$("windowTitle").textContent=title;$("windowBody").innerHTML=content;$("overlay").hidden=false;}
+function openModal(which){s.modal=which;renderModal();}
+function modalTabs(keys){return '<div class="chips">'+keys.map(a=>'<button class="'+(s.modalTab===a[0]?"active":"")+'" data-modal-tab="'+a[0]+'">'+a[1]+'</button>').join("")+'</div>';}
+function renderModal(){
+ let which=s.modal,body="";
+ if(!which)return;
+ if(which==="help"){body='<div class="note">Это интерактивный браузерный прототип. Здесь нет Minecraft Forge, реальных чанков, серверного ИИ и ItemStack. Игровые действия симулируются локально.</div><h3>Приказы</h3><p>ЛКМ по NPC — выбор, Shift+ЛКМ — дополнить группу, протянуть рамку — массовый выбор. ПКМ по земле — движение, Alt+ПКМ — очередь. Space — остановить.</p><h3>Режимы и камера</h3><p>Tab — Hero/Orders; V — WASD/Mouse; в Hero+WASD клавиши WASD перемещают героя; в Hero+Mouse ЛКМ перемещает героя. Колесо — масштаб, средняя кнопка мыши — панорама, Home — центр камеры.</p><h3>Группы, панели</h3><p>Ctrl+1–9 — сохранить группу, Alt+1–9 — вызвать, цифры 1–9 — хотбар; B — строительство, K — производство, F6/F7/F8 — слои, Esc — закрыть окно.</p>';}
+ else if(which==="journal"){body='<div class="note">История событий браузерной симуляции. Не является данными сохранения Minecraft.</div>'+s.logs.map(line=>'<div class="row"><span>'+line+'</span></div>').join("");}
+ else if(which==="settings"){body='<div class="note">Настройки действуют только в браузерном демо; в настоящем моде параметры находятся в StoneBannerSettingsScreen и Forge config.</div>'+[['profile',"Профиль передвижения",s.profile.toUpperCase()],["markers","Маркеры и линии маршрутов",s.settings.markers?"Вкл":"Выкл"],["hints","Контекстные подсказки",s.settings.hints?"Вкл":"Выкл"],["edgePan","Прокрутка карты у краёв",s.settings.edgePan?"Вкл":"Выкл"],["autoApproach","Автоматический подход героя",s.settings.autoApproach?"Вкл":"Выкл"]].map(a=>'<div class="row"><span>'+a[1]+'</span><button data-setting="'+a[0]+'">'+a[2]+'</button></div>').join("");}
+ else if(which==="detail"){let u=selectedUnits()[0];if(!u){s.modal=null;$("overlay").hidden=true;return;}let t=[["overview","Обзор"],["health","Здоровье"],["skills","Навыки"],["work","Работы"],["inventory","Инвентарь"]];body=modalTabs(t)+'<h3>'+u.icon+' '+u.name+' · '+u.role+'</h3>';
+ if(s.modalTab==="overview")body+='<p>Текущая деятельность: '+u.work+'</p><p>Приказов в очереди: '+u.queue.length+'</p>'+statusTable(u);
+ if(s.modalTab==="health")body+='<div class="note">Локальные части тела и лечение в моде реализованы отдельно; здесь показаны демонстрационные показатели.</div>'+statusTable(u)+'<button class="cta" data-modal-action="heal">Использовать бинт (демо)</button>';
+ if(s.modalTab==="skills")body+=[["Бой",u.level[0]],["Строительство",u.level[1]],["Добыча",u.level[2]]].map(a=>'<div class="row"><span>'+a[0]+'</span><b>Уровень '+a[1]+' / 10</b></div>').join("");
+ if(s.modalTab==="work")body+='<div class="note">Учебное назначение приоритета, не запись на настоящий Job Board.</div>'+["Фермерство","Лес","Добыча","Строительство","Переноска","Охрана"].map(t=>'<div class="row"><span>'+t+'</span><button data-modal-action="work-'+t+'">Назначить</button></div>').join("");
+ if(s.modalTab==="inventory")body+='<p>Личные предметы (демо):</p>'+u.bag.map(t=>'<div class="row">'+t+'</div>').join("");}
+ else if(which==="study"||which==="map"){body='<div class="note">Геология в настоящем моде требует исследования и обследования чанков. Здесь — упражнение для HUD.</div><p>Исследование показывает сведения о залежах на демонстрационной карте.</p><button class="cta" data-modal-action="survey">Провести разведку (демо)</button>';}
+ else if(which==="crafting"){body='<div class="note">В моде есть реальные заказы MAKE/MAINTAIN через производственные станции. Эта страница управляет только учебными запасами.</div><h3>Мастерская · учебный заказ</h3><div class="row"><span>Доски — 4 брёвен → 16 досок</span><button data-modal-action="craft">Изготовить</button></div><p>Древесина: '+s.resources.wood+'</p>';}
+ else if(which==="stock"){body='<div class="note">В моде склад регистрируется Shift+ПКМ по сундуку/бочке с пустой рукой. Здесь доступен только пример учёта.</div>'+Object.entries(s.resources).map(([k,v])=>'<div class="row"><span>'+k+'</span><b>'+v+'</b></div>').join("");}
+ modalShell(which==="detail"?"Карточка Citizen":which==="help"?"Управление HUD":which==="journal"?"Журнал событий":which==="settings"?"Настройки Stone & Banner":which==="crafting"?"Производство":which==="stock"?"Склад":"Разведка",body);
+}
+function statusTable(u){return '<div class="row"><span>Здоровье</span><b>'+u.hp+'%</b></div><div class="row"><span>Голод</span><b>'+Math.round(u.hunger)+'%</b></div><div class="row"><span>Усталость</span><b>'+Math.round(u.fatigue)+'%</b></div>';}
+function closeModal(){s.modal=null;$("overlay").hidden=true;}
+function tick(dt){
+ if(s.speed===0)return;
+ let pace=dt*.001*s.speed;
+ s.clock+=pace*3.5;if(s.clock>=1440){s.clock%=1440;s.day++;note("Начался новый день");}
+ for(let u of s.units){u.hunger=Math.min(100,u.hunger+pace*.035);u.fatigue=Math.min(100,u.fatigue+pace*.028);
+ if(u.target){let dx=u.target.x-u.x,dy=u.target.y-u.y,d=Math.hypot(dx,dy),step=pace*2;if(d<.05||d<=step){u.x=u.target.x;u.y=u.target.y;u.target=null;if(u.queue.length){u.target=u.queue.shift();u.work="Очередь: движение";}else{u.work=u.work.startsWith("Работа:")?u.work:"Ожидает приказ";if(u.work.startsWith("Работа:")){u.progress+=1;if(u.progress%3===0){s.resources.wood+=4;s.resources.stone+=2;}}}}else{u.x+=dx/d*step;u.y+=dy/d*step;}}
+ if(u.hunger>87){u.hunger=35;s.resources.grain=Math.max(0,s.resources.grain-1);u.work="Ест (демо)";}}
+ if(s.mode==="hero"&&s.heroTarget){let dx=s.heroTarget.x-s.hero.x,dy=s.heroTarget.y-s.hero.y,d=Math.hypot(dx,dy),step=pace*2.8;if(d<step){s.hero=s.heroTarget;s.heroTarget=null;}else{s.hero.x+=dx/d*step;s.hero.y+=dy/d*step;}}
+ s.tick+=pace;if(s.tick>=.8){s.tick=0;renderUI();}
+}
+let last=performance.now();
+function loop(now){let dt=Math.min(120,now-last);last=now;tick(dt);draw();requestAnimationFrame(loop);}
+field.addEventListener("contextmenu",e=>e.preventDefault());
+field.addEventListener("pointerdown",e=>{
+ if(s.modal)return;field.setPointerCapture(e.pointerId);
+ let pt=unproject(e.clientX,e.clientY);
+ if(e.button===1){movingCamera=true;moveOrigin={x:e.clientX,y:e.clientY,cx:s.cam.x,cy:s.cam.y};return;}
+ if(e.button===2){if(s.tool){s.tool=null;renderUI();return;}if(s.mode==="orders")setOrder(pt,e.altKey);else note("Контекстное действие героя (симуляция)");return;}
+ if(e.button!==0)return;
+ if(s.tool){designation(pt);return;}
+ if(s.mode==="hero"){if(s.profile==="mouse"){s.heroTarget=pt;notify("Герой: движение к цели");}return;}
+ let u=findUnit(pt);
+ if(u){if(e.shiftKey){s.selected=s.selected.includes(u.id)?s.selected.filter(v=>v!==u.id):s.selected.concat(u.id);}else s.selected=[u.id];renderUI();return;}
+ dragStart=pt;dragEnd=null;if(!e.shiftKey)s.selected=[];renderUI();
+});
+field.addEventListener("pointermove",e=>{
+ if(movingCamera&&moveOrigin){s.cam.x=moveOrigin.cx-(e.clientX-moveOrigin.x)/sz();s.cam.y=moveOrigin.cy-(e.clientY-moveOrigin.y)/sz();return;}
+ if(dragStart){dragEnd=unproject(e.clientX,e.clientY);}
+});
+field.addEventListener("pointerup",e=>{
+ if(movingCamera){movingCamera=false;moveOrigin=null;return;}
+ if(dragStart){let end=unproject(e.clientX,e.clientY);if(Math.abs(end.x-dragStart.x)+Math.abs(end.y-dragStart.y)>.35){let loX=Math.min(end.x,dragStart.x),hiX=Math.max(end.x,dragStart.x),loY=Math.min(end.y,dragStart.y),hiY=Math.max(end.y,dragStart.y);
+ s.selected=Array.from(new Set(s.selected.concat(s.units.filter(u=>u.x+.5>=loX&&u.x+.5<=hiX&&u.y+.5>=loY&&u.y+.5<=hiY).map(u=>u.id))));}
+ dragStart=null;dragEnd=null;renderUI();}
+});
+field.addEventListener("wheel",e=>{e.preventDefault();s.cam.zoom=Math.max(.55,Math.min(2.3,s.cam.zoom*(e.deltaY<0?1.1:.9)));},{passive:false});
+mini.addEventListener("click",e=>{let b=mini.getBoundingClientRect();s.cam.x=(e.clientX-b.left)/b.width*40;s.cam.y=(e.clientY-b.top)/b.height*30;});
+document.addEventListener("click",e=>{
+ let a=e.target.closest("[data-action]"),speed=e.target.closest("[data-speed]"),layer=e.target.closest("[data-layer]"),tab=e.target.closest("[data-tab]"),tool=e.target.closest("[data-tool]"),hot=e.target.closest("[data-hot]"),detail=e.target.closest("[data-detail]"),setting=e.target.closest("[data-setting]"),modalTab=e.target.closest("[data-modal-tab]"),modalAct=e.target.closest("[data-modal-action]");
+ if(a){doAction(a.dataset.action);return;}
+ if(speed){s.speed=+speed.dataset.speed;renderUI();return;}
+ if(layer){s.layers[layer.dataset.layer]=!s.layers[layer.dataset.layer];renderUI();return;}
+ if(tab){s.tab=tab.dataset.tab;s.tool=null;renderUI();return;}
+ if(tool){chooseTool(tool.dataset.tool);return;}
+ if(hot){s.hot=+hot.dataset.hot;renderUI();return;}
+ if(detail){s.modalTab=detail.dataset.detail;openModal("detail");return;}
+ if(setting){if(setting.dataset.setting==="profile")s.profile=s.profile==="wasd"?"mouse":"wasd";else s.settings[setting.dataset.setting]=!s.settings[setting.dataset.setting];renderModal();renderUI();return;}
+ if(modalTab){s.modalTab=modalTab.dataset.modalTab;renderModal();return;}
+ if(modalAct){let key=modalAct.dataset.modalAction,u=selectedUnits()[0];if(key==="heal"&&u){u.hp=Math.min(100,u.hp+20);note("Бинт применён (демо)");}else if(key.startsWith("work-")&&u){u.work=key.slice(5);note("Работа назначена: "+u.work);}else if(key==="survey"){s.layers.resources=true;note("Разведка выполнена (демо)");}else if(key==="craft"){if(s.resources.wood>=4){s.resources.wood-=4;note("Мастерская: изготовлены доски (демо)");}else notify("Недостаточно древесины");}renderUI();renderModal();}
+});
+$("panelToggle").onclick=()=>{s.collapsed=!s.collapsed;renderUI();};
+$("close").onclick=closeModal;
+$("overlay").addEventListener("click",e=>{if(e.target===$("overlay"))closeModal();});
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"){if(s.modal)closeModal();else if(s.tool){s.tool=null;renderUI();}return;}
+ if(s.modal||["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+ let k=e.key.toLowerCase();
+ if(k==="tab"){e.preventDefault();switchMode();return;}
+ if(k===" "){e.preventDefault();stop();return;}
+ if(k==="v"){s.profile=s.profile==="wasd"?"mouse":"wasd";note("Профиль: "+s.profile);renderUI();return;}
+ if(k==="b"){s.tab="build";s.tool=null;renderUI();return;}
+ if(k==="k"){s.tab="craft";renderUI();return;}
+ if(k==="home"){s.cam.x=s.hero.x;s.cam.y=s.hero.y;return;}
+ if(k==="f6"||k==="f7"||k==="f8"){e.preventDefault();let a={f6:"borders",f7:"resources",f8:"fertility"}[k];s.layers[a]=!s.layers[a];renderUI();return;}
+ if(/^[1-9]$/.test(k)){e.preventDefault();let n=+k;if(e.ctrlKey){s.groups[n]=s.selected.slice();notify("Группа "+n+" сохранена");}else if(e.altKey){s.selected=(s.groups[n]||[]).slice();notify("Группа "+n+" вызвана");}else{s.hot=n-1;}renderUI();return;}
+ if(s.mode==="hero"&&s.profile==="wasd"&&["w","a","s","d"].includes(k)){let delta={w:[0,-.5],s:[0,.5],a:[-.5,0],d:[.5,0]}[k];s.hero.x=Math.max(0,Math.min(39,s.hero.x+delta[0]));s.hero.y=Math.max(0,Math.min(29,s.hero.y+delta[1]));return;}
+ if(k==="?"||k==="f1")openModal("help");
+});
+window.addEventListener("resize",resize);
+reset();s.hero={x:18,y:14};s.heroTarget=null;resize();requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
