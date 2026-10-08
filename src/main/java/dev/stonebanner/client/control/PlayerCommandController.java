@@ -286,7 +286,13 @@ public final class PlayerCommandController {
         }
 
         if (!ClientConfig.ENFORCE_THIRD_PERSON.get() || !minecraft.player.isAlive()) { stop(); return; }
-        if (!HeroInputController.commandMode() && ClientConfig.controlMode() == ControlMode.ACTION
+        if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) {
+            clearMovement(event.getInput()); return;
+        }
+        if (HeroInputController.commandMode() || ConstructionPreviewController.active()) {
+            clearMovement(event.getInput()); return;
+        }
+        if (ClientConfig.controlMode() == ControlMode.ACTION
                 && HeroInputController.manualMovement()) {
             stop(); RpgCameraController.clearFocus(); return;
         }

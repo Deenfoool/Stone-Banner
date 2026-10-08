@@ -140,20 +140,20 @@ public final class RpgCameraController {
         ensureInitialized();
         if (tacticalRig.initialized()) tacticalRig.tick();
         if (mc.player != null && mc.level != null && mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen
-                && dev.stonebanner.client.control.HeroInputController.commandMode() && tacticalRig.initialized()) {
-            long window = mc.getWindow().getWindow();
-            double left = (pressed(window, GLFW.GLFW_KEY_A) || pressed(window, GLFW.GLFW_KEY_LEFT) ? 1 : 0)
-                    - (pressed(window, GLFW.GLFW_KEY_D) || pressed(window, GLFW.GLFW_KEY_RIGHT) ? 1 : 0);
-            double forward = (pressed(window, GLFW.GLFW_KEY_W) || pressed(window, GLFW.GLFW_KEY_UP) ? 1 : 0)
-                    - (pressed(window, GLFW.GLFW_KEY_S) || pressed(window, GLFW.GLFW_KEY_DOWN) ? 1 : 0);
+                && dev.stonebanner.client.control.HeroInputController.commandMode() && tacticalRig.initialized()
+                && !dev.stonebanner.client.control.ConstructionPreviewController.active()) {
+            double left = (dev.stonebanner.client.control.InputBindings.held(mc.options.keyLeft) ? 1 : 0)
+                    - (dev.stonebanner.client.control.InputBindings.held(mc.options.keyRight) ? 1 : 0);
+            double forward = (dev.stonebanner.client.control.InputBindings.held(mc.options.keyUp) ? 1 : 0)
+                    - (dev.stonebanner.client.control.InputBindings.held(mc.options.keyDown) ? 1 : 0);
             if (mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen screen) {
                 var edge = screen.edgePan(); left += edge[0]; forward += edge[1];
             }
-            double up = (pressed(window, GLFW.GLFW_KEY_PAGE_UP) ? 1 : 0) - (pressed(window, GLFW.GLFW_KEY_PAGE_DOWN) ? 1 : 0);
+            double up = (dev.stonebanner.client.control.InputBindings.held(dev.stonebanner.client.ClientKeyMappings.CAMERA_UP) ? 1 : 0) - (dev.stonebanner.client.control.InputBindings.held(dev.stonebanner.client.ClientKeyMappings.CAMERA_DOWN) ? 1 : 0);
             if (left != 0 || forward != 0 || up != 0) {
                 clearFocus();
                 tacticalRig.pan(left, forward, up, cameraYaw,
-                        (pressed(window, GLFW.GLFW_KEY_LEFT_SHIFT) ? .8 : .35) * ClientConfig.CAMERA_PAN_SENSITIVITY.get());
+                        (dev.stonebanner.client.control.InputBindings.held(mc.options.keySprint) ? .8 : .35) * ClientConfig.CAMERA_PAN_SENSITIVITY.get());
             }
         }
         updateSmoothedDistance();
@@ -276,7 +276,6 @@ public final class RpgCameraController {
 
     }
 
-    private static boolean pressed(long window, int key) { return GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS; }
     public static void recenter() {
         clearFocus(); tacticalRig.reset(null); lastSafeAnchor = null;
     }

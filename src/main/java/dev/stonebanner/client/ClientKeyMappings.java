@@ -50,11 +50,36 @@ public final class ClientKeyMappings {
     public static final KeyMapping LAYER_BOUNDARIES = new KeyMapping("key.stonebanner.layer_boundaries", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, CATEGORY);
     public static final KeyMapping LAYER_RESOURCES = new KeyMapping("key.stonebanner.layer_resources", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, CATEGORY);
     public static final KeyMapping LAYER_FERTILITY = new KeyMapping("key.stonebanner.layer_fertility", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY);
+    public static final KeyMapping CAMERA_ROTATE = new KeyMapping("key.stonebanner.camera_rotate",KeyConflictContext.IN_GAME,
+            InputConstants.Type.MOUSE,GLFW.GLFW_MOUSE_BUTTON_MIDDLE,CATEGORY);
+    public static final KeyMapping ALTERNATIVE_USE = binding("alternative_use", GLFW.GLFW_KEY_UNKNOWN);
+    public static final KeyMapping ORDERS = binding("orders", GLFW.GLFW_KEY_TAB);
+    public static final KeyMapping STOP = binding("stop", GLFW.GLFW_KEY_SPACE);
+    public static final KeyMapping ROTATE_BLUEPRINT = binding("rotate_blueprint", GLFW.GLFW_KEY_R);
+    public static final KeyMapping CAMERA_UP = binding("camera_up", GLFW.GLFW_KEY_PAGE_UP);
+    public static final KeyMapping CAMERA_DOWN = binding("camera_down", GLFW.GLFW_KEY_PAGE_DOWN);
+    public static final KeyMapping CONTROLS_HELP = binding("controls_help", GLFW.GLFW_KEY_F4);
+    public static final KeyMapping[] SAVE_GROUP = new KeyMapping[9];
+    public static final KeyMapping[] RECALL_GROUP = new KeyMapping[9];
+    static {
+        for (int i = 0; i < 9; i++) {
+            SAVE_GROUP[i] = new KeyMapping("key.stonebanner.save_group_" + (i+1), KeyConflictContext.IN_GAME,
+                    net.minecraftforge.client.settings.KeyModifier.CONTROL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_1+i, CATEGORY);
+            RECALL_GROUP[i] = new KeyMapping("key.stonebanner.recall_group_" + (i+1), KeyConflictContext.IN_GAME,
+                    net.minecraftforge.client.settings.KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_1+i, CATEGORY);
+        }
+    }
+    private static KeyMapping binding(String name, int key) {
+        return new KeyMapping("key.stonebanner."+name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, key, CATEGORY);
+    }
     private ClientKeyMappings() {
     }
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(CAMERA_ROTATE); event.register(ALTERNATIVE_USE); event.register(ORDERS); event.register(STOP); event.register(ROTATE_BLUEPRINT);
+        event.register(CAMERA_UP); event.register(CAMERA_DOWN); event.register(CONTROLS_HELP);
+        for (int i=0;i<9;i++) { event.register(SAVE_GROUP[i]); event.register(RECALL_GROUP[i]); }
         event.register(PRODUCTION);event.register(BUILDING);
         event.register(ORE_JOURNAL);
         event.register(DEBUG_OVERLAY);

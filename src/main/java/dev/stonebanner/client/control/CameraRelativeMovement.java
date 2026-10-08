@@ -18,12 +18,12 @@ public final class CameraRelativeMovement {
         if(org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(),org.lwjgl.glfw.GLFW.GLFW_FOCUSED)!=1) {
             input.leftImpulse=0;input.forwardImpulse=0;input.jumping=false;input.shiftKeyDown=false;PlayerCommandController.stop();return;
         }
-        if (!(mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen) || HeroInputController.commandMode()) return;
+        if (!(mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen) || HeroInputController.commandMode() || ConstructionPreviewController.active()) return;
         if (!PlayerCommandController.moving()) {
             float left = 0, forward = 0;
             if (ClientConfig.controlMode() == ControlMode.ACTION) {
-                left = (HeroInputController.down(org.lwjgl.glfw.GLFW.GLFW_KEY_A)?1:0)-(HeroInputController.down(org.lwjgl.glfw.GLFW.GLFW_KEY_D)?1:0);
-                forward = (HeroInputController.down(org.lwjgl.glfw.GLFW.GLFW_KEY_W)?1:0)-(HeroInputController.down(org.lwjgl.glfw.GLFW.GLFW_KEY_S)?1:0);
+                left = (InputBindings.held(mc.options.keyLeft)?1:0)-(InputBindings.held(mc.options.keyRight)?1:0);
+                forward = (InputBindings.held(mc.options.keyUp)?1:0)-(InputBindings.held(mc.options.keyDown)?1:0);
             }
             var movement = CameraSpace.rotateMovement(left, forward, RpgCameraController.cameraYaw()-mc.player.getYRot());
             input.leftImpulse = movement.left(); input.forwardImpulse = movement.forward();
@@ -33,7 +33,7 @@ public final class CameraRelativeMovement {
         if(HeroInputController.descend()){input.forwardImpulse*=.3f;input.leftImpulse*=.3f;}
         input.jumping |= HeroInputController.jump();
         input.shiftKeyDown = HeroInputController.descend();
-        mc.player.setSprinting(HeroInputController.down(org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) && !input.shiftKeyDown && !mc.player.isUsingItem()
+        mc.player.setSprinting(InputBindings.held(mc.options.keySprint) && !input.shiftKeyDown && !mc.player.isUsingItem()
                 && (input.forwardImpulse != 0 || input.leftImpulse != 0));
     }
 }

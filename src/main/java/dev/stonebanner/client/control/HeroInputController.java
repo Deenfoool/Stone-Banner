@@ -19,46 +19,66 @@ public final class HeroInputController {
     private static int selectedSlot = -1, approachCooldown;
     private static HitResult target;
     public static boolean commandMode() { return commands; }
-    public static boolean down(int key) { return GLFW.glfwGetKey(Minecraft.getInstance().getWindow().getWindow(),key)==GLFW.GLFW_PRESS; }
-    public static boolean jump() { return down(GLFW.GLFW_KEY_SPACE); }
-    public static boolean descend() { return down(GLFW.GLFW_KEY_LEFT_CONTROL)||down(GLFW.GLFW_KEY_RIGHT_CONTROL); }
-    public static boolean manualMovement() { return down(GLFW.GLFW_KEY_W)||down(GLFW.GLFW_KEY_A)||down(GLFW.GLFW_KEY_S)||down(GLFW.GLFW_KEY_D); }
+    private static net.minecraft.client.KeyMapping heldBinding;
+    private static boolean attackIntent;
+    public static boolean jump() { return InputBindings.held(Minecraft.getInstance().options.keyJump); }
+    public static boolean descend() { return InputBindings.held(Minecraft.getInstance().options.keyShift); }
+    public static boolean manualMovement() { var o=Minecraft.getInstance().options; return InputBindings.held(o.keyUp)||InputBindings.held(o.keyLeft)||InputBindings.held(o.keyDown)||InputBindings.held(o.keyRight); }
     public static void toggleCommands() {
-        cancel(); PlayerCommandController.stop(); commands=!commands;
+        cancel(); commands=!commands;
         CitizenSelectionController.clear(); DesignationController.deactivate(); TunnelExtensionController.deactivate();
         RpgCameraController.recenter();
     }
     public static void setMoveHeld(boolean held) { moveHeld=held; }
     public static void setActionHeld(boolean held) {
         if(!held) { cancelAction(); return; }
-        PlayerCommandController.stop(); actionHeld=true;
+        setActionHeld(Minecraft.getInstance().options.keyUse, false);
     }
-    public static void cancel() { moveHeld=false; cancelAction(); }
-    private static void cancelAction() {
+    public static void setActionHeld(net.minecraft.client.KeyMapping binding, boolean attack) {
+        if (actionHeld && heldBinding==binding && attackIntent==attack) return;
+        cancelAction(false); moveHeld=false; PlayerCommandController.stop(); heldBinding=binding; attackIntent=attack; actionHeld=true;
+    }
+    public static void release(net.minecraft.client.KeyMapping binding) {
+        if (actionHeld && heldBinding == binding) cancelAction(true);
+    }
+    public static void cancel() { moveHeld=false; cancelAction(false); }
+    private static void cancelAction() { cancelAction(true); }
+    private static void cancelAction(boolean release) {
         var mc=Minecraft.getInstance();
         if(mc.player!=null&&mc.gameMode!=null) {
-            if(mc.player.isUsingItem()) { if(target!=null)aim(target instanceof EntityHitResult e?e.getEntity().getBoundingBox().getCenter():target.getLocation()); sendAim(); mc.gameMode.releaseUsingItem(mc.player); }
+            if(mc.player.isUsingItem()) {
+                if (release) {
+                    if(target!=null)aim(target instanceof EntityHitResult e?e.getEntity().getBoundingBox().getCenter():target.getLocation());
+                    sendAim(); mc.gameMode.releaseUsingItem(mc.player);
+                } else {
+                    // Slot change aborts a bow on the server without firing a release shot.
+                    int slot=mc.player.getInventory().selected;
+                    mc.player.connection.send(new ServerboundSetCarriedItemPacket((slot+1)%9));
+                    mc.player.stopUsingItem();
+                    mc.player.connection.send(new ServerboundSetCarriedItemPacket(slot));
+                }
+            }
             mc.gameMode.stopDestroyBlock();
         }
         if(actionHeld) PlayerCommandController.stop();
-        actionHeld=false; target=null; approachCooldown=0;
+        actionHeld=false; heldBinding=null; target=null; approachCooldown=0;
     }
     public static void tick(HitResult hover, boolean overUi, HitResult movementHit) {
         var mc=Minecraft.getInstance();
         if(mc.player==null||mc.level==null||mc.gameMode==null) { cancel(); commands=false; tracked=null; return; }
         if(tracked!=mc.player) { cancel(); commands=false; tracked=mc.player; selectedSlot=mc.player.getInventory().selected; }
         if(GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(),GLFW.GLFW_FOCUSED)!=1) { cancel(); return; }
-        if(commands||mc.player.isSpectator()||!mc.player.isAlive()) { cancel(); return; }
-        if(actionHeld && GLFW.glfwGetMouseButton(mc.getWindow().getWindow(),GLFW.GLFW_MOUSE_BUTTON_RIGHT)!=GLFW.GLFW_PRESS)cancelAction();
-        if(moveHeld && GLFW.glfwGetMouseButton(mc.getWindow().getWindow(),GLFW.GLFW_MOUSE_BUTTON_LEFT)!=GLFW.GLFW_PRESS)moveHeld=false;
+        if(commands||overUi||mc.player.isSpectator()||!mc.player.isAlive()) { cancel(); return; }
+        if(actionHeld && (heldBinding==null || !InputBindings.held(heldBinding)))cancelAction();
+        if(moveHeld && !InputBindings.held(mc.options.keyAttack))moveHeld=false;
         if(approachCooldown>0)approachCooldown--;
-        if(selectedSlot!=mc.player.getInventory().selected) { cancelAction(); selectedSlot=mc.player.getInventory().selected; }
+        if(selectedSlot!=mc.player.getInventory().selected) { cancelAction(false); selectedSlot=mc.player.getInventory().selected; }
         if(moveHeld&&!overUi&&ClientConfig.controlMode()==ControlMode.HYBRID&&mc.player.tickCount%5==0
                 && movementHit instanceof BlockHitResult block) PlayerCommandController.moveTo(block);
-        if(!actionHeld||overUi||RpgCameraController.viewObstructed()) { if(overUi&&actionHeld)cancelAction(); return; }
+        if(!actionHeld||overUi||RpgCameraController.viewObstructed()) { if((overUi||RpgCameraController.viewObstructed())&&actionHeld)cancelAction(false); return; }
         target=hover;
         var item=mc.player.getMainHandItem();
-        boolean using=item.getUseDuration()>0;
+        boolean using=!attackIntent && item.getUseDuration()>0;
         if(hover!=null) aim(hover instanceof EntityHitResult e?e.getEntity().getBoundingBox().getCenter():hover.getLocation());
         if(using) {
             mc.gameMode.stopDestroyBlock();
@@ -67,9 +87,12 @@ public final class HeroInputController {
         }
         if(hover instanceof EntityHitResult entityHit) {
             mc.gameMode.stopDestroyBlock(); var entity=entityHit.getEntity();
-            if(!entity.isAttackable()||entity instanceof net.minecraft.world.entity.item.ItemEntity) return;
+            if(!attackIntent || !entity.isAttackable() || entity instanceof dev.stonebanner.entity.HumanNpcEntity
+                    || entity instanceof net.minecraft.world.entity.npc.AbstractVillager
+                    || entity instanceof net.minecraft.world.entity.player.Player
+                    || entity instanceof net.minecraft.world.entity.item.ItemEntity) return;
             if(!mc.player.canReach(entity,-.3)||!TacticalInteractionRules.visible(mc.level,mc.player,entity.getBoundingBox().getCenter(),null)) {
-                approach(entity.getBoundingBox().getCenter(),null,mc.player.getEntityReach()); return;
+                if(ClientConfig.controlMode()!=ControlMode.ACTION)approach(entity.getBoundingBox().getCenter(),null,mc.player.getEntityReach()); return;
             }
             PlayerCommandController.stop();
             if(mc.player.getAttackStrengthScale(.5f)>=.9f) { syncSlot(); sendAim(); mc.gameMode.attack(mc.player,entity); mc.player.swing(InteractionHand.MAIN_HAND); }
@@ -77,13 +100,13 @@ public final class HeroInputController {
         }
         if(hover instanceof BlockHitResult block) {
             if(!mc.player.canReach(block.getBlockPos(),-.3)||!TacticalInteractionRules.visible(mc.level,mc.player,block.getLocation(),block.getBlockPos())) {
-                mc.gameMode.stopDestroyBlock(); approach(block.getLocation(),block.getBlockPos(),mc.player.getBlockReach()); return;
+                mc.gameMode.stopDestroyBlock(); if(ClientConfig.controlMode()!=ControlMode.ACTION)approach(block.getLocation(),block.getBlockPos(),mc.player.getBlockReach()); return;
             }
             PlayerCommandController.stop(); syncSlot(); sendAim();
-            if(item.getItem() instanceof BlockItem) {
+            if(!attackIntent && item.getItem() instanceof BlockItem) {
                 mc.gameMode.stopDestroyBlock();
                 if(mc.player.tickCount%4==0) { var result=mc.gameMode.useItemOn(mc.player,InteractionHand.MAIN_HAND,block); if(result.shouldSwing())mc.player.swing(InteractionHand.MAIN_HAND); }
-            } else if(item.getItem() instanceof DiggerItem || item.isEmpty()) {
+            } else if(attackIntent) {
                 mc.gameMode.continueDestroyBlock(block.getBlockPos(),block.getDirection()); mc.player.swing(InteractionHand.MAIN_HAND);
             } else {
                 mc.gameMode.stopDestroyBlock();

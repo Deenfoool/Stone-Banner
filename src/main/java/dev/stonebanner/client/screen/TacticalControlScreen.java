@@ -26,13 +26,17 @@ import net.minecraft.world.phys.HitResult;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Optional;
+import dev.stonebanner.control.InputContext;
+import dev.stonebanner.control.ActionResolver;
+import dev.stonebanner.client.control.HeroInputController;
+import dev.stonebanner.client.control.InputBindings;
 
 /** Transparent input layer for both hero profiles and the separate group-order mode. */
 public final class TacticalControlScreen extends Screen {
     private double cursorX, cursorY, dragStartX, dragStartY;
     private boolean selecting, selectionMoved;
     private static boolean commands() { return dev.stonebanner.client.control.HeroInputController.commandMode(); }
-    private boolean overUi(double x,double y) { return StoneBannerHudRenderer.actionAt(x,y,width,height,CitizenSelectionController.hasSelection()) != StoneBannerHudRenderer.HudAction.NONE; }
+    private boolean overUi(double x,double y) { return OreDiscoveryHud.contains(x,y,width) || StoneBannerHudRenderer.actionAt(x,y,width,height,CitizenSelectionController.hasSelection()) != StoneBannerHudRenderer.HudAction.NONE; }
     public double[] edgePan() {
         if (!dev.stonebanner.config.ClientConfig.CAMERA_EDGE_PAN.get()) return new double[]{0,0};
         if (!commands() || overUi(cursorX,cursorY) || selecting || org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(minecraft.getWindow().getWindow(),GLFW.GLFW_FOCUSED)!=1) return new double[]{0,0};
@@ -40,7 +44,7 @@ public final class TacticalControlScreen extends Screen {
     }
     @Override protected void init() { cursorX=width*.5;cursorY=height*.5; }
     @Override public void tick() {
-        if(dev.stonebanner.client.control.ConstructionPreviewController.active())return;
+        if(context(false)==InputContext.CONSTRUCTION || context(false)==InputContext.DESIGNATION){HeroInputController.cancel();return;}
         dev.stonebanner.client.control.HeroInputController.tick(
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
@@ -80,7 +84,7 @@ public final class TacticalControlScreen extends Screen {
         }
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
-        graphics.drawString(font, font.plainSubstrByWidth(Component.translatable(commands()?"hud.stonebanner.commands.controls":"hud.stonebanner.hero.controls").getString(), width - 16), 8, 96, 0xFFD8D2C8);
+        graphics.drawString(font, font.plainSubstrByWidth(controlHint().getString(), width - 16), 8, 96, 0xFFD8D2C8);
         if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
             graphics.drawString(font,Component.translatable("construction.stonebanner.ui.preview"),8,110,0xFFE7C46A);
             graphics.drawString(font,Component.translatable("construction.stonebanner.status."+dev.stonebanner.client.control.ConstructionPreviewController.status()),8,122,0xFFD8D2C8);
@@ -234,9 +238,10 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
-            if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT)dev.stonebanner.client.control.ConstructionPreviewController.cancel();
-            else if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&!overUi(mouseX,mouseY)){
+        if (overUi(mouseX,mouseY)) HeroInputController.cancel();
+        if(dev.stonebanner.client.control.ConstructionPreviewController.active() && !overUi(mouseX,mouseY)){
+            if(minecraft.options.keyUse.matchesMouse(button))dev.stonebanner.client.control.ConstructionPreviewController.cancel();
+            else if(minecraft.options.keyAttack.matchesMouse(button)){
                 dev.stonebanner.client.control.ConstructionPreviewController.update(WorldCursor.pick(minecraft,mouseX,mouseY,width,height).orElse(null));
                 dev.stonebanner.client.control.ConstructionPreviewController.confirm();
             }
@@ -374,70 +379,55 @@ public final class TacticalControlScreen extends Screen {
             }
         }
 
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && DesignationController.isActive()) {
-            hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
-            BlockHitResult hit = hoveredTarget.filter(BlockHitResult.class::isInstance)
-                    .map(BlockHitResult.class::cast)
-                    .orElse(null);
-            if (hit != null) {
-                DesignationController.updatePreview(hit.getBlockPos());
-                DesignationController.click(hit.getBlockPos());
-            }
-            return true;
-        }
-
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && TunnelExtensionController.isActive()) {
-            hoveredTarget = WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
-            BlockHitResult hit = hoveredTarget.filter(BlockHitResult.class::isInstance)
-                    .map(BlockHitResult.class::cast)
-                    .orElse(null);
-            if (hit != null) {
-                TunnelExtensionController.updatePreview(hit.getBlockPos());
-                TunnelExtensionController.click(hit.getBlockPos());
-            }
-            return true;
-        }
-
         cursorX=mouseX; cursorY=mouseY;
-        hoveredTarget=WorldCursor.pick(minecraft,mouseX,mouseY,width,height);
-        if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT && hasShiftDown() && minecraft.player!=null
-                && minecraft.player.getMainHandItem().isEmpty() && hoveredTarget.orElse(null) instanceof BlockHitResult storageHit
-                && dev.stonebanner.storage.StorageManagementService.supported(minecraft.level,storageHit.getBlockPos())) {
-            dev.stonebanner.client.control.HeroInputController.cancel();
-            PlayerCommandController.manageStorage(storageHit);return true;
+        if (keyPressed(10000+button,0,0)) return true;
+        if (minecraft.options.keyAttack.matchesMouse(button)) return worldAction(true);
+        if (minecraft.options.keyUse.matchesMouse(button)) return worldAction(false);
+        return ClientKeyMappings.CAMERA_ROTATE.matchesMouse(button) || super.mouseClicked(mouseX,mouseY,button);
+    }
+
+    private boolean worldAction(boolean primary) {
+        hoveredTarget=WorldCursor.pick(minecraft,cursorX,cursorY,width,height);
+        if(minecraft.player==null || minecraft.level==null || !minecraft.player.isAlive())return true;
+        var context=context(overUi(cursorX,cursorY));
+        // Resolve modal priority before any world command, including keyboard-bound actions.
+        var route=ActionResolver.resolve(context,primary?ActionResolver.Button.PRIMARY:ActionResolver.Button.SECONDARY,
+                ActionResolver.Target.NONE,false,false,false);
+        if(route==ActionResolver.Action.CONSUME && context!=InputContext.WASD && context!=InputContext.MOUSE)return true;
+        if(context==InputContext.CONSTRUCTION) {
+            if(primary)dev.stonebanner.client.control.ConstructionPreviewController.confirm();
+            else dev.stonebanner.client.control.ConstructionPreviewController.cancel();
+            return true;
         }
-        if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            if(commands()) { selecting=true; selectionMoved=false; dragStartX=mouseX;dragStartY=mouseY; return true; }
-            if (hasAltDown() && dev.stonebanner.config.ClientConfig.controlMode() == dev.stonebanner.control.ControlMode.HYBRID) {
-                dev.stonebanner.client.control.HeroInputController.setMoveHeld(false);
-                var ground = WorldCursor.pick(minecraft,mouseX,mouseY,width,height,true).orElse(null);
-                if (ground instanceof BlockHitResult block) PlayerCommandController.queueMoveTo(block);
-                return true;
-            }
-            if(hoveredTarget.orElse(null) instanceof EntityHitResult e) PlayerCommandController.interactEntity(e.getEntity());
-            else if(hoveredTarget.orElse(null) instanceof BlockHitResult b && PlayerCommandController.isInteractiveBlock(b.getBlockPos())) PlayerCommandController.interactBlock(b);
-            else if(dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID) {
-                var hit=WorldCursor.pick(minecraft,mouseX,mouseY,width,height,true).orElse(null);
-                if(hit instanceof BlockHitResult b) PlayerCommandController.moveTo(b);
-                dev.stonebanner.client.control.HeroInputController.setMoveHeld(true);
+        if(context==InputContext.DESIGNATION) {
+            if(DesignationController.isActive()) {
+                if(!primary){if(!DesignationController.undoSelectionStep())DesignationController.deactivate();}
+                else if(hoveredTarget.orElse(null) instanceof BlockHitResult b){DesignationController.updatePreview(b.getBlockPos());DesignationController.click(b.getBlockPos());}
+            } else {
+                if(!primary){if(!TunnelExtensionController.undoSelectionStep())TunnelExtensionController.deactivate();}
+                else if(hoveredTarget.orElse(null) instanceof BlockHitResult b){TunnelExtensionController.updatePreview(b.getBlockPos());TunnelExtensionController.click(b.getBlockPos());}
             }
             return true;
         }
-        if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            if(!commands()) { dev.stonebanner.client.control.HeroInputController.setActionHeld(true); return true; }
-            if(DesignationController.isActive()) { if(!DesignationController.undoSelectionStep())DesignationController.deactivate(); return true; }
-            if(TunnelExtensionController.isActive()) { if(!TunnelExtensionController.undoSelectionStep())TunnelExtensionController.deactivate(); return true; }
-            if(hoveredTarget.orElse(null) instanceof EntityHitResult e) CitizenSelectionController.commandTarget(e.getEntity());
-            else if(hoveredTarget.orElse(null) instanceof BlockHitResult b) {
-                if (hasAltDown()) CitizenSelectionController.moveSelected(b, true);
-                else if(hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
-                    dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(b.getBlockPos().relative(b.getDirection()),dev.stonebanner.geology.GeologyService.Action.SURVEY,CitizenSelectionController.selected().map(n->n.getId()).orElse(-1));
-                } else if(PlayerCommandController.isInteractiveBlock(b.getBlockPos())) PlayerCommandController.interactBlock(b);
-                else if(!CitizenSelectionController.workSelected(b) && !CitizenSelectionController.moveSelected(b))PlayerCommandController.moveTo(b);
+        if(!commands()) {
+            if(!primary && hasShiftDown() && minecraft.player.getMainHandItem().isEmpty()
+                    && hoveredTarget.orElse(null) instanceof BlockHitResult b
+                    && dev.stonebanner.storage.StorageManagementService.supported(minecraft.level,b.getBlockPos())) {
+                HeroInputController.cancel();PlayerCommandController.manageStorage(b);return true;
             }
-            return true;
+            return heroAction(primary);
         }
-        return button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE || super.mouseClicked(mouseX, mouseY, button);
+        if(primary) { selecting=true;selectionMoved=false;dragStartX=cursorX;dragStartY=cursorY;return true; }
+        if(hoveredTarget.orElse(null) instanceof EntityHitResult e)CitizenSelectionController.commandTarget(e.getEntity());
+        else if(hoveredTarget.orElse(null) instanceof BlockHitResult b) {
+            if(hasAltDown())CitizenSelectionController.moveSelected(b,true);
+            else if(hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
+                dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(b.getBlockPos().relative(b.getDirection()),
+                        dev.stonebanner.geology.GeologyService.Action.SURVEY,CitizenSelectionController.selected().map(n->n.getId()).orElse(-1));
+            } else if(PlayerCommandController.isInteractiveBlock(b.getBlockPos()))PlayerCommandController.interactBlock(b);
+            else if(!CitizenSelectionController.workSelected(b))CitizenSelectionController.moveSelected(b);
+        }
+        return true;
     }
 
     private void openCitizen(HumanNpcEntity selected, CitizenDetailsScreen.Tab tab) {
@@ -480,9 +470,17 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT) { dev.stonebanner.client.control.HeroInputController.setActionHeld(false); return true; }
-        if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if(minecraft.options.keyUse.matchesMouse(button)) { if(overUi(mouseX,mouseY))HeroInputController.cancel();else HeroInputController.release(minecraft.options.keyUse); return true; }
+        if(minecraft.options.keyAttack.matchesMouse(button)) {
+            HeroInputController.release(minecraft.options.keyAttack);
             dev.stonebanner.client.control.HeroInputController.setMoveHeld(false);
+            finishSelection(mouseX,mouseY);
+            return true;
+        }
+        return keyReleased(10000+button,0,0) || super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void finishSelection(double mouseX,double mouseY) {
             if(selecting) {
                 selecting=false;
                 if(selectionMoved) CitizenSelectionController.selectArea(dragStartX,dragStartY,mouseX,mouseY,width,height,hasShiftDown());
@@ -492,21 +490,25 @@ public final class TacticalControlScreen extends Screen {
                     else if(!hasShiftDown())CitizenSelectionController.clear();
                 }
             }
-            return true;
-        }
-        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         cursorX=mouseX;cursorY=mouseY;
-        if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&selecting) { selectionMoved |= Math.hypot(mouseX-dragStartX,mouseY-dragStartY)>5; return true; }
-        if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
+        if(minecraft.options.keyAttack.matchesMouse(button)&&selecting) { selectionMoved |= Math.hypot(mouseX-dragStartX,mouseY-dragStartY)>5; return true; }
+        if (ClientKeyMappings.CAMERA_ROTATE.matchesMouse(button)) {
             if (commands() && hasShiftDown()) RpgCameraController.panByMouse(dragX, dragY);
             else RpgCameraController.rotateByMouseDrag(dragX, dragY);
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override public void mouseMoved(double x,double y) {
+        if (ClientKeyMappings.CAMERA_ROTATE.getKey().getType()!=com.mojang.blaze3d.platform.InputConstants.Type.MOUSE
+                && InputBindings.held(ClientKeyMappings.CAMERA_ROTATE))RpgCameraController.rotateByMouseDrag(x-cursorX,y-cursorY);
+        cursorX=x;cursorY=y;
+        super.mouseMoved(x,y);
     }
 
     @Override
@@ -521,57 +523,58 @@ public final class TacticalControlScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
-            if(keyCode==GLFW.GLFW_KEY_R)dev.stonebanner.client.control.ConstructionPreviewController.rotate();
-            else if(keyCode==GLFW.GLFW_KEY_ESCAPE)dev.stonebanner.client.control.ConstructionPreviewController.cancel();
-            return true;
+            if(InputBindings.matches(ClientKeyMappings.ROTATE_BLUEPRINT,keyCode,scanCode)){dev.stonebanner.client.control.ConstructionPreviewController.rotate();return true;}
+            else if(keyCode==GLFW.GLFW_KEY_ESCAPE){dev.stonebanner.client.control.ConstructionPreviewController.cancel();return true;}
+            if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode))return worldAction(true);
+            if(InputBindings.matches(minecraft.options.keyUse,keyCode,scanCode))return worldAction(false);
         }
-        if(ClientKeyMappings.BUILDING.matches(keyCode,scanCode)){ConstructionScreen.requestOpen();return true;}
-        // Numbers remain hotbar keys for the hero, but address control groups in orders mode.
-        if (commands() && keyCode >= GLFW.GLFW_KEY_1 && keyCode <= GLFW.GLFW_KEY_9) {
-            selecting = false;
-            int slot = keyCode - GLFW.GLFW_KEY_1;
-            if (hasControlDown()) CitizenSelectionController.saveGroup(slot);
-            else CitizenSelectionController.recallGroup(slot, hasShiftDown());
-            return true;
+        if(InputBindings.matches(ClientKeyMappings.CONTROLS_HELP,keyCode,scanCode)){minecraft.setScreen(new ControlBindingsScreen(this));return true;}
+        if(InputBindings.matches(ClientKeyMappings.BUILDING,keyCode,scanCode)){ConstructionScreen.requestOpen();return true;}
+        if (commands()) for (int i=0;i<9;i++) {
+            if (InputBindings.matches(ClientKeyMappings.SAVE_GROUP[i],keyCode,scanCode)) {
+                selecting=false; CitizenSelectionController.saveGroup(i); return true;
+            }
+            if (InputBindings.matches(ClientKeyMappings.RECALL_GROUP[i],keyCode,scanCode)) {
+                selecting=false; CitizenSelectionController.recallGroup(i,hasShiftDown()); return true;
+            }
         }
-        if (ClientKeyMappings.DEBUG_OVERLAY.matches(keyCode, scanCode)) {
+        if (InputBindings.matches(ClientKeyMappings.DEBUG_OVERLAY,keyCode,scanCode)) {
             dev.stonebanner.client.hud.DebugOverlay.toggle();
             return true;
         }
         net.minecraft.client.KeyMapping[] layers = {ClientKeyMappings.LAYER_BOUNDARIES, ClientKeyMappings.LAYER_RESOURCES, ClientKeyMappings.LAYER_FERTILITY};
         for (int i = 0; i < layers.length; i++) {
-            if (layers[i].matches(keyCode, scanCode)) {
+            if (InputBindings.matches(layers[i],keyCode,scanCode)) {
                 dev.stonebanner.client.control.MapLayerState.toggle(dev.stonebanner.client.control.MapLayerState.Layer.values()[i]);
                 return true;
             }
         }
-        if (ClientKeyMappings.ORE_JOURNAL.matches(keyCode, scanCode)) {
+        if (InputBindings.matches(ClientKeyMappings.ORE_JOURNAL,keyCode,scanCode)) {
             minecraft.setScreen(new OreDiscoveriesScreen(this)); return true;
         }
-        if(ClientKeyMappings.PRODUCTION.matches(keyCode,scanCode)){if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");return true;}
-        if (ClientKeyMappings.RECENTER_CAMERA.matches(keyCode, scanCode)) { RpgCameraController.recenter(); return true; }
-        if (ClientKeyMappings.FOCUS_SELECTED.matches(keyCode, scanCode)) { RpgCameraController.focusSelected(); return true; }
-        if (keyCode == GLFW.GLFW_KEY_TAB) {
+        if(InputBindings.matches(ClientKeyMappings.PRODUCTION,keyCode,scanCode)){if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");return true;}
+        if (InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA,keyCode,scanCode)) { RpgCameraController.recenter(); return true; }
+        if (InputBindings.matches(ClientKeyMappings.FOCUS_SELECTED,keyCode,scanCode)) { RpgCameraController.focusSelected(); return true; }
+        if (InputBindings.matches(ClientKeyMappings.ORDERS,keyCode,scanCode)) {
             selecting=false; dev.stonebanner.client.control.HeroInputController.toggleCommands(); return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_SPACE && commands()) {
+        if (InputBindings.matches(ClientKeyMappings.STOP,keyCode,scanCode) && commands()) {
             CitizenSelectionController.stopAndClear(); PlayerCommandController.stop(); return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             minecraft.setScreen(new PauseScreen(true));
             return true;
         }
-        if (keyCode >= GLFW.GLFW_KEY_1 && keyCode <= GLFW.GLFW_KEY_9) {
-            selectHotbarSlot(keyCode - GLFW.GLFW_KEY_1);
-            return true;
+        for (int i=0;i<9;i++) if(InputBindings.matches(minecraft.options.keyHotbarSlots[i],keyCode,scanCode)) {
+            selectHotbarSlot(i); return true;
         }
-        if (ClientKeyMappings.CYCLE_CONTROL_MODE.matches(keyCode, scanCode)) {
+        if (InputBindings.matches(ClientKeyMappings.CYCLE_CONTROL_MODE,keyCode,scanCode)) {
             DesignationController.deactivate();
             TunnelExtensionController.deactivate();
             ClientRuntime.cycleControlMode(minecraft);
             return true;
         }
-        if (ClientKeyMappings.CYCLE_DESIGNATION_MODE.matches(keyCode, scanCode)) {
+        if (InputBindings.matches(ClientKeyMappings.CYCLE_DESIGNATION_MODE,keyCode,scanCode)) {
             StoneBannerHudRenderer.selectBottomTab(1);
             TunnelExtensionController.deactivate();
             if (!commands()) dev.stonebanner.client.control.HeroInputController.toggleCommands();
@@ -580,10 +583,92 @@ public final class TacticalControlScreen extends Screen {
             PlayerCommandController.stop();
             return true;
         }
-        if (minecraft.options.keyInventory.matches(keyCode, scanCode) && minecraft.player != null) {
+        if (InputBindings.matches(minecraft.options.keyInventory,keyCode,scanCode) && minecraft.player != null) {
             minecraft.setScreen(new InventoryScreen(minecraft.player));
             return true;
         }
+        if (InputBindings.matches(minecraft.options.keyChat,keyCode,scanCode)) {
+            minecraft.setScreen(new net.minecraft.client.gui.screens.ChatScreen("")); return true;
+        }
+        if (InputBindings.matches(minecraft.options.keyCommand,keyCode,scanCode)) {
+            minecraft.setScreen(new net.minecraft.client.gui.screens.ChatScreen("/")); return true;
+        }
+        if (InputBindings.matches(minecraft.options.keySwapOffhand,keyCode,scanCode) && minecraft.player != null && !minecraft.player.isSpectator()) {
+            HeroInputController.cancel();
+            minecraft.player.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerActionPacket(
+                    net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                    net.minecraft.core.BlockPos.ZERO, net.minecraft.core.Direction.DOWN)); return true;
+        }
+        if(InputBindings.matches(ClientKeyMappings.ALTERNATIVE_USE,keyCode,scanCode)) {
+            var active=context(overUi(cursorX,cursorY));
+            if(active!=InputContext.WASD && active!=InputContext.MOUSE)return true;
+            HeroInputController.cancel();
+            var hit=WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null);
+            if(hit instanceof EntityHitResult e)PlayerCommandController.interactEntity(e.getEntity());
+            else if(hit instanceof BlockHitResult b)PlayerCommandController.interactBlock(b);
+            return true;
+        }
+        if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode))return worldAction(true);
+        if(InputBindings.matches(minecraft.options.keyUse,keyCode,scanCode))return worldAction(false);
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override public boolean keyReleased(int keyCode,int scanCode,int modifiers) {
+        if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode)) {
+            HeroInputController.setMoveHeld(false); HeroInputController.release(minecraft.options.keyAttack);finishSelection(cursorX,cursorY);return true;
+        }
+        if(InputBindings.matches(minecraft.options.keyUse,keyCode,scanCode)) { HeroInputController.release(minecraft.options.keyUse);return true; }
+        return super.keyReleased(keyCode,scanCode,modifiers);
+    }
+
+    private Component controlHint() {
+        var o=minecraft.options;
+        return Component.translatable(commands()?"hud.stonebanner.commands.bindings":
+                dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.ACTION
+                        ?"hud.stonebanner.wasd.bindings":"hud.stonebanner.mouse.bindings",
+                o.keyAttack.getTranslatedKeyMessage(),o.keyUse.getTranslatedKeyMessage(),
+                ClientKeyMappings.ORDERS.getTranslatedKeyMessage(),ClientKeyMappings.CYCLE_CONTROL_MODE.getTranslatedKeyMessage(),
+                o.keyJump.getTranslatedKeyMessage(),o.keyShift.getTranslatedKeyMessage(),o.keySprint.getTranslatedKeyMessage());
+    }
+
+    private InputContext context(boolean ui) {
+        return InputContext.resolve(ui,dev.stonebanner.client.control.ConstructionPreviewController.active(),
+                DesignationController.isActive() || TunnelExtensionController.isActive(),commands(),
+                minecraft.player != null && minecraft.player.isUsingItem(),
+                dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID);
+    }
+
+    private boolean heroAction(boolean primary) {
+        var hit=WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null);
+        ActionResolver.Target target=ActionResolver.Target.NONE;
+        if(hit instanceof EntityHitResult e) target=e.getEntity() instanceof dev.stonebanner.entity.HumanNpcEntity
+                || e.getEntity() instanceof net.minecraft.world.entity.npc.AbstractVillager
+                || e.getEntity() instanceof net.minecraft.world.entity.player.Player
+                ? ActionResolver.Target.FRIENDLY : ActionResolver.Target.HOSTILE;
+        else if(hit instanceof BlockHitResult b) target=PlayerCommandController.isInteractiveBlock(b.getBlockPos())
+                ? ActionResolver.Target.INTERACTIVE_BLOCK : ActionResolver.Target.BLOCK;
+        var item=minecraft.player.getMainHandItem();
+        var action=ActionResolver.resolve(context(overUi(cursorX,cursorY)),
+                primary?ActionResolver.Button.PRIMARY:ActionResolver.Button.SECONDARY,target,hasAltDown(),
+                item.getUseDuration()>0,item.getItem() instanceof net.minecraft.world.item.BlockItem);
+        switch(action) {
+            case MOVE, QUEUE_MOVE -> {
+                var ground=WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null);
+                HeroInputController.cancel();
+                if(ground instanceof BlockHitResult b) {
+                    if(action==ActionResolver.Action.QUEUE_MOVE)PlayerCommandController.queueMoveTo(b);
+                    else {PlayerCommandController.moveTo(b);HeroInputController.setMoveHeld(true);}
+                }
+            }
+            case INTERACT -> {
+                HeroInputController.cancel();
+                if(hit instanceof EntityHitResult e)PlayerCommandController.interactEntity(e.getEntity());
+                else if(hit instanceof BlockHitResult b)PlayerCommandController.interactBlock(b);
+            }
+            case ATTACK_OR_MINE, USE_ITEM -> HeroInputController.setActionHeld(
+                    primary?minecraft.options.keyAttack:minecraft.options.keyUse,action==ActionResolver.Action.ATTACK_OR_MINE);
+            default -> { }
+        }
+        return true;
     }
 }

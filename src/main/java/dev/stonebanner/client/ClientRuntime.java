@@ -34,6 +34,14 @@ public final class ClientRuntime {
         }
 
         OreDiscoveryState.checkWorld();dev.stonebanner.client.control.ConstructionPreviewController.checkWorld();
+        if (!minecraft.player.isAlive()) { PlayerCommandController.stop();dev.stonebanner.client.control.HeroInputController.cancel(); }
+        if (minecraft.screen != null) {
+            // This screen dispatches inputs directly; other screens own all keyboard input.
+            for (var binding : minecraft.options.keyMappings)
+                if (binding.getCategory().equals(ClientKeyMappings.CATEGORY)) while(binding.consumeClick()) { }
+            enforcePerspective(minecraft);
+            return;
+        }
         while(ClientKeyMappings.BUILDING.consumeClick())if(minecraft.screen==null)dev.stonebanner.client.screen.ConstructionScreen.requestOpen();
         while(ClientKeyMappings.PRODUCTION.consumeClick())if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");
         if (!minecraft.player.isAlive()) PlayerCommandController.stop();
@@ -68,7 +76,6 @@ public final class ClientRuntime {
     public static void cycleControlMode(Minecraft minecraft) {
         ControlMode nextMode = ClientConfig.controlMode().next();
         ClientConfig.setControlMode(nextMode);
-        PlayerCommandController.stop();
         dev.stonebanner.client.control.HeroInputController.cancel();
         if (minecraft.player != null) {
             minecraft.player.displayClientMessage(

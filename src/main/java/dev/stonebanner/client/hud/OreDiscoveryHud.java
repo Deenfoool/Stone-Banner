@@ -50,6 +50,10 @@ public final class OreDiscoveryHud {
             g.drawCenteredString(mc.font, Component.translatable("ore.stonebanner." + ACTIONS[i]), bx + cell / 2, by + 4, 0xFFE7C46A);
         }
     }
+    public static boolean contains(double mx,double my,int width) {
+        int w=Math.min(300,width-16), x=width-w-8;
+        return OreDiscoveryState.notification().isPresent() && mx>=x && mx<x+w && my>=86 && my<200;
+    }
     public static boolean click(double mx, double my, int width) {
         var finding = OreDiscoveryState.notification().orElse(null);
         if (finding == null) return false;
