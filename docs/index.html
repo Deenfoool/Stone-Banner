@@ -31,6 +31,7 @@ button.tiny,button.tab,button.tool,button.slot,button.square{background:linear-g
 @media(max-width:1200px){#settlement{flex-basis:205px}#stats{flex-basis:155px}#materials .metric:nth-child(n+5){display:none}#panelwrap{min-width:310px}}@media(max-width:900px){#materials{display:none}#stats{flex:1}#panelwrap{width:min(510px,calc(100vw - 18px));bottom:3px}#info{bottom:153px;width:210px}#rail{bottom:153px}#actions{bottom:150px}}
 @media(max-width:610px){#head{height:46px}#settlement{flex-basis:145px}#settlement strong{font-size:10px}#settlement small{font-size:9px}#stats{flex:1}.metric{font-size:11px}#topActions button:first-child{display:none}#subtitle{top:58px;font-size:8px}#mode{top:86px}#tips{top:126px;max-width:170px;font-size:9px}#info{bottom:145px;width:166px}#info .face{width:32px;height:32px;flex-basis:32px;font-size:20px}#info .skillrow{display:none}#info .name small{font-size:9px}#rail{bottom:145px;width:144px;height:191px}#speeds button{height:22px}#layers button{height:22px}#clock{height:38px}#minimap{height:67px}#dock{height:132px}#tabs button{font-size:9px}#tabs button span{display:none}#tools button{font-size:10px}#actions{bottom:139px}#alerts{display:none}}
 </style>
+<link rel="stylesheet" href="./assets/hud-art.css">
 </head>
 <body>
 <div id="root">
@@ -46,6 +47,7 @@ button.tiny,button.tab,button.tool,button.slot,button.square{background:linear-g
 <div id="message" role="status" aria-live="polite"></div>
 <div id="overlay" hidden><section id="window" class="frame" role="dialog" aria-modal="true" aria-label="Панель Stone & Banner"><div id="windowHead"><b id="windowTitle"></b><button id="close" title="Закрыть">×</button></div><div id="windowBody"></div></section></div>
 </div>
+<script src="./assets/hud-art.js"></script>
 <script>
 "use strict";
 (function(){
@@ -121,14 +123,14 @@ function draw(){
  ctx.fillStyle="#183326";ctx.fillRect(0,0,w,h);
  let min=unproject(0,0),max=unproject(w,h),x0=Math.max(-1,Math.floor(min.x)),x1=Math.min(41,Math.ceil(max.x)),y0=Math.max(-1,Math.floor(min.y)),y1=Math.min(31,Math.ceil(max.y));
  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){let p=project(x,y);
+ if(!StoneBannerArt.paint(ctx,StoneBannerArt.ground(x,y),Math.floor(p.x),Math.floor(p.y),Math.ceil(t)+1,Math.ceil(t)+1)){
  ctx.fillStyle=tileColor(x,y);ctx.fillRect(Math.round(p.x),Math.round(p.y),Math.ceil(t+.5),Math.ceil(t+.5));
  ctx.strokeStyle="#183a2233";ctx.strokeRect(Math.round(p.x)+.5,Math.round(p.y)+.5,Math.ceil(t),Math.ceil(t));
- if((x===18||y===13)&&x>=8&&x<=30&&y>=6&&y<=23){ctx.fillStyle="#a89a715e";ctx.fillRect(p.x+4,p.y+4,t-8,t-8);}
- if(noise(x,y+90)<.13&&y<24){ctx.fillStyle="#d4ba6c7d";ctx.fillRect(p.x+t*.46,p.y+t*.5,3,4);}
+ }
  }
  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
  if(x>3&&y>3&&x<35&&y<24&&noise(x+8,y+17)>.89&&!s.buildings.some(b=>Math.abs(b.x-x)<3&&Math.abs(b.y-y)<3)){
- let p=project(x+.5,y+.5);ctx.fillStyle="#15282283";ctx.beginPath();ctx.ellipse(p.x+3,p.y+9,t*.27,t*.1,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=noise(x,y)>.5?"#285335":"#35694b";ctx.beginPath();ctx.moveTo(p.x,p.y-t*.5);ctx.lineTo(p.x+t*.28,p.y+t*.25);ctx.lineTo(p.x-t*.28,p.y+t*.25);ctx.closePath();ctx.fill();ctx.strokeStyle="#1b4835";ctx.stroke();}
+ let p=project(x+.5,y+.5);if(StoneBannerArt.paint(ctx,noise(x,y)>.5?"tree":"pine",p.x-t*.55,p.y-t*.67,t*1.1,t*1.25))continue;ctx.fillStyle="#15282283";ctx.beginPath();ctx.ellipse(p.x+3,p.y+9,t*.27,t*.1,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=noise(x,y)>.5?"#285335":"#35694b";ctx.beginPath();ctx.moveTo(p.x,p.y-t*.5);ctx.lineTo(p.x+t*.28,p.y+t*.25);ctx.lineTo(p.x-t*.28,p.y+t*.25);ctx.closePath();ctx.fill();ctx.strokeStyle="#1b4835";ctx.stroke();}
  }
  if(s.layers.fertility){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){if(tileColor(x,y).startsWith("#4")||tileColor(x,y).startsWith("#5")){let p=project(x,y);ctx.fillStyle="rgba(243,212,100,"+(.04+noise(x,y)*.25)+")";ctx.fillRect(p.x,p.y,t,t);}}}
  if(s.layers.resources){for(let i=0;i<12;i++){let x=8+i*2,y=5+(i*7)%15,p=project(x+.5,y+.5);ctx.fillStyle="#ffe8a0aa";ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();}}
@@ -141,13 +143,14 @@ function draw(){
  ctx.fillStyle="#111b18aa";ctx.beginPath();ctx.ellipse(p.x,p.y+8,10,4,0,0,7);ctx.fill();
  if(s.selected.includes(u.id)&&s.mode==="orders"){ctx.strokeStyle="#ffdc75";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y+6,14,7,0,0,7);ctx.stroke();ctx.lineWidth=1;}
  ctx.fillStyle=u.color;ctx.fillRect(p.x-7,p.y-9,14,16);ctx.fillStyle="#efc39a";ctx.fillRect(p.x-6,p.y-18,12,10);ctx.fillStyle="#222e28";ctx.fillRect(p.x-3,p.y-14,2,2);ctx.fillRect(p.x+2,p.y-14,2,2);ctx.fillStyle="#414136";ctx.fillRect(p.x-6,p.y+7,5,4);ctx.fillRect(p.x+1,p.y+7,5,4);
+ StoneBannerArt.paint(ctx,u.icon,p.x-17,p.y-23,34,38);
  ctx.font="11px system-ui";ctx.textAlign="center";ctx.fillStyle="#121d18";ctx.fillText(u.name,p.x+1,p.y-24);ctx.fillStyle=s.selected.includes(u.id)?"#fbd36e":"#fff8df";ctx.fillText(u.name,p.x,p.y-25);
  }
  if(dragEnd&&dragStart){ctx.fillStyle="#e9d77922";ctx.strokeStyle="#fbdd8e";ctx.setLineDash([5,4]);let a=project(dragStart.x,dragStart.y),b=project(dragEnd.x,dragEnd.y);ctx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.setLineDash([]);}
- if(s.mode==="hero"){let p=project(s.hero?.x||18,s.hero?.y||14);ctx.fillStyle="#61c2e2";ctx.beginPath();ctx.arc(p.x,p.y,9,0,7);ctx.fill();ctx.strokeStyle="#f2ffff";ctx.stroke();}
+ if(s.mode==="hero"){let p=project(s.hero?.x||18,s.hero?.y||14);ctx.fillStyle="#61c2e2";ctx.beginPath();ctx.arc(p.x,p.y,9,0,7);ctx.fill();ctx.strokeStyle="#f2ffff";ctx.stroke();StoneBannerArt.paint(ctx,"hero",p.x-17,p.y-26,34,40);}
  drawMinimap();
 }
-function building(b){let p=project(b.x,b.y),t=sz();ctx.fillStyle="#20221aaa";ctx.fillRect(p.x-3,p.y+t*.2,t*2.6,t*1.6);
+function building(b){let p=project(b.x,b.y),t=sz();ctx.fillStyle="#20221aaa";ctx.fillRect(p.x-3,p.y+t*.2,t*2.6,t*1.6);if(StoneBannerArt.paint(ctx,b.type,p.x-t*.18,p.y-t*.84,t*2.64,t*2.46))return;
  if(b.type==="farm"){ctx.fillStyle="#816542";ctx.fillRect(p.x,p.y,t*2.2,t*1.15);for(let i=0;i<4;i++){ctx.fillStyle="#acc16a";ctx.fillRect(p.x+5+i*t*.52,p.y+7,7,t*.9)}return;}
  ctx.fillStyle=b.type==="storage"?"#8b7556":"#b2a38a";ctx.fillRect(p.x,p.y,t*2.2,t*1.4);
  ctx.fillStyle=b.type==="storage"?"#60644b":"#6f493b";ctx.beginPath();ctx.moveTo(p.x-5,p.y+3);ctx.lineTo(p.x+t*1.1,p.y-t*.7);ctx.lineTo(p.x+t*2.3,p.y+3);ctx.closePath();ctx.fill();ctx.fillStyle="#38271e";ctx.fillRect(p.x+t*.8,p.y+t*.75,t*.4,t*.65);ctx.fillStyle="#ead789";ctx.fillRect(p.x+t*1.5,p.y+t*.38,t*.35,t*.32);}

@@ -25,3 +25,7 @@ Once Pages is enabled, URL: https://deenfoool.github.io/Stone-Banner/
 - All bottom tabs, inspector sub-tabs, settings, minimap, speed and work categories are clickable.
 
 This prototype is intentionally dependency-free and does not modify any Forge game code.
+
+## Icons and terrain art
+
+The 2026-10-08 visual update adds the self-hosted SVG icon library at `docs/assets/hud-icons.svg` and the 32px pixel terrain, buildings, tree and citizen atlas at `docs/assets/terrain-atlas.svg`. `docs/assets/hud-art.js` hydrates icon symbols and paints tiles over the previous placeholder shapes, keeping the existing click targets and actions intact. No internet asset calls or Mojang textures are required; sprites have an automatic primitive fallback if unavailable.
