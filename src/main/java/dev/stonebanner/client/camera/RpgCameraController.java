@@ -112,6 +112,33 @@ public final class RpgCameraController {
         StoneAndBanner.LOGGER.debug("Camera following NPC {} ({})", entity.getId(), entity.getUUID());
     }
 
+    /** Camera-only focus for a recalled Citizen group; never teleports or commands any actor. */
+    public static void focusGroup(java.util.List<dev.stonebanner.entity.HumanNpcEntity> members) {
+        Minecraft mc = Minecraft.getInstance();
+        if (!isCameraActive(mc) || members == null || members.isEmpty()) return;
+        Vec3 sum = Vec3.ZERO;
+        int count = 0;
+        for (var citizen : members) {
+            if (citizen == null || !citizen.isAlive() || citizen.level() != mc.level
+                    || !mc.level.hasChunkAt(citizen.blockPosition())
+                    || citizen.distanceToSqr(mc.player) > CameraFollowTarget.MAX_DISTANCE * CameraFollowTarget.MAX_DISTANCE)
+                continue;
+            sum = sum.add(citizen.getEyePosition());
+            count++;
+        }
+        if (count == 0) {
+            mc.player.displayClientMessage(Component.translatable("message.stonebanner.group_focus_unavailable"), true);
+            return;
+        }
+        initializeOrientationIfNeeded(mc.player);
+        Vec3 point = sum.scale(1.0D / count).add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        if (!mc.level.hasChunkAt(BlockPos.containing(point))) return;
+        clearFocus();
+        focusAnchor = lastSafeAnchor != null ? lastSafeAnchor : mc.player.getEyePosition();
+        previousFocusAnchor = focusAnchor;
+        focusTarget = point;
+    }
+
     private static Entity followedEntity(Minecraft mc) {
         if (followTarget == null) return null;
         Entity entity = mc.level == followWorld && mc.level != null ? mc.level.getEntity(followTarget.entityId()) : null;
