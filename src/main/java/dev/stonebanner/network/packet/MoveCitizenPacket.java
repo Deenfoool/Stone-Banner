@@ -53,7 +53,7 @@ public record MoveCitizenPacket(int entityId, BlockPos target, boolean append) {
 
         if (packet.append) {
             boolean accepted = npc.orderSequence().enqueue(
-                    dev.stonebanner.command.CitizenOrderQueue.Entry.move(packet.target));
+                    dev.stonebanner.command.CitizenOrderQueue.Entry.move(packet.target), sender.getUUID());
             sender.displayClientMessage(net.minecraft.network.chat.Component.translatable(accepted
                     ? "message.stonebanner.move_queued" : "message.stonebanner.move_queue_rejected",
                     npc.getDisplayName(), npc.orderSequence().pendingCount()), true);
