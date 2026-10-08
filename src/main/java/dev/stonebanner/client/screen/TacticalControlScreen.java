@@ -64,7 +64,8 @@ public final class TacticalControlScreen extends Screen {
             if (!focused) applyOrdersGesture(ordersGesture.interrupt(commands()));
             else if (!InputBindings.held(ClientKeyMappings.ORDERS))
                 applyOrdersGesture(ordersGesture.release(net.minecraft.Util.getMillis(),
-                        dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
+                        dev.stonebanner.config.ClientConfig.HOLD_TAB.get()
+                                ? dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get() : Integer.MAX_VALUE, commands()));
         }
         if (!InputBindings.held(ClientKeyMappings.RECENTER_CAMERA)) homeGesture.release();
         for (int i = 0; i < groupGestures.length; i++)
@@ -136,6 +137,7 @@ public final class TacticalControlScreen extends Screen {
         }
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
+        renderModeStatus(graphics);
         graphics.drawString(font, font.plainSubstrByWidth(controlHint().getString(), width - 16), 8, 96, 0xFFD8D2C8);
         if(!commands() && PlayerCommandController.moving())graphics.drawString(font,
                 Component.translatable("movement.stonebanner.pace."+PlayerCommandController.movePace().name().toLowerCase(java.util.Locale.ROOT)),8,110,0xFF69DDE7);
@@ -281,6 +283,28 @@ public final class TacticalControlScreen extends Screen {
                 && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES))
             graphics.drawString(font, Component.translatable("geology.stonebanner.survey_hint"), 8, 84, 0xFFE7C46A);
 
+    }
+
+    private void renderModeStatus(GuiGraphics graphics) {
+        Component layer = Component.translatable(commands()
+                ? "settings.stonebanner.layer.orders" : "settings.stonebanner.layer.hero");
+        Component profile = Component.translatable(dev.stonebanner.config.ClientConfig.controlMode()
+                == dev.stonebanner.control.ControlMode.ACTION
+                ? "settings.stonebanner.profile.wasd" : "settings.stonebanner.profile.mouse");
+        Component tool = DesignationController.activeType()
+                .<Component>map(t -> Component.translatable("designation.stonebanner." + t.serializedName()))
+                .orElse(TunnelExtensionController.isActive()
+                        ? Component.translatable("hud.stonebanner.excavation.extend")
+                        : Component.translatable("settings.stonebanner.tool.none"));
+        Component text = Component.translatable("settings.stonebanner.status", layer, profile, tool);
+        int available = Math.max(1, Math.min(width - 20, 248));
+        String label = font.plainSubstrByWidth(text.getString(), available - 12);
+        int panelWidth = Math.min(width - 12, font.width(label) + 12);
+        int x = Math.max(6, (width - panelWidth) / 2);
+        int y = 52;
+        graphics.fill(x, y, x + panelWidth, y + 15, 0xDB15191C);
+        graphics.renderOutline(x, y, panelWidth, 15, 0xFF7C694D);
+        graphics.drawString(font, label, x + 6, y + 4, 0xFFF5E3C5, false);
     }
 
     private void renderContextHint(GuiGraphics graphics, int x, int y, long now) {
@@ -848,7 +872,9 @@ public final class TacticalControlScreen extends Screen {
             if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode))return worldAction(true);
             if(InputBindings.matches(minecraft.options.keyUse,keyCode,scanCode))return worldAction(false);
         }
-        if(InputBindings.matches(ClientKeyMappings.CONTROLS_HELP,keyCode,scanCode)){minecraft.setScreen(new ControlBindingsScreen(this));return true;}
+        if(InputBindings.matches(ClientKeyMappings.CONTROLS_HELP,keyCode,scanCode)){
+            minecraft.setScreen(new StoneBannerSettingsScreen(this));return true;
+        }
         if(InputBindings.matches(ClientKeyMappings.BUILDING,keyCode,scanCode)){ConstructionScreen.requestOpen();return true;}
         if (commands()) for (int i=0;i<9;i++) {
             if (InputBindings.matches(ClientKeyMappings.SAVE_GROUP[i],keyCode,scanCode)) {
@@ -958,7 +984,8 @@ public final class TacticalControlScreen extends Screen {
         }
         if (InputBindings.matches(ClientKeyMappings.ORDERS,keyCode,scanCode)) {
             applyOrdersGesture(ordersGesture.release(net.minecraft.Util.getMillis(),
-                    dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
+                    dev.stonebanner.config.ClientConfig.HOLD_TAB.get()
+                            ? dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get() : Integer.MAX_VALUE, commands()));
             return true;
         }
         if (InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA,keyCode,scanCode)) {

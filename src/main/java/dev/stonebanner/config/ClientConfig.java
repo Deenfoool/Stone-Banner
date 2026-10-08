@@ -22,6 +22,9 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.IntValue CONTEXT_HINT_DELAY_MS;
     public static final ForgeConfigSpec.BooleanValue SHOW_COMMAND_FEEDBACK;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_MARKERS;
+    public static final ForgeConfigSpec.BooleanValue AUTO_APPROACH;
+    public static final ForgeConfigSpec.BooleanValue SAFE_PATH;
+    public static final ForgeConfigSpec.BooleanValue HOLD_TAB;
     public static final ForgeConfigSpec.BooleanValue DOUBLE_CLICK_RUN;
     public static final ForgeConfigSpec.IntValue DOUBLE_CLICK_MS;
     public static final ForgeConfigSpec.IntValue HELD_PATH_INTERVAL;
@@ -50,6 +53,9 @@ public final class ClientConfig {
                 .define("showCommandFeedback", true);
         SHOW_ORDER_MARKERS = BUILDER.comment("Show visual world markers for selected citizens and designated work.")
                 .define("showOrderMarkers", true);
+        AUTO_APPROACH=BUILDER.comment("Automatically move into range before using a distant target in Hero mode.").define("autoApproach",true);
+        SAFE_PATH=BUILDER.comment("Prefer routes that also avoid nearby moving entity bodies. Unloaded chunks, hazards and world borders are always forbidden.").define("safePath",true);
+        HOLD_TAB=BUILDER.comment("Hold Orders from Hero to return automatically on release; a short tap toggles permanently.").define("holdTab",true);
         DOUBLE_CLICK_RUN=BUILDER.comment("Double ground click starts running in Mouse profile.").define("doubleClickRun",true);
         DOUBLE_CLICK_MS=BUILDER.defineInRange("doubleClickMs",300,150,600);
         HELD_PATH_INTERVAL=BUILDER.comment("Ticks between held-cursor path queries (20 ticks per second).").defineInRange("heldPathInterval",5,5,20);

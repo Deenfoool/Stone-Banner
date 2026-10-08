@@ -74,8 +74,13 @@ public final class ClientRuntime {
     }
 
     public static void cycleControlMode(Minecraft minecraft) {
+        setControlMode(minecraft, ClientConfig.controlMode().next());
+    }
+
+    /** Local preference; never alters server-side attack, movement or inventory authority. */
+    public static void setControlMode(Minecraft minecraft, ControlMode requested) {
+        ControlMode nextMode = requested == ControlMode.ACTION ? ControlMode.ACTION : ControlMode.HYBRID;
         dev.stonebanner.client.control.HeroInputController.resetGroundClicks();
-        ControlMode nextMode = ClientConfig.controlMode().next();
         ClientConfig.setControlMode(nextMode);
         dev.stonebanner.client.control.HeroInputController.cancel();
         PlayerCommandController.cancelPendingActions();

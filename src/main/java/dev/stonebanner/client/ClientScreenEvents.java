@@ -5,6 +5,8 @@ import dev.stonebanner.client.screen.StoneBannerLanguageScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
+import dev.stonebanner.client.screen.StoneBannerSettingsScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
@@ -37,18 +39,36 @@ public final class ClientScreenEvents {
 
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
-        if (!(event.getScreen() instanceof TitleScreen titleScreen)) {
-            return;
+        var current = event.getScreen();
+        if (current instanceof TitleScreen titleScreen) {
+            event.addListener(Button.builder(
+                    Component.translatable("menu.stonebanner.language"),
+                    button -> Minecraft.getInstance().setScreen(new StoneBannerLanguageScreen(titleScreen))
+            ).bounds(
+                    Math.max(MARGIN, titleScreen.width - BUTTON_WIDTH - MARGIN),
+                    MARGIN,
+                    BUTTON_WIDTH,
+                    BUTTON_HEIGHT
+            ).build());
+            event.addListener(Button.builder(
+                    Component.translatable("settings.stonebanner.title"),
+                    button -> Minecraft.getInstance().setScreen(new StoneBannerSettingsScreen(titleScreen))
+            ).bounds(
+                    Math.max(MARGIN, titleScreen.width - BUTTON_WIDTH - MARGIN),
+                    MARGIN + BUTTON_HEIGHT + 3,
+                    BUTTON_WIDTH,
+                    BUTTON_HEIGHT
+            ).build());
+        } else if (current instanceof PauseScreen pauseScreen) {
+            event.addListener(Button.builder(
+                    Component.translatable("settings.stonebanner.title"),
+                    button -> Minecraft.getInstance().setScreen(new StoneBannerSettingsScreen(pauseScreen))
+            ).bounds(
+                    Math.max(MARGIN, pauseScreen.width - BUTTON_WIDTH - MARGIN),
+                    MARGIN,
+                    BUTTON_WIDTH,
+                    BUTTON_HEIGHT
+            ).build());
         }
-
-        event.addListener(Button.builder(
-                Component.translatable("menu.stonebanner.language"),
-                button -> Minecraft.getInstance().setScreen(new StoneBannerLanguageScreen(titleScreen))
-        ).bounds(
-                Math.max(MARGIN, titleScreen.width - BUTTON_WIDTH - MARGIN),
-                MARGIN,
-                BUTTON_WIDTH,
-                BUTTON_HEIGHT
-        ).build());
     }
 }

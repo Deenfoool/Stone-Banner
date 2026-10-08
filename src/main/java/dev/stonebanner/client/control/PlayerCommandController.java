@@ -155,6 +155,7 @@ public final class PlayerCommandController {
         return accepted;
     }
     public static void approach(Vec3 point, BlockPos block, double reach) {
+        if (!ClientConfig.AUTO_APPROACH.get()) return;
         var mc = Minecraft.getInstance(); ensureWorld(mc);
         BlockPos requested=BlockPos.containing(point);
         if(requested.equals(actionGoal) && (navigationFailed() || moving()))return;
@@ -194,7 +195,11 @@ public final class PlayerCommandController {
         ensureWorld(mc); stopInternal();retryBudget.reset();
         pendingBlock = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), false);
         pendingStorage=storage;pendingOrigin=mc.player.position();pendingStarted=mc.player.tickCount;pendingBlockState=mc.level.getBlockState(hit.getBlockPos());
-        if (!executePendingBlock(mc.player)) createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
+        if (!executePendingBlock(mc.player)) {
+            if (ClientConfig.AUTO_APPROACH.get())
+                createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
+            else stopInternal();
+        }
     }
     public static boolean isInteractiveBlock(BlockPos pos) {
         var mc = Minecraft.getInstance(); if (mc.level == null) return false;
@@ -284,7 +289,9 @@ public final class PlayerCommandController {
             return;
         }
         if (!executePendingActionIfInRange(player, entity)) {
-            createInteractionPath(entity.getBoundingBox().getCenter(), null, player.getEntityReach());
+            if (ClientConfig.AUTO_APPROACH.get())
+                createInteractionPath(entity.getBoundingBox().getCenter(), null, player.getEntityReach());
+            else stopInternal();
         }
     }
 
@@ -635,9 +642,14 @@ public final class PlayerCommandController {
     private static Optional<List<BlockPos>> safePath(ClientLevel level,BlockPos start,BlockPos goal) {
         var player=Minecraft.getInstance().player;
         if(player==null || !dev.stonebanner.navigation.HeroRouteSafety.permitted(level,goal))return Optional.empty();
-        var bodies=level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
-                player.getBoundingBox().inflate(8),other->other!=player && other.isAlive() && !other.isSpectator()).stream()
-                .map(other->other.getBoundingBox().inflate(.1)).limit(64).toList();
+        // Safe-path preference controls *extra* clearance around moving entities only.
+        // Fire/lava, world borders, unloaded areas and blocked terrain remain forbidden.
+        var bodies = ClientConfig.SAFE_PATH.get()
+                ? level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                        player.getBoundingBox().inflate(8),
+                        other -> other != player && other.isAlive() && !other.isSpectator()).stream()
+                        .map(other -> other.getBoundingBox().inflate(.1)).limit(64).toList()
+                : java.util.List.<net.minecraft.world.phys.AABB>of();
         return BlockPathfinder.findPermittedPath(level,start,goal,node->{
             if(!dev.stonebanner.navigation.HeroRouteSafety.permitted(level,node))return false;
             var point=BlockPathfinder.waypoint(level,node);

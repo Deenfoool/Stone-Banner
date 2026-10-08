@@ -92,8 +92,10 @@ public final class StoneBannerLanguageScreen extends Screen {
         client.options.save();
         client.reloadResourcePacks();
 
-        // Recreate the title screen so both vanilla and Stone & Banner labels immediately use the new language.
-        client.setScreen(new net.minecraft.client.gui.screens.TitleScreen());
+        // Keep the originating game/menu context; returning to Title would disconnect
+        // a player who only wanted to change language in the settings screen.
+        client.setScreen(parent instanceof net.minecraft.client.gui.screens.TitleScreen
+                ? new net.minecraft.client.gui.screens.TitleScreen() : parent);
     }
 
     private record LanguageChoice(String code, String displayName) {

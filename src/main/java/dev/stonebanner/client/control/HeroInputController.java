@@ -167,6 +167,7 @@ public final class HeroInputController {
         } else mc.gameMode.stopDestroyBlock();
     }
     private static void approach(Vec3 point,net.minecraft.core.BlockPos block,double reach) {
+        if (!ClientConfig.AUTO_APPROACH.get()) { cancelAction(false); return; }
         if(manualMovement()&&ClientConfig.controlMode()==ControlMode.ACTION) return;
         if(approachCooldown==0) { PlayerCommandController.approach(point,block,reach); approachCooldown=15; }
     }
