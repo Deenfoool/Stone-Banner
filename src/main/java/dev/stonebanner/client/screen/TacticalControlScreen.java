@@ -37,6 +37,8 @@ public final class TacticalControlScreen extends Screen {
     private boolean selecting, selectionMoved;
     private final dev.stonebanner.control.HeroOrdersGesture ordersGesture = new dev.stonebanner.control.HeroOrdersGesture();
     private final dev.stonebanner.control.DoublePressGesture homeGesture = new dev.stonebanner.control.DoublePressGesture();
+    private final dev.stonebanner.control.DoublePressGesture[] groupGestures = java.util.stream.IntStream.range(0, 9)
+            .mapToObj(i -> new dev.stonebanner.control.DoublePressGesture()).toArray(dev.stonebanner.control.DoublePressGesture[]::new);
 
     private void applyOrdersGesture(dev.stonebanner.control.HeroOrdersGesture.Change change) {
         if (change == dev.stonebanner.control.HeroOrdersGesture.Change.NONE) return;
@@ -63,6 +65,8 @@ public final class TacticalControlScreen extends Screen {
                         dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
         }
         if (!InputBindings.held(ClientKeyMappings.RECENTER_CAMERA)) homeGesture.release();
+        for (int i = 0; i < groupGestures.length; i++)
+            if (!InputBindings.held(ClientKeyMappings.RECALL_GROUP[i])) groupGestures[i].release();
         if(context(false)==InputContext.CONSTRUCTION || context(false)==InputContext.DESIGNATION){HeroInputController.cancel();return;}
         dev.stonebanner.client.control.HeroInputController.tick(
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
@@ -71,6 +75,7 @@ public final class TacticalControlScreen extends Screen {
     @Override public void removed() {
         applyOrdersGesture(ordersGesture.interrupt(commands()));
         homeGesture.reset();
+        for (var gesture : groupGestures) gesture.reset();
         PlayerCommandController.cancelPendingActions();
         dev.stonebanner.client.control.BlockPlacementPreview.reset();
         HeroInputController.resetGroundClicks();
@@ -582,10 +587,15 @@ public final class TacticalControlScreen extends Screen {
         if(InputBindings.matches(ClientKeyMappings.BUILDING,keyCode,scanCode)){ConstructionScreen.requestOpen();return true;}
         if (commands()) for (int i=0;i<9;i++) {
             if (InputBindings.matches(ClientKeyMappings.SAVE_GROUP[i],keyCode,scanCode)) {
-                selecting=false; CitizenSelectionController.saveGroup(i); return true;
+                selecting=false; CitizenSelectionController.saveGroup(i); groupGestures[i].reset(); return true;
             }
             if (InputBindings.matches(ClientKeyMappings.RECALL_GROUP[i],keyCode,scanCode)) {
-                selecting=false; CitizenSelectionController.recallGroup(i,hasShiftDown()); return true;
+                selecting=false;
+                boolean doubleRecall = groupGestures[i].press(net.minecraft.Util.getMillis(),
+                        dev.stonebanner.config.ClientConfig.GROUP_DOUBLE_MS.get());
+                var members = CitizenSelectionController.recallGroup(i,hasShiftDown());
+                if (doubleRecall && !members.isEmpty()) RpgCameraController.focusGroup(members);
+                return true;
             }
         }
         if (InputBindings.matches(ClientKeyMappings.DEBUG_OVERLAY,keyCode,scanCode)) {
