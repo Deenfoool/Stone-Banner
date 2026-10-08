@@ -67,13 +67,10 @@ public final class PathPreviewRenderer {
         boolean fading = routeVisible && !hadActiveRoute && !priorRoute.isEmpty()
                 && now >= fadedAt && now - fadedAt < 700;
         boolean confirmation = dev.stonebanner.client.control.ContextFeedbackController.pulse(now).isPresent();
-        if (!routeVisible && !markersVisible && !hasDesignationPreview && !confirmation) return;
-        if (!fading && (!routeVisible || path.isEmpty()) && !markersVisible
-                && !hasDesignationPreview && !confirmation) return;
-        if (!fading && (!routeVisible || (path.isEmpty() && destination == null && rejected == null))
-                && (!markersVisible || (hoveredEntity == null && selectedEntity == null
-                && selectedCitizen == null && hoveredLocation == null && !hasExcavationOverlay))
-                && !hasDesignationPreview && !confirmation) return;
+        boolean showRoute = routeVisible && (!path.isEmpty() || destination != null || rejected != null || fading);
+        boolean showMarkers = markersVisible && (hoveredEntity != null || selectedEntity != null
+                || selectedCitizen != null || hoveredLocation != null || hasExcavationOverlay);
+        if (!showRoute && !showMarkers && !hasDesignationPreview && !confirmation) return;
         PoseStack poses = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
@@ -148,24 +145,18 @@ public final class PathPreviewRenderer {
         }
         // Build the target lookup only when marker rendering is enabled.
         if (markersVisible) {
-        var selectedMembers = CitizenSelectionController.selectedAll();
-        java.util.Map<java.util.UUID, Entity> loadedTargets = new java.util.HashMap<>();
-        if (!selectedMembers.isEmpty() && minecraft.level != null) {
-            for (var entity : minecraft.level.entitiesForRendering())
-                if (entity.isAlive()) loadedTargets.put(entity.getUUID(), entity);
-        }
-        for (var selectedMember : selectedMembers) {
-            LevelRenderer.renderLineBox(
-                    poses,
-                    lines,
-                    selectedMember.getBoundingBox().inflate(0.14D),
-                    0.42F,
-                    0.95F,
-                    0.35F,
-                    1.0F
-            );
-            renderCitizenOrders(minecraft, poses, lines, selectedMember, loadedTargets);
-        }
+            var selectedMembers = CitizenSelectionController.selectedAll();
+            java.util.Map<java.util.UUID, Entity> loadedTargets = new java.util.HashMap<>();
+            if (!selectedMembers.isEmpty()) {
+                for (var entity : minecraft.level.entitiesForRendering())
+                    if (entity.isAlive()) loadedTargets.put(entity.getUUID(), entity);
+            }
+            for (var selectedMember : selectedMembers) {
+                LevelRenderer.renderLineBox(poses, lines,
+                        selectedMember.getBoundingBox().inflate(0.14D),
+                        0.42F, 0.95F, 0.35F, 1.0F);
+                renderCitizenOrders(minecraft, poses, lines, selectedMember, loadedTargets);
+            }
             renderExcavationPlans(poses, lines);
         }
         renderDesignationPreview(poses, lines);

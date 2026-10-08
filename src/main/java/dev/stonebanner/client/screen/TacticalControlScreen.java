@@ -159,6 +159,7 @@ public final class TacticalControlScreen extends Screen {
                 selectedCitizens.stream().mapToInt(HumanNpcEntity::hudQueuedMoves).sum()),8,108,0xFF69DDE7);
         renderContextHint(graphics, mouseX, mouseY, feedbackNow);
         renderCommandNote(graphics, feedbackNow);
+        renderCursorAction(graphics, mouseX, mouseY);
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
         graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
@@ -291,6 +292,11 @@ public final class TacticalControlScreen extends Screen {
     }
 
     private Component contextHint(HitResult hit) {
+        if (hit instanceof BlockHitResult block && PlayerCommandController.rejectedGoal().isPresent()
+                && block.getBlockPos().distManhattan(PlayerCommandController.rejectedGoal().orElseThrow()) <= 2)
+            return Component.translatable("movement.stonebanner.refused",
+                    Component.translatable("movement.stonebanner.reason."
+                            + PlayerCommandController.failureReason().name().toLowerCase(java.util.Locale.ROOT)));
         Component primary = minecraft.options.keyAttack.getTranslatedKeyMessage();
         Component secondary = minecraft.options.keyUse.getTranslatedKeyMessage();
         if (dev.stonebanner.client.control.ConstructionPreviewController.active())
@@ -306,10 +312,13 @@ public final class TacticalControlScreen extends Screen {
         if (hit instanceof BlockHitResult block && minecraft.level != null
                 && PlayerCommandController.isInteractiveBlock(block.getBlockPos()))
             return Component.translatable("hud.stonebanner.context.interact", secondary);
-        if (hit instanceof EntityHitResult entity)
+        if (hit instanceof EntityHitResult entity) {
+            if (dev.stonebanner.control.HeroActionRules.protectedTarget(minecraft.player, entity.getEntity()))
+                return Component.translatable("hud.stonebanner.context.interact", secondary);
             return Component.translatable("hud.stonebanner.context.attack",
                     dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
                             ? secondary : primary);
+        }
         if (hit instanceof BlockHitResult block && minecraft.level != null) {
             var state = minecraft.level.getBlockState(block.getBlockPos());
             if (state.is(net.minecraft.tags.BlockTags.LOGS)
@@ -318,9 +327,67 @@ public final class TacticalControlScreen extends Screen {
                         dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
                                 ? secondary : primary);
         }
-        return Component.translatable(dev.stonebanner.config.ClientConfig.controlMode()
-                == dev.stonebanner.control.ControlMode.HYBRID
-                ? "hud.stonebanner.context.move" : "hud.stonebanner.context.mine", primary);
+        if (dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID)
+            return Component.translatable("hud.stonebanner.context.move", primary);
+        var stack = minecraft.player.getMainHandItem();
+        if (stack.getItem() instanceof net.minecraft.world.item.BlockItem)
+            return Component.translatable("hud.stonebanner.context.place", secondary);
+        return Component.translatable("hud.stonebanner.context.mine", primary);
+    }
+
+    private ContextFeedbackController.Kind cursorIntent(HitResult hit) {
+        if (hit == null) return null;
+        if (dev.stonebanner.client.control.ConstructionPreviewController.active())
+            return dev.stonebanner.client.control.ConstructionPreviewController.allowed()
+                    ? ContextFeedbackController.Kind.ORDER : ContextFeedbackController.Kind.DENIED;
+        if (DesignationController.isActive())
+            return DesignationController.previewAllowed()
+                    ? ContextFeedbackController.Kind.ORDER : ContextFeedbackController.Kind.DENIED;
+        if (TunnelExtensionController.isActive())
+            return !TunnelExtensionController.hasSelectedPlan() || TunnelExtensionController.previewAllowed()
+                    ? ContextFeedbackController.Kind.ORDER : ContextFeedbackController.Kind.DENIED;
+        if (commands()) {
+            if (hit instanceof EntityHitResult e && e.getEntity() instanceof net.minecraft.world.entity.monster.Monster
+                    && CitizenSelectionController.hasSelection())
+                return ContextFeedbackController.Kind.ATTACK;
+            return ContextFeedbackController.Kind.ORDER;
+        }
+        if (hit instanceof BlockHitResult block && PlayerCommandController.rejectedGoal().isPresent()
+                && block.getBlockPos().distManhattan(PlayerCommandController.rejectedGoal().orElseThrow()) <= 2)
+            return ContextFeedbackController.Kind.DENIED;
+        if (hit instanceof EntityHitResult entity)
+            return dev.stonebanner.control.HeroActionRules.protectedTarget(minecraft.player, entity.getEntity())
+                    ? ContextFeedbackController.Kind.INTERACT : ContextFeedbackController.Kind.ATTACK;
+        if (hit instanceof BlockHitResult block && minecraft.level != null) {
+            if (PlayerCommandController.isInteractiveBlock(block.getBlockPos()))
+                return ContextFeedbackController.Kind.INTERACT;
+            var state = minecraft.level.getBlockState(block.getBlockPos());
+            if (state.is(net.minecraft.tags.BlockTags.LOGS) || state.is(net.minecraftforge.common.Tags.Blocks.ORES))
+                return ContextFeedbackController.Kind.MINE;
+        }
+        return dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
+                ? dev.stonebanner.client.control.InputBindings.held(minecraft.options.keySprint)
+                || PlayerCommandController.movePace() == dev.stonebanner.control.MovementPace.RUN
+                    ? ContextFeedbackController.Kind.RUN : ContextFeedbackController.Kind.MOVE
+                : ContextFeedbackController.Kind.MINE;
+    }
+
+    private void renderCursorAction(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (overUi(mouseX, mouseY) || minecraft.player == null || selecting || hoveredTarget.isEmpty()) return;
+        var intent = cursorIntent(hoveredTarget.orElseThrow());
+        if (intent == null) return;
+        var item = switch (intent) {
+            case MOVE -> net.minecraft.world.item.Items.COMPASS;
+            case RUN -> net.minecraft.world.item.Items.LEATHER_BOOTS;
+            case INTERACT -> net.minecraft.world.item.Items.CHEST;
+            case MINE -> net.minecraft.world.item.Items.IRON_PICKAXE;
+            case ATTACK -> net.minecraft.world.item.Items.IRON_SWORD;
+            case DENIED -> net.minecraft.world.item.Items.BARRIER;
+            case ORDER -> net.minecraft.world.item.Items.WRITABLE_BOOK;
+        };
+        int px = Math.max(4, Math.min(width - 20, mouseX + 10));
+        int py = Math.max(50, Math.min(height - 20, mouseY - 18));
+        graphics.renderItem(new net.minecraft.world.item.ItemStack(item), px, py);
     }
 
     private void renderCommandNote(GuiGraphics graphics, long now) {
