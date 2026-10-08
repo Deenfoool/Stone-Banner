@@ -35,6 +35,17 @@ import dev.stonebanner.client.control.InputBindings;
 public final class TacticalControlScreen extends Screen {
     private double cursorX, cursorY, dragStartX, dragStartY;
     private boolean selecting, selectionMoved;
+    private final dev.stonebanner.control.HeroOrdersGesture ordersGesture = new dev.stonebanner.control.HeroOrdersGesture();
+    private final dev.stonebanner.control.DoublePressGesture homeGesture = new dev.stonebanner.control.DoublePressGesture();
+
+    private void applyOrdersGesture(dev.stonebanner.control.HeroOrdersGesture.Change change) {
+        if (change == dev.stonebanner.control.HeroOrdersGesture.Change.NONE) return;
+        boolean shouldEnter = change == dev.stonebanner.control.HeroOrdersGesture.Change.ENTER_ORDERS;
+        if (commands() != shouldEnter) {
+            selecting = false;
+            HeroInputController.toggleCommands();
+        }
+    }
     private static boolean commands() { return dev.stonebanner.client.control.HeroInputController.commandMode(); }
     private boolean overUi(double x,double y) { return OreDiscoveryHud.contains(x,y,width) || StoneBannerHudRenderer.actionAt(x,y,width,height,CitizenSelectionController.hasSelection()) != StoneBannerHudRenderer.HudAction.NONE; }
     public double[] edgePan() {
@@ -44,12 +55,28 @@ public final class TacticalControlScreen extends Screen {
     }
     @Override protected void init() { cursorX=width*.5;cursorY=height*.5; }
     @Override public void tick() {
+        if (ordersGesture.pressed()) {
+            boolean focused = GLFW.glfwGetWindowAttrib(minecraft.getWindow().getWindow(), GLFW.GLFW_FOCUSED) == 1;
+            if (!focused) applyOrdersGesture(ordersGesture.interrupt(commands()));
+            else if (!InputBindings.held(ClientKeyMappings.ORDERS))
+                applyOrdersGesture(ordersGesture.release(net.minecraft.Util.getMillis(),
+                        dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
+        }
+        if (!InputBindings.held(ClientKeyMappings.RECENTER_CAMERA)) homeGesture.release();
         if(context(false)==InputContext.CONSTRUCTION || context(false)==InputContext.DESIGNATION){HeroInputController.cancel();return;}
         dev.stonebanner.client.control.HeroInputController.tick(
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
     }
-    @Override public void removed() { PlayerCommandController.cancelPendingActions();dev.stonebanner.client.control.BlockPlacementPreview.reset();HeroInputController.resetGroundClicks();dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
+    @Override public void removed() {
+        applyOrdersGesture(ordersGesture.interrupt(commands()));
+        homeGesture.reset();
+        PlayerCommandController.cancelPendingActions();
+        dev.stonebanner.client.control.BlockPlacementPreview.reset();
+        HeroInputController.resetGroundClicks();
+        HeroInputController.cancel();
+        dev.stonebanner.client.control.ConstructionPreviewController.cancel();
+    }
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public HitResult hoveredHit(){return hoveredTarget.orElse(null);}
@@ -483,6 +510,9 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (InputBindings.matches(ClientKeyMappings.ORDERS, 10000 + button, 0)
+                || InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA, 10000 + button, 0))
+            return keyReleased(10000 + button, 0, 0);
         if(minecraft.options.keyUse.matchesMouse(button)) { if(overUi(mouseX,mouseY))HeroInputController.cancel();else HeroInputController.release(minecraft.options.keyUse); return true; }
         if(minecraft.options.keyAttack.matchesMouse(button)) {
             HeroInputController.release(minecraft.options.keyAttack);
@@ -573,10 +603,17 @@ public final class TacticalControlScreen extends Screen {
             minecraft.setScreen(new OreDiscoveriesScreen(this)); return true;
         }
         if(InputBindings.matches(ClientKeyMappings.PRODUCTION,keyCode,scanCode)){if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");return true;}
-        if (InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA,keyCode,scanCode)) { RpgCameraController.recenter(); return true; }
+        if (InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA,keyCode,scanCode)) {
+            boolean twice = homeGesture.press(net.minecraft.Util.getMillis(),
+                    dev.stonebanner.config.ClientConfig.HOME_DOUBLE_MS.get());
+            if (twice) RpgCameraController.resetDefaultView();
+            else RpgCameraController.recenter();
+            return true;
+        }
         if (InputBindings.matches(ClientKeyMappings.FOCUS_SELECTED,keyCode,scanCode)) { RpgCameraController.focusSelected(); return true; }
         if (InputBindings.matches(ClientKeyMappings.ORDERS,keyCode,scanCode)) {
-            selecting=false; dev.stonebanner.client.control.HeroInputController.toggleCommands(); return true;
+            applyOrdersGesture(ordersGesture.press(net.minecraft.Util.getMillis(), commands()));
+            return true;
         }
         if (InputBindings.matches(ClientKeyMappings.STOP,keyCode,scanCode) && commands()) {
             CitizenSelectionController.stopAndClear(); PlayerCommandController.stop(); return true;
@@ -631,6 +668,15 @@ public final class TacticalControlScreen extends Screen {
     }
 
     @Override public boolean keyReleased(int keyCode,int scanCode,int modifiers) {
+        if (InputBindings.matches(ClientKeyMappings.ORDERS,keyCode,scanCode)) {
+            applyOrdersGesture(ordersGesture.release(net.minecraft.Util.getMillis(),
+                    dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
+            return true;
+        }
+        if (InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA,keyCode,scanCode)) {
+            homeGesture.release();
+            return true;
+        }
         if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode)) {
             HeroInputController.setMoveHeld(false); HeroInputController.release(minecraft.options.keyAttack);finishSelection(cursorX,cursorY);return true;
         }
