@@ -679,5 +679,6 @@
   "hud.stonebanner.alert.waiting_storage": "Ожидают склад: %s",
   "hud.stonebanner.alert.blocked_route": "Нет доступного пути: %s",
   "hud.stonebanner.alert.lacking_materials": "Не хватает материалов: %s",
-  "hud.stonebanner.context.place": "%s — установить блок"
+  "hud.stonebanner.context.place": "%s — установить блок",
+  "hud.stonebanner.context.no_control": "Нет прав на выбранных жителей"
 }

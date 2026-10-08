@@ -160,12 +160,14 @@ public final class TacticalControlScreen extends Screen {
         renderContextHint(graphics, mouseX, mouseY, feedbackNow);
         renderCommandNote(graphics, feedbackNow);
         renderCursorAction(graphics, mouseX, mouseY);
-        int color = cursorColor();
-        graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
-        graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
-        graphics.hLine(mouseX + 3, mouseX + 8, mouseY, color);
-        graphics.vLine(mouseX, mouseY - 8, mouseY - 3, color);
-        graphics.vLine(mouseX, mouseY + 3, mouseY + 8, color);
+        if (!pointerOnUi) {
+            int color = cursorColor();
+            graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
+            graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
+            graphics.hLine(mouseX + 3, mouseX + 8, mouseY, color);
+            graphics.vLine(mouseX, mouseY - 8, mouseY - 3, color);
+            graphics.vLine(mouseX, mouseY + 3, mouseY + 8, color);
+        }
 
         hoveredTarget.ifPresent(hit -> {
             Component targetLabel = hit instanceof EntityHitResult entityHit
@@ -306,6 +308,9 @@ public final class TacticalControlScreen extends Screen {
         if (commands()) {
             if (!CitizenSelectionController.hasSelection())
                 return Component.translatable("hud.stonebanner.context.select", primary);
+            if (minecraft.player != null && CitizenSelectionController.selectedAll().stream()
+                    .noneMatch(n -> n.hudCanDirect(minecraft.player.getUUID())))
+                return Component.translatable("hud.stonebanner.context.no_control");
             return Component.translatable(hit instanceof EntityHitResult ? "hud.stonebanner.context.order_attack"
                     : "hud.stonebanner.context.order_move", secondary);
         }
@@ -347,6 +352,10 @@ public final class TacticalControlScreen extends Screen {
             return !TunnelExtensionController.hasSelectedPlan() || TunnelExtensionController.previewAllowed()
                     ? ContextFeedbackController.Kind.ORDER : ContextFeedbackController.Kind.DENIED;
         if (commands()) {
+            if (minecraft.player != null && CitizenSelectionController.hasSelection()
+                    && CitizenSelectionController.selectedAll().stream()
+                    .noneMatch(n -> n.hudCanDirect(minecraft.player.getUUID())))
+                return ContextFeedbackController.Kind.DENIED;
             if (hit instanceof EntityHitResult e && e.getEntity() instanceof net.minecraft.world.entity.monster.Monster
                     && CitizenSelectionController.hasSelection())
                 return ContextFeedbackController.Kind.ATTACK;

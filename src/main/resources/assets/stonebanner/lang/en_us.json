@@ -679,5 +679,6 @@
   "hud.stonebanner.alert.waiting_storage": "Waiting for storage: %s",
   "hud.stonebanner.alert.blocked_route": "No accessible route: %s",
   "hud.stonebanner.alert.lacking_materials": "Missing materials: %s",
-  "hud.stonebanner.context.place": "%s — place block"
+  "hud.stonebanner.context.place": "%s — place block",
+  "hud.stonebanner.context.no_control": "Cannot command selected citizens"
 }
