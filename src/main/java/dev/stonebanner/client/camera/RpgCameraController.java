@@ -292,7 +292,13 @@ public final class RpgCameraController {
         if (lastSafeAnchor != null)
             anchorTransition.start(lastSafeAnchor, ClientConfig.CAMERA_TRANSITION_TICKS.get());
         clearFocus();
-        tacticalRig.reset(null);
+        Minecraft mc = Minecraft.getInstance();
+        // In Orders, Home recenters the detached pivot on the hero; a null rig would be
+        // reinitialized at the old camera anchor during the next rendering frame.
+        if (wasTactical && mc.player != null)
+            tacticalRig.reset(mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0));
+        else
+            tacticalRig.reset(null);
     }
 
     private static void hardReset() {
