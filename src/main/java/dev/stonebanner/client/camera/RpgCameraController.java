@@ -289,8 +289,11 @@ public final class RpgCameraController {
      * the camera. Does not alter the actor's position, order, inventory or selected hotbar slot.
      */
     public static void recenter() {
-        if (lastSafeAnchor != null)
-            anchorTransition.start(lastSafeAnchor, ClientConfig.CAMERA_TRANSITION_TICKS.get());
+        Minecraft client = Minecraft.getInstance();
+        if (lastSafeAnchor != null && client.player != null) {
+            Vec3 home = client.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+            beginSafeTransition(lastSafeAnchor, home);
+        }
         clearFocus();
         Minecraft mc = Minecraft.getInstance();
         // In Orders, Home recenters the detached pivot on the hero; a null rig would be
@@ -299,6 +302,12 @@ public final class RpgCameraController {
             tacticalRig.reset(mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0));
         else
             tacticalRig.reset(null);
+    }
+
+    private static void beginSafeTransition(Vec3 origin, Vec3 goal) {
+        // A distant tactical pivot takes additional ticks, bounding each collision sweep.
+        int distanceTicks = (int) Math.ceil(origin.distanceTo(goal) / 5.0D);
+        anchorTransition.start(origin, Math.max(ClientConfig.CAMERA_TRANSITION_TICKS.get(), distanceTicks));
     }
 
     private static void hardReset() {
@@ -320,7 +329,8 @@ public final class RpgCameraController {
         ensureInitialized();
         Vec3 from = lastSafeAnchor != null ? lastSafeAnchor
                 : mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
-        anchorTransition.start(from, ClientConfig.CAMERA_TRANSITION_TICKS.get());
+        Vec3 home = mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        beginSafeTransition(from, home);
         clearFocus();
         if (tactical) {
             heroCamera = new CameraView(cameraYaw, cameraPitch, targetDistance);
