@@ -5,6 +5,17 @@ import dev.stonebanner.command.CitizenOrderQueue;
 import dev.stonebanner.entity.HumanNpcEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.ClipContext;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.*;
+import net.minecraftforge.common.util.FakePlayerFactory;
+import dev.stonebanner.navigation.BlockPathfinder;
 
 /**
  * Server-owned short-lived player-order sequence. Never navigates a fake NPC or persists an
@@ -29,6 +40,56 @@ public final class CitizenOrderSequence {
     public int pendingCount() { return pending.size(); }
     public boolean hasOrders() { return active != null || !pending.isEmpty(); }
     public String failure() { return failure; }
+    public String preview() { return CitizenOrderQueue.encodePreview(active, pending.snapshot()); }
+
+    /** Deliberately exclude containers, GUI blocks and modded block entities from NPC use. */
+    public static boolean interactiveBlock(BlockState state) {
+        var block = state.getBlock();
+        return block instanceof ButtonBlock || block instanceof LeverBlock
+                || block instanceof DoorBlock || block instanceof TrapDoorBlock
+                || block instanceof FenceGateBlock;
+    }
+
+    private boolean permittedInteraction(ServerLevel level, BlockPos pos) {
+        if (commander == null || !level.hasChunkAt(pos) || !owner.citizenData().canTravelTo(pos)
+                || !interactiveBlock(level.getBlockState(pos))) return false;
+        var player = level.getServer().getPlayerList().getPlayer(commander);
+        return player != null && player.serverLevel() == level && player.isAlive() && !player.isSpectator()
+                && owner.citizenData().canBeDirectedBy(commander) && level.mayInteract(player, pos)
+                && player.distanceToSqr(Vec3.atCenterOf(pos)) <= 256D * 256D;
+    }
+
+    private boolean inInteractionRange(ServerLevel level, BlockPos pos) {
+        if (owner.distanceToSqr(Vec3.atCenterOf(pos)) > 3.25D * 3.25D) return false;
+        var trace = level.clip(new ClipContext(owner.getEyePosition(), Vec3.atCenterOf(pos),
+                ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, owner));
+        return trace.getType() == HitResult.Type.MISS
+                || trace instanceof BlockHitResult block && block.getBlockPos().equals(pos);
+    }
+
+    private boolean executeInteraction(ServerLevel level, BlockPos pos) {
+        if (!permittedInteraction(level, pos) || !inInteractionRange(level, pos)) return false;
+        var fake = FakePlayerFactory.getMinecraft(level);
+        fake.setPos(owner.getX(), owner.getY(), owner.getZ());
+        var hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false);
+        var result = level.getBlockState(pos).use(level, fake, InteractionHand.MAIN_HAND, hit);
+        if (result.consumesAction()) owner.swing(InteractionHand.MAIN_HAND);
+        return result.consumesAction();
+    }
+
+    private boolean approachInteraction(ServerLevel level, BlockPos pos) {
+        for (Direction side : new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}) {
+            for (int dy = 0; dy <= 1; dy++) {
+                BlockPos stand = pos.relative(side).below(dy);
+                if (!level.hasChunkAt(stand) || !owner.citizenData().canTravelTo(stand)
+                        || !BlockPathfinder.isWalkable(level, stand)
+                        || BlockPathfinder.findPermittedPath(level, owner.blockPosition(), stand,
+                            p -> level.hasChunkAt(p) && owner.citizenData().canTravelTo(p)).isEmpty()) continue;
+                if (owner.issueCommand(new ActorCommand.MoveTo(stand))) return true;
+            }
+        }
+        return false;
+    }
 
     public void clear() {
         pending.clear();
@@ -53,6 +114,11 @@ public final class CitizenOrderSequence {
                         && !(entity instanceof net.minecraft.world.entity.monster.Monster)) return false;
         }
         if (entry.kind() == CitizenOrderQueue.Kind.WORK && availableJob(level, entry) == null) return false;
+        if (entry.kind() == CitizenOrderQueue.Kind.INTERACT) {
+            var player = level.getServer().getPlayerList().getPlayer(issuedBy);
+            if (player == null || player.serverLevel() != level || !level.mayInteract(player, entry.block())
+                    || !interactiveBlock(level.getBlockState(entry.block()))) return false;
+        }
         // An unbounded manual follow/attack or a currently reserved autonomous work job must be
         // explicitly replaced with a normal order first; append never hijacks it silently.
         if (active == null && (owner.commandController().movementState() == CitizenBrainState.FOLLOW
@@ -92,6 +158,19 @@ public final class CitizenOrderSequence {
                 abort("no_path"); return;
             }
             if (!owner.commandController().hasActiveCommand()) finish(level);
+            return;
+        }
+
+        if (active.kind() == CitizenOrderQueue.Kind.INTERACT) {
+            if (!permittedInteraction(level, active.block())) { abort("invalid_target"); return; }
+            if (level.getGameTime() - activeStarted >= TARGET_TIMEOUT
+                    || owner.commandController().status() == CitizenCommandController.CommandStatus.UNREACHABLE) {
+                abort("interaction_unreachable"); return;
+            }
+            if (!owner.commandController().hasActiveCommand()) {
+                if (!executeInteraction(level, active.block())) { abort("interaction_unreachable"); return; }
+                finish(level);
+            }
             return;
         }
 
@@ -166,6 +245,10 @@ public final class CitizenOrderSequence {
                 case WORK -> {
                     CitizenJob job = availableJob(level, entry);
                     return job != null && owner.workController().assign(job);
+                }
+                case INTERACT -> {
+                    if (!permittedInteraction(level, entry.block())) return false;
+                    return inInteractionRange(level, entry.block()) || approachInteraction(level, entry.block());
                 }
             }
         } finally {

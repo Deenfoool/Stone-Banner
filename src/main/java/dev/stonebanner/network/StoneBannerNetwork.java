@@ -34,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "24";
+    private static final String PROTOCOL_VERSION = "25";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -90,6 +90,11 @@ public final class StoneBannerNetwork {
         CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.CitizenTargetPacket.class,
             dev.stonebanner.network.packet.CitizenTargetPacket::encode,dev.stonebanner.network.packet.CitizenTargetPacket::decode,
             dev.stonebanner.network.packet.CitizenTargetPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.CitizenInteractPacket.class,
+                dev.stonebanner.network.packet.CitizenInteractPacket::encode,
+                dev.stonebanner.network.packet.CitizenInteractPacket::decode,
+                dev.stonebanner.network.packet.CitizenInteractPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(nextPacketId++, TacticalActionPacket.class, TacticalActionPacket::encode,
                 TacticalActionPacket::decode, TacticalActionPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
@@ -230,6 +235,9 @@ public final class StoneBannerNetwork {
     public static void sendCitizenTarget(int npcId,int targetId) { sendCitizenTarget(npcId,targetId,false); }
     public static void sendCitizenTarget(int npcId,int targetId,boolean append) {
         CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenTargetPacket(npcId,targetId,append));
+    }
+    public static void sendCitizenInteract(int entityId, BlockPos target) {
+        CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenInteractPacket(entityId, target));
     }
     public static void sendMoveCitizen(int entityId, BlockPos target) {
         CHANNEL.sendToServer(new MoveCitizenPacket(entityId, target));

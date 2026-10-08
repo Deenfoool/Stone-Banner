@@ -95,6 +95,8 @@ public class HumanNpcEntity extends PathfinderMob {
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_QUEUED_MOVES =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<String> DATA_ORDER_PREVIEW =
+            SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.STRING);
 
     private static final EntityDataAccessor<Integer> DATA_WORK_BLOCK_REASON =
             SynchedEntityData.defineId(HumanNpcEntity.class, EntityDataSerializers.INT);
@@ -147,6 +149,7 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.define(DATA_DELIVERY_STATUS, 0);
         entityData.define(DATA_CARGO_COUNT, 0);
         entityData.define(DATA_QUEUED_MOVES, 0);
+        entityData.define(DATA_ORDER_PREVIEW, "");
         entityData.define(DATA_WORK_BLOCK_REASON, 0);
         entityData.define(DATA_OWNER,java.util.Optional.empty());entityData.define(DATA_RETURNING,false);
         entityData.define(DATA_SEEKING_BED,false);
@@ -477,6 +480,7 @@ public class HumanNpcEntity extends PathfinderMob {
     }
     public int hudCargoCount() { return entityData.get(DATA_CARGO_COUNT); }
     public int hudQueuedMoves() { return entityData.get(DATA_QUEUED_MOVES); }
+    public String hudOrderPreview() { return entityData.get(DATA_ORDER_PREVIEW); }
     public boolean hudSeekingBed() { return entityData.get(DATA_SEEKING_BED); }
 
     public int hudHunger() {
@@ -532,6 +536,7 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.set(DATA_DELIVERY_STATUS, workController.deliveryStatus().ordinal());
         entityData.set(DATA_WORK_BLOCK_REASON, workController.blockReason().ordinal());
         entityData.set(DATA_QUEUED_MOVES, commandController.queuedMoveCount() + orderSequence.pendingCount());
+        entityData.set(DATA_ORDER_PREVIEW, orderSequence.preview());
         entityData.set(DATA_CARGO_COUNT, citizenData.inventory().haulCargoSnapshot().stream()
                 .mapToInt(cargo -> cargo.stack().getCount()).sum());
         entityData.set(DATA_SKILLS_PACKED, CitizenHudCodec.packSkills(citizenData));
