@@ -657,5 +657,12 @@
   "hud.stonebanner.order.kind.follow": "Following",
   "hud.stonebanner.order.kind.attack": "Attacking",
   "hud.stonebanner.order.kind.work": "Working",
-  "hud.stonebanner.order.kind.interact": "Interacting"
+  "hud.stonebanner.order.kind.interact": "Interacting",
+  "hud.stonebanner.orders.resources": "Resources",
+  "hud.stonebanner.orders.earth": "Terrain",
+  "hud.stonebanner.orders.control": "Management",
+  "hud.stonebanner.orders.back": "Back",
+  "hud.stonebanner.group.title": "Squad: %s citizens",
+  "hud.stonebanner.group.status": "Following orders: %s · Queued: %s",
+  "hud.stonebanner.group.available": "Under your command: %s"
 }

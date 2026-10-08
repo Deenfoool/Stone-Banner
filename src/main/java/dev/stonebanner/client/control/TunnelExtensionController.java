@@ -33,6 +33,9 @@ public final class TunnelExtensionController {
         return active;
     }
 
+    /** Cancel a local endpoint choice; the original tunnel remains unchanged. */
+    public static void cancelSelection() { selectedPlan = null; hover = null; }
+
     public static boolean hasSelectedPlan() {
         return selectedPlan != null;
     }

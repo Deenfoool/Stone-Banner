@@ -100,6 +100,8 @@ public final class DesignationController {
         return false;
     }
 
+    /** Cancel an in-progress shape without deleting any already submitted server jobs. */
+    public static void cancelSelection() { clearSelection(); }
     public static boolean hasSelectionInProgress() { return firstCorner != null; }
 
     public static int completedClicks() {

@@ -63,6 +63,26 @@ class StoneBannerHudLayoutTest {
     }
 
     @Test
+    void groupOverviewDoesNotCoverDockOrTimeRail() {
+        for (int[] resolution : new int[][]{{870, 519}, {1280, 720}}) {
+            int w = resolution[0], h = resolution[1];
+            var card = StoneBannerHudLayout.groupCard(w, h);
+            assertFalse(card.overlaps(StoneBannerHudLayout.bottomDock(w, h, true)));
+            assertFalse(card.overlaps(StoneBannerHudLayout.rightRail(w, h)));
+        }
+    }
+
+    @Test
+    void threeHierarchyCategoriesFitInsideOrdersRow() {
+        var area = StoneBannerHudLayout.bottomDock(870, 519, true);
+        for (int i = 0; i < 3; i++) {
+            var slot = StoneBannerHudLayout.bottomTool(870, 519, i, 3);
+            assertTrue(area.contains(slot.x(), slot.y()));
+            assertTrue(area.contains(slot.x() + slot.width() - 1, slot.y() + slot.height() - 1));
+        }
+    }
+
+    @Test
     void speedButtonsRemainInsideRightRail() {
         StoneBannerHudLayout.Rect rail = StoneBannerHudLayout.rightRail(870, 519);
         for (int index = 0; index < 4; index++) {

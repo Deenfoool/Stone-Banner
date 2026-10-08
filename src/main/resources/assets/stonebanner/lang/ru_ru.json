@@ -657,5 +657,12 @@
   "hud.stonebanner.order.kind.follow": "Следует",
   "hud.stonebanner.order.kind.attack": "Атакует",
   "hud.stonebanner.order.kind.work": "Работает",
-  "hud.stonebanner.order.kind.interact": "Взаимодействует"
+  "hud.stonebanner.order.kind.interact": "Взаимодействует",
+  "hud.stonebanner.orders.resources": "Ресурсы",
+  "hud.stonebanner.orders.earth": "Земля",
+  "hud.stonebanner.orders.control": "Управление",
+  "hud.stonebanner.orders.back": "Назад",
+  "hud.stonebanner.group.title": "Отряд: %s жителей",
+  "hud.stonebanner.group.status": "В приказах: %s · Очередь: %s",
+  "hud.stonebanner.group.available": "Под управлением: %s"
 }

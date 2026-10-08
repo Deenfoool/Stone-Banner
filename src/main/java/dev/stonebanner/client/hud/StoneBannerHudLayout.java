@@ -46,6 +46,13 @@ public final class StoneBannerHudLayout {
         return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, screenHeight - height - SCREEN_MARGIN), width, height);
     }
 
+    /** Group overview replaces the single-citizen inspector rather than opening one at random. */
+    public static Rect groupCard(int screenWidth, int screenHeight) {
+        int height = 70;
+        int width = Math.min(CITIZEN_WIDTH, Math.max(1, screenWidth - SCREEN_MARGIN * 2));
+        return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, screenHeight - height - SCREEN_MARGIN), width, height);
+    }
+
     public static Rect citizenTab(int screenWidth, int screenHeight, boolean expanded, int index, int count) {
         if (!expanded || count <= 0 || index < 0 || index >= count) {
             throw new IllegalArgumentException("Citizen tab index must be inside an expanded card");
