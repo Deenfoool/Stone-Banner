@@ -218,7 +218,7 @@
   "hud.stonebanner.context.drag": "Тяни ЛКМ: область",
   "hud.stonebanner.context.next_tool": "G: следующий",
   "hud.stonebanner.context.exit": "ПКМ: выйти",
-  "hud.stonebanner.context.move": "ЛКМ: идти",
+  "hud.stonebanner.context.move": "%s — идти / двойной — бежать",
   "hud.stonebanner.context.stop": "ПКМ: стоп",
   "hud.stonebanner.context.work": "G: работы",
   "hud.stonebanner.context.priorities": "Приоритеты",
@@ -664,5 +664,16 @@
   "hud.stonebanner.orders.back": "Назад",
   "hud.stonebanner.group.title": "Отряд: %s жителей",
   "hud.stonebanner.group.status": "В приказах: %s · Очередь: %s",
-  "hud.stonebanner.group.available": "Под управлением: %s"
+  "hud.stonebanner.group.available": "Под управлением: %s",
+  "hud.stonebanner.context.target": "%s · %s",
+  "hud.stonebanner.context.build": "%s — поставить",
+  "hud.stonebanner.context.designate": "%s — выделить · %s — назад",
+  "hud.stonebanner.context.select": "%s — выбрать",
+  "hud.stonebanner.context.order_attack": "%s — приказ цели",
+  "hud.stonebanner.context.order_move": "%s — приказ движения / работы",
+  "hud.stonebanner.context.interact": "%s — взаимодействовать",
+  "hud.stonebanner.context.attack": "%s — атаковать",
+  "hud.stonebanner.context.mine": "%s — добывать (удерживать)",
+  "hud.stonebanner.context.denied": "Нельзя: см. причину",
+  "hud.stonebanner.context.sent": "Приказ отправлен"
 }

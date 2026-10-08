@@ -218,7 +218,7 @@
   "hud.stonebanner.context.drag": "Drag LMB: area",
   "hud.stonebanner.context.next_tool": "G: next",
   "hud.stonebanner.context.exit": "RMB: exit",
-  "hud.stonebanner.context.move": "LMB: move",
+  "hud.stonebanner.context.move": "%s — move / double-click to run",
   "hud.stonebanner.context.stop": "RMB: stop",
   "hud.stonebanner.context.work": "G: work",
   "hud.stonebanner.context.priorities": "Priorities",
@@ -664,5 +664,16 @@
   "hud.stonebanner.orders.back": "Back",
   "hud.stonebanner.group.title": "Squad: %s citizens",
   "hud.stonebanner.group.status": "Following orders: %s · Queued: %s",
-  "hud.stonebanner.group.available": "Under your command: %s"
+  "hud.stonebanner.group.available": "Under your command: %s",
+  "hud.stonebanner.context.target": "%s · %s",
+  "hud.stonebanner.context.build": "%s — place",
+  "hud.stonebanner.context.designate": "%s — select · %s — back",
+  "hud.stonebanner.context.select": "%s — select",
+  "hud.stonebanner.context.order_attack": "%s — target order",
+  "hud.stonebanner.context.order_move": "%s — move / work order",
+  "hud.stonebanner.context.interact": "%s — interact",
+  "hud.stonebanner.context.attack": "%s — attack",
+  "hud.stonebanner.context.mine": "%s — mine (hold)",
+  "hud.stonebanner.context.denied": "Blocked: see reason",
+  "hud.stonebanner.context.sent": "Command sent"
 }

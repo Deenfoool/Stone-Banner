@@ -5,6 +5,7 @@ import dev.stonebanner.client.ClientKeyMappings;
 import dev.stonebanner.client.ClientRuntime;
 import dev.stonebanner.client.camera.RpgCameraController;
 import dev.stonebanner.client.control.CitizenSelectionController;
+import dev.stonebanner.client.control.ContextFeedbackController;
 import dev.stonebanner.client.control.DesignationController;
 import dev.stonebanner.client.control.GameSpeedController;
 import dev.stonebanner.client.control.PlayerCommandController;
@@ -77,6 +78,7 @@ public final class TacticalControlScreen extends Screen {
         applyOrdersGesture(ordersGesture.interrupt(commands()));
         homeGesture.reset();
         toolBack.reset();
+        ContextFeedbackController.reset();
         for (var gesture : groupGestures) gesture.reset();
         PlayerCommandController.cancelPendingActions();
         dev.stonebanner.client.control.BlockPlacementPreview.reset();
@@ -108,7 +110,11 @@ public final class TacticalControlScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         cursorX=mouseX; cursorY=mouseY;
-        hoveredTarget = overUi(mouseX,mouseY)?Optional.empty():WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+        boolean pointerOnUi = overUi(mouseX, mouseY);
+        hoveredTarget = pointerOnUi ? Optional.empty() : WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+        long feedbackNow = net.minecraft.Util.getMillis();
+        ContextFeedbackController.observe(hoveredTarget.orElse(null), mouseX, mouseY,
+                pointerOnUi || selecting || dev.stonebanner.client.camera.RpgCameraController.viewObstructed(), feedbackNow);
         dev.stonebanner.client.control.ConstructionPreviewController.update(hoveredTarget.orElse(null));
         if (DesignationController.isActive() && DesignationController.hasSelectionInProgress()) {
             hoveredTarget.filter(BlockHitResult.class::isInstance)
@@ -147,6 +153,8 @@ public final class TacticalControlScreen extends Screen {
         var selectedCitizens = CitizenSelectionController.selectedAll();
         if(commands() && !dev.stonebanner.client.control.ConstructionPreviewController.active())graphics.drawString(font,Component.translatable("hud.stonebanner.selection_count", selectedCitizens.size(),
                 selectedCitizens.stream().mapToInt(HumanNpcEntity::hudQueuedMoves).sum()),8,108,0xFF69DDE7);
+        renderContextHint(graphics, mouseX, mouseY, feedbackNow);
+        renderCommandNote(graphics, feedbackNow);
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
         graphics.hLine(mouseX - 8, mouseX - 3, mouseY, color);
@@ -260,6 +268,77 @@ public final class TacticalControlScreen extends Screen {
 
     }
 
+    private void renderContextHint(GuiGraphics graphics, int x, int y, long now) {
+        if (!ContextFeedbackController.hintReady(now) || hoveredTarget.isEmpty()) return;
+        HitResult hit = hoveredTarget.orElseThrow();
+        Component target = hit instanceof EntityHitResult entity ? entity.getEntity().getDisplayName()
+                : hit instanceof BlockHitResult block && minecraft.level != null
+                ? minecraft.level.getBlockState(block.getBlockPos()).getBlock().getName()
+                : Component.empty();
+        Component hint = contextHint(hit);
+        if (hint == null) return;
+        Component text = Component.translatable("hud.stonebanner.context.target", target, hint);
+        int w = Math.min(Math.max(1, width - 12), font.width(text) + 12);
+        int px = Math.max(6, Math.min(width - w - 6, x + 14));
+        int py = Math.max(54, Math.min(height - 18, y + 18));
+        graphics.fill(px, py, px + w, py + 17, 0xE8161B1F);
+        graphics.renderOutline(px, py, w, 17, 0xFF8B6C42);
+        graphics.drawString(font, font.plainSubstrByWidth(text.getString(), w - 8), px + 4, py + 4, 0xFFF4F1E8);
+    }
+
+    private Component contextHint(HitResult hit) {
+        Component primary = minecraft.options.keyAttack.getTranslatedKeyMessage();
+        Component secondary = minecraft.options.keyUse.getTranslatedKeyMessage();
+        if (dev.stonebanner.client.control.ConstructionPreviewController.active())
+            return Component.translatable("hud.stonebanner.context.build", primary);
+        if (DesignationController.isActive() || TunnelExtensionController.isActive())
+            return Component.translatable("hud.stonebanner.context.designate", primary, secondary);
+        if (commands()) {
+            if (!CitizenSelectionController.hasSelection())
+                return Component.translatable("hud.stonebanner.context.select", primary);
+            return Component.translatable(hit instanceof EntityHitResult ? "hud.stonebanner.context.order_attack"
+                    : "hud.stonebanner.context.order_move", secondary);
+        }
+        if (hit instanceof BlockHitResult block && minecraft.level != null
+                && PlayerCommandController.isInteractiveBlock(block.getBlockPos()))
+            return Component.translatable("hud.stonebanner.context.interact", secondary);
+        if (hit instanceof EntityHitResult entity)
+            return Component.translatable("hud.stonebanner.context.attack",
+                    dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
+                            ? secondary : primary);
+        if (hit instanceof BlockHitResult block && minecraft.level != null) {
+            var state = minecraft.level.getBlockState(block.getBlockPos());
+            if (state.is(net.minecraft.tags.BlockTags.LOGS)
+                    || state.is(net.minecraftforge.common.Tags.Blocks.ORES))
+                return Component.translatable("hud.stonebanner.context.mine",
+                        dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
+                                ? secondary : primary);
+        }
+        return Component.translatable(dev.stonebanner.config.ClientConfig.controlMode()
+                == dev.stonebanner.control.ControlMode.HYBRID
+                ? "hud.stonebanner.context.move" : "hud.stonebanner.context.mine", primary);
+    }
+
+    private void renderCommandNote(GuiGraphics graphics, long now) {
+        ContextFeedbackController.note(now).ifPresent(note -> {
+            int available = Math.max(24, width - 12);
+            int w = Math.min(available, font.width(note.label()) + 10);
+            int x = Math.max(6, Math.min(width - w - 6, note.x() + 12));
+            int y = Math.max(54, Math.min(height - 18, note.y() - 23));
+            int alpha = Math.max(0, Math.min(255, (int)(220 * note.opacity())));
+            graphics.fill(x, y, x + w, y + 15, alpha << 24 | 0x00181C20);
+            graphics.drawString(font, font.plainSubstrByWidth(note.label().getString(), w - 8),
+                    x + 4, y + 3, note.color(), false);
+        });
+    }
+
+    private void feedback(HitResult hit, ContextFeedbackController.Kind kind) {
+        ContextFeedbackController.submitted(hit, kind, cursorX, cursorY,
+                Component.translatable(kind == ContextFeedbackController.Kind.DENIED
+                        ? "hud.stonebanner.context.denied"
+                        : "hud.stonebanner.context.sent"));
+    }
+
     private int cursorColor() {
         if (TunnelExtensionController.isActive()) {
             return !TunnelExtensionController.hasSelectedPlan() || TunnelExtensionController.previewAllowed()
@@ -270,6 +349,10 @@ public final class TacticalControlScreen extends Screen {
         if (type != null) {
             return DesignationController.previewAllowed() ? designationColor(type) : 0xFFFF6868;
         }
+        if (PlayerCommandController.rejectedGoal().isPresent()
+                && hoveredTarget.orElse(null) instanceof BlockHitResult block
+                && block.getBlockPos().distManhattan(PlayerCommandController.rejectedGoal().orElseThrow()) <= 2)
+            return 0xFFFF6868;
         // In Orders a hostile hover is visually distinct from a friendly selection.
         if (commands() && hoveredTarget.orElse(null) instanceof EntityHitResult e) {
             return e.getEntity() instanceof net.minecraft.world.entity.monster.Monster
@@ -497,11 +580,16 @@ public final class TacticalControlScreen extends Screen {
         }
         if(context==InputContext.DESIGNATION) {
             if (hoveredTarget.orElse(null) instanceof BlockHitResult b) {
+                boolean submitting = DesignationController.isActive()
+                        && DesignationController.completedClicks() == 2 && DesignationController.previewAllowed();
                 if (DesignationController.isActive()) {
                     DesignationController.updatePreview(b.getBlockPos());
                     DesignationController.click(b.getBlockPos());
+                    if (submitting) feedback(b, ContextFeedbackController.Kind.ORDER);
                 } else {
                     TunnelExtensionController.updatePreview(b.getBlockPos());
+                    if (TunnelExtensionController.hasSelectedPlan() && TunnelExtensionController.previewAllowed())
+                        feedback(b, ContextFeedbackController.Kind.ORDER);
                     TunnelExtensionController.click(b.getBlockPos());
                 }
             }
@@ -517,8 +605,10 @@ public final class TacticalControlScreen extends Screen {
             return heroAction(primary);
         }
         if(primary) { selecting=true;selectionMoved=false;dragStartX=cursorX;dragStartY=cursorY;return true; }
-        if(hoveredTarget.orElse(null) instanceof EntityHitResult e)
+        if(hoveredTarget.orElse(null) instanceof EntityHitResult e) {
             CitizenSelectionController.commandTarget(e.getEntity(), hasAltDown());
+            if (CitizenSelectionController.hasSelection()) feedback(e, ContextFeedbackController.Kind.ATTACK);
+        }
         else if(hoveredTarget.orElse(null) instanceof BlockHitResult b) {
             if (hasAltDown() && hasShiftDown()) {
                 if (!CitizenSelectionController.workSelected(b, true))
@@ -530,6 +620,8 @@ public final class TacticalControlScreen extends Screen {
                         dev.stonebanner.geology.GeologyService.Action.SURVEY,CitizenSelectionController.selected().map(n->n.getId()).orElse(-1));
             } else if(PlayerCommandController.isInteractiveBlock(b.getBlockPos()))PlayerCommandController.interactBlock(b);
             else if(!CitizenSelectionController.workSelected(b))CitizenSelectionController.moveSelected(b);
+            if (CitizenSelectionController.hasSelection())
+                feedback(b, ContextFeedbackController.Kind.ORDER);
         }
         return true;
     }
@@ -841,11 +933,17 @@ public final class TacticalControlScreen extends Screen {
                 var ground=WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null);
                 HeroInputController.cancel();
                 if(ground instanceof BlockHitResult b) {
-                    if(action==ActionResolver.Action.QUEUE_MOVE)PlayerCommandController.queueMoveTo(b);
+                    if(action==ActionResolver.Action.QUEUE_MOVE) {
+                        PlayerCommandController.queueMoveTo(b);
+                        feedback(b, ContextFeedbackController.Kind.ORDER);
+                    }
                     else {
                         boolean plainGround=hit instanceof BlockHitResult h && !PlayerCommandController.isInteractiveBlock(h.getBlockPos());
                         var pace=HeroInputController.groundClickPace(plainGround,cursorX,cursorY);
                         PlayerCommandController.moveTo(b,pace,false);
+                        feedback(b, PlayerCommandController.navigationFailed() ? ContextFeedbackController.Kind.DENIED
+                                : pace == dev.stonebanner.control.MovementPace.RUN
+                                ? ContextFeedbackController.Kind.RUN : ContextFeedbackController.Kind.MOVE);
                         if(PlayerCommandController.navigationFailed())HeroInputController.resetGroundClicks();
                         HeroInputController.setMoveHeld(true);
                     }
@@ -855,9 +953,16 @@ public final class TacticalControlScreen extends Screen {
                 HeroInputController.cancel();
                 if(hit instanceof EntityHitResult e)PlayerCommandController.interactEntity(e.getEntity());
                 else if(hit instanceof BlockHitResult b)PlayerCommandController.interactBlock(b);
+                feedback(hit, ContextFeedbackController.Kind.INTERACT);
             }
-            case ATTACK_OR_MINE, USE_ITEM -> HeroInputController.setActionHeld(
-                    primary?minecraft.options.keyAttack:minecraft.options.keyUse,action==ActionResolver.Action.ATTACK_OR_MINE,hit);
+            case ATTACK_OR_MINE, USE_ITEM -> {
+                HeroInputController.setActionHeld(primary?minecraft.options.keyAttack:minecraft.options.keyUse,
+                        action==ActionResolver.Action.ATTACK_OR_MINE,hit);
+                if (hit != null) feedback(hit, action == ActionResolver.Action.USE_ITEM
+                        ? ContextFeedbackController.Kind.INTERACT
+                        : hit instanceof EntityHitResult ? ContextFeedbackController.Kind.ATTACK
+                        : ContextFeedbackController.Kind.MINE);
+            }
             default -> { }
         }
         return true;

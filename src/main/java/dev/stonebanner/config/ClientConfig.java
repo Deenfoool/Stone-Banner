@@ -18,6 +18,10 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue CAMERA_INVERT_VERTICAL;
     public static final ForgeConfigSpec.BooleanValue CAMERA_EDGE_PAN;
     public static final ForgeConfigSpec.BooleanValue SHOW_PATH_PREVIEW;
+    public static final ForgeConfigSpec.BooleanValue SHOW_CONTEXT_HINTS;
+    public static final ForgeConfigSpec.IntValue CONTEXT_HINT_DELAY_MS;
+    public static final ForgeConfigSpec.BooleanValue SHOW_COMMAND_FEEDBACK;
+    public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_MARKERS;
     public static final ForgeConfigSpec.BooleanValue DOUBLE_CLICK_RUN;
     public static final ForgeConfigSpec.IntValue DOUBLE_CLICK_MS;
     public static final ForgeConfigSpec.IntValue HELD_PATH_INTERVAL;
@@ -38,6 +42,14 @@ public final class ClientConfig {
         SHOW_PATH_PREVIEW = BUILDER
                 .comment("Show the planned route when moving with the mouse.")
                 .define("showPathPreview", true);
+        SHOW_CONTEXT_HINTS = BUILDER.comment("Show stable-hover hints with current key bindings.")
+                .define("showContextHints", true);
+        CONTEXT_HINT_DELAY_MS = BUILDER.comment("Milliseconds before a contextual tooltip appears.")
+                .defineInRange("contextHintDelayMs", 480, 150, 1600);
+        SHOW_COMMAND_FEEDBACK = BUILDER.comment("Show brief command-sent rings and labels (not server acknowledgements).")
+                .define("showCommandFeedback", true);
+        SHOW_ORDER_MARKERS = BUILDER.comment("Show visual world markers for selected citizens and designated work.")
+                .define("showOrderMarkers", true);
         DOUBLE_CLICK_RUN=BUILDER.comment("Double ground click starts running in Mouse profile.").define("doubleClickRun",true);
         DOUBLE_CLICK_MS=BUILDER.defineInRange("doubleClickMs",300,150,600);
         HELD_PATH_INTERVAL=BUILDER.comment("Ticks between held-cursor path queries (20 ticks per second).").defineInRange("heldPathInterval",5,5,20);
