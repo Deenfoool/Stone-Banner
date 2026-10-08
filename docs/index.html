@@ -175,7 +175,7 @@ function chooseTool(action){
 function switchMode(){s.mode=s.mode==="hero"?"orders":"hero";s.tool=null;note("Режим: "+(s.mode==="orders"?"Приказы":"Герой"));renderUI();}
 function doAction(action){switch(action){case"help":openModal("help");break;case"settings":openModal("settings");break;case"journal":openModal("journal");break;case"mode":switchMode();break;case"reset":reset();break;case"stop":stop();break;case"fold":s.fold=!s.fold;renderUI();break;}}
 function stop(){selectedUnits().forEach(u=>{u.queue=[];u.target=null;u.work="Ожидает приказ";});note("Стоп: очередь отменена");renderUI();}
-function modalShell(title,content){s.modal=title;$("windowTitle").textContent=title;$("windowBody").innerHTML=content;$("overlay").hidden=false;}
+function modalShell(title,content){$("windowTitle").textContent=title;$("windowBody").innerHTML=content;$("overlay").hidden=false;}
 function openModal(which){s.modal=which;renderModal();}
 function modalTabs(keys){return '<div class="chips">'+keys.map(a=>'<button class="'+(s.modalTab===a[0]?"active":"")+'" data-modal-tab="'+a[0]+'">'+a[1]+'</button>').join("")+'</div>';}
 function renderModal(){
