@@ -426,7 +426,7 @@
   "message.stonebanner.interaction_unreachable": "No accessible route to the interaction target.",
   "hud.stonebanner.hero.controls": "V: WASD / mouse · RMB: use · Space: up · Shift: down · Ctrl: sprint · Tab: orders",
   "hud.stonebanner.commands.controls": "Orders · Ctrl+1–9: save · Alt+1–9: group · LMB: select / drag · Shift: add · RMB: order · Tab: hero",
-  "hud.stonebanner.selection_count": "Selected citizens: %s · pending waypoints: %s",
+  "hud.stonebanner.selection_count": "Selected citizens: %s · queued orders: %s",
   "delivery.stonebanner.idle": "Awaiting delivery",
   "delivery.stonebanner.travelling": "Carrying to storage",
   "delivery.stonebanner.depositing": "Depositing cargo",
@@ -614,7 +614,7 @@
   "controls.stonebanner.conflict": "Conflict: %s",
   "hud.stonebanner.wasd.bindings": "WASD · %s: attack/mine · %s: use · %s: orders (hold: temporary) · %s: profile · %s: up · %s: down · %s: sprint",
   "hud.stonebanner.mouse.bindings": "Mouse · %s: move · %s: action · %s: orders (hold: temporary) · %s: profile · %s: up · %s: down · %s: sprint",
-  "hud.stonebanner.commands.bindings": "Orders · %s: select/drag · %s: order · %s: hero · Home: focus · %s: profile · 1–9: hotbar · Alt+number: group",
+  "hud.stonebanner.commands.bindings": "Orders · %s: select · %s: order · %s: hero · %s: profile · Alt+RMB: queue · Alt+Shift+RMB: work",
   "key.stonebanner.camera_rotate": "Rotate camera (hold)",
   "key.stonebanner.alternative_use": "Alternative actions menu",
   "movement.stonebanner.reason.none": "Path available",
@@ -640,5 +640,14 @@
   "screen.stonebanner.actions.attack_hint": "Only living attackable targets. Citizens, villagers, players and tame pets are protected.",
   "screen.stonebanner.actions.work_hint": "Select citizens in Orders first; work requires logs or ore. Bind Alternative actions to open this menu in Orders.",
   "key.stonebanner.rotate_placement_modifier": "Placement rotation modifier (with wheel)",
-  "hud.stonebanner.bow_charge": "Bow: %s%%"
+  "hud.stonebanner.bow_charge": "Bow: %s%%",
+  "message.stonebanner.group_focus_unavailable": "No loaded group members nearby to focus.",
+  "message.stonebanner.order_queued": "%s: order accepted; %s pending.",
+  "message.stonebanner.order_rejected": "%s: cannot queue (unreachable target, no designated job, or full queue). Pending: %s.",
+  "message.stonebanner.order_interrupted": "%s: order sequence stopped — %s.",
+  "message.stonebanner.order_reason.preempted": "critical needs or resident leaving",
+  "message.stonebanner.order_reason.no_path": "no path",
+  "message.stonebanner.order_reason.work_blocked": "work blocked or timed out",
+  "message.stonebanner.order_reason.target_unreachable": "target lost, unreachable or timed out",
+  "message.stonebanner.order_reason.invalid_target": "target or job is no longer available"
 }
