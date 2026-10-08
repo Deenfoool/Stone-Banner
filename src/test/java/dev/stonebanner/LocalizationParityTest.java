@@ -24,6 +24,27 @@ class LocalizationParityTest {
         }
     }
 
+    @Test
+    void optionalGermanAndChinesePacksOnlyContainKeysWithEnglishFallback() {
+        JsonObject english = load("assets/stonebanner/lang/en_us.json");
+        JsonObject german = load("assets/stonebanner/lang/de_de.json");
+        JsonObject chinese = load("assets/stonebanner/lang/zh_cn.json");
+        for (JsonObject partial : new JsonObject[]{german, chinese}) {
+            for (String key : partial.keySet()) {
+                assertNotNull(english.get(key), "Unknown optional locale key: " + key);
+                assertEquals(placeholders(english.get(key).getAsString()),
+                        placeholders(partial.get(key).getAsString()),
+                        "Optional locale placeholder mismatch: " + key);
+            }
+            for (String key : english.keySet()) {
+                if (key.startsWith("settings.stonebanner.")
+                        || key.startsWith("hud.stonebanner.context.")) {
+                    assertNotNull(partial.get(key), "Required settings/tooltip translation missing: " + key);
+                }
+            }
+        }
+    }
+
     private static long placeholders(String text) {
         return java.util.regex.Pattern.compile("%(?:\\d+\\$)?[sd]").matcher(text).results().count();
     }

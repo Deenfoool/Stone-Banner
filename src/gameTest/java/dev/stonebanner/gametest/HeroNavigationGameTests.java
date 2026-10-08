@@ -46,6 +46,28 @@ public final class HeroNavigationGameTests {
                 p->HeroRouteSafety.permitted(h.getLevel(),p)).isEmpty(),"Low ceiling goal replaced or crossed");h.succeed();
     }
     @GameTest(template="empty",timeoutTicks=30)
+    public static void magmaBelowFeetAndLavaAtGoalStayImpassable(GameTestHelper h) {
+        floor(h);
+        var magma = new BlockPos(3, 0, 3);
+        var lava = new BlockPos(5, 1, 3);
+        h.setBlock(magma, Blocks.MAGMA_BLOCK);
+        h.setBlock(lava, Blocks.LAVA);
+        var level = h.getLevel();
+        var magmaFeet = h.absolutePos(magma.above());
+        var lavaFeet = h.absolutePos(lava);
+        h.assertTrue(HeroRouteSafety.terrain(level, magmaFeet) == HeroRouteSafety.Reason.FIRE,
+                "Magma below feet is not a hazard");
+        h.assertTrue(HeroRouteSafety.terrain(level, lavaFeet) == HeroRouteSafety.Reason.FIRE,
+                "Lava destination is not a hazard");
+        var route = BlockPathfinder.findPermittedPath(level, h.absolutePos(new BlockPos(1,1,3)),
+                h.absolutePos(new BlockPos(7,1,3)), p -> HeroRouteSafety.permitted(level, p));
+        h.assertTrue(route.isPresent(), "No safe detour around lava/magma");
+        h.assertTrue(route.get().stream().allMatch(p -> HeroRouteSafety.permitted(level, p)),
+                "Hazard used as shortest route");
+        h.succeed();
+    }
+
+    @GameTest(template="empty",timeoutTicks=30)
     public static void shallowWaterRemainsUsable(GameTestHelper h) {
         floor(h);var water=new BlockPos(4,1,3);h.setBlock(water,Blocks.WATER);
         var goal=h.absolutePos(water);

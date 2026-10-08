@@ -121,7 +121,10 @@ public final class StoneBannerHudRenderer {
             return;
         }
 
-        List<HumanNpcEntity> selectedMembers = CitizenSelectionController.selectedAll();
+        // Selection persists across Hero/Orders, but the tactical inspector belongs only
+        // to Orders. Hero retains its personal hotbar and uncluttered inspection area.
+        List<HumanNpcEntity> selectedMembers = dev.stonebanner.client.control.HeroInputController.commandMode()
+                ? CitizenSelectionController.selectedAll() : List.of();
         HumanNpcEntity selected = selectedMembers.size() == 1 ? selectedMembers.get(0) : null;
         if (selected != null && selected.getId() != lastCitizenId) {
             lastCitizenId = selected.getId();
@@ -147,10 +150,11 @@ public final class StoneBannerHudRenderer {
             return HudAction.CONSUME;
         }
 
-        if (CitizenSelectionController.selectedAll().size() > 1) {
+        if (dev.stonebanner.client.control.HeroInputController.commandMode()
+                && CitizenSelectionController.selectedAll().size() > 1) {
             if (StoneBannerHudLayout.groupCard(screenWidth, screenHeight).contains(mouseX, mouseY))
                 return HudAction.CONSUME;
-        } else if (hasSelectedCitizen) {
+        } else if (hasSelectedCitizen && dev.stonebanner.client.control.HeroInputController.commandMode()) {
             StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(screenWidth, screenHeight, citizenPanelExpanded);
             StoneBannerHudLayout.Rect toggle = new StoneBannerHudLayout.Rect(
                     card.x() + card.width() - 27, card.y() + 5, 22, 22
