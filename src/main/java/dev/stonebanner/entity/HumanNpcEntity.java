@@ -104,6 +104,7 @@ public class HumanNpcEntity extends PathfinderMob {
     private static final java.util.UUID COMBAT_MODIFIER=java.util.UUID.fromString("cfc2456b-c42f-4998-a2bf-2a99524fbe92");
 
     private final CitizenCommandController commandController;
+    private final dev.stonebanner.citizen.CitizenOrderSequence orderSequence;
     private final CitizenWorkController workController;
     private final dev.stonebanner.citizen.CitizenFoodController foodController;
     private final CitizenData citizenData;
@@ -116,6 +117,7 @@ public class HumanNpcEntity extends PathfinderMob {
         citizenData = new CitizenData();
         commandController = new CitizenCommandController(this);
         workController = new CitizenWorkController(this);
+        orderSequence = new dev.stonebanner.citizen.CitizenOrderSequence(this);
         foodController = new dev.stonebanner.citizen.CitizenFoodController(this);
         sleepController = new dev.stonebanner.citizen.CitizenSleepController(this);
         setPersistenceRequired();
@@ -168,6 +170,7 @@ public class HumanNpcEntity extends PathfinderMob {
 
         updateCombatEfficiency();
         commandController.tick();
+        orderSequence.tick();
         sleepController.tick();
         foodController.tick();
         if (citizenData.returningToVillage()) {
@@ -326,6 +329,7 @@ public class HumanNpcEntity extends PathfinderMob {
 
     public boolean issueCommand(ActorCommand command) {
         if (!isAlive()) return false;
+        if (!orderSequence.starting()) orderSequence.clear();
         if (citizenData.health().needsRecovery() && !(command instanceof ActorCommand.Stop)) return false;
         sleepController.cancel(true);
         foodController.cancel(true);
@@ -391,6 +395,10 @@ public class HumanNpcEntity extends PathfinderMob {
 
     public CitizenCommandController commandController() {
         return commandController;
+    }
+
+    public dev.stonebanner.citizen.CitizenOrderSequence orderSequence() {
+        return orderSequence;
     }
 
     public CitizenWorkController workController() {
@@ -523,7 +531,7 @@ public class HumanNpcEntity extends PathfinderMob {
         entityData.set(DATA_WORK_TYPE, workController.activeWorkType().map(Enum::ordinal).orElse(-1));
         entityData.set(DATA_DELIVERY_STATUS, workController.deliveryStatus().ordinal());
         entityData.set(DATA_WORK_BLOCK_REASON, workController.blockReason().ordinal());
-        entityData.set(DATA_QUEUED_MOVES, commandController.queuedMoveCount());
+        entityData.set(DATA_QUEUED_MOVES, commandController.queuedMoveCount() + orderSequence.pendingCount());
         entityData.set(DATA_CARGO_COUNT, citizenData.inventory().haulCargoSnapshot().stream()
                 .mapToInt(cargo -> cargo.stack().getCount()).sum());
         entityData.set(DATA_SKILLS_PACKED, CitizenHudCodec.packSkills(citizenData));
@@ -550,6 +558,7 @@ public class HumanNpcEntity extends PathfinderMob {
         bleedingSeconds = Math.max(0, Math.min(9, tag.getInt("MedicalBleedingSeconds")));
         foodController.cancel(true);
         workController.interrupt(true);
+        orderSequence.clear();
         // Older worlds persisted the prototype's 0.10 base speed in entity NBT. Reset only the base
         // value here; temporary attribute modifiers and the injury multiplier continue to work.
         AttributeInstance movementSpeed = getAttribute(Attributes.MOVEMENT_SPEED);
