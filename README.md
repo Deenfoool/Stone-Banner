@@ -11,6 +11,10 @@ The strict input acceptance checklist for Phase 1.12 is [docs/ACCEPTANCE_1_12.md
 on Linux/macOS with **JDK 17** run `bash scripts/verify-phase-1.12.sh`.
 Neither the integration run nor the manual client/dedicated-server tests have been claimed as passing.
 
+## Interactive HUD preview
+
+The [standalone browser HUD playground](docs/HUD_PLAYGROUND.md) lives in [docs/index.html](docs/index.html). It reproduces the alpha.49 HUD layout and interactively simulates selection, group orders, hotbar, tabs, world overlays, camera, NPC inspector, settings and time controls. It does **not** run Forge or connect to the Minecraft server. To publish it, enable GitHub Pages once using **Settings → Pages → Deploy from branch → main /docs** (no Actions). After activation: https://deenfoool.github.io/Stone-Banner/.
+
 ## Development requirements
 
 - 64-bit Java 17

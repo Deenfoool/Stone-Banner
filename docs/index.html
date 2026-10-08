@@ -67,7 +67,7 @@ const icons=["🗡","⛏","🪓","🏗","🍞","🏹","🛡","🧭","🗺"];
 const tabs=[["build","▦","Строительство"],["orders","☷","Приказы"],["zones","▥","Зоны"],["research","✦","Исследование"],["craft","⚒","Производство"]];
 const categories={root:[["res","♣","Ресурсы"],["earth","◆","Земля"],["control","⚑","Управление"]],res:[["chop","🪓","Рубить"],["mine","⛏","Добыть"],["clear","✂","Расчистить"],["back","←","Назад"]],earth:[["excavate","▤","Выемка"],["tunnel","⌑","Тоннель"],["back","←","Назад"]],control:[["cancel","✕","Отмена работ"],["back","←","Назад"]]};
 function reset(){
- s={units:defs.map(a=>Object.assign({},a,{queue:[],target:null,work:"Ожидает приказ",progress:0})),selected:[1],groups:{},mode:"orders",profile:"wasd",speed:1,day:1,clock:480,cam:{x:19,y:15,zoom:1},layers:{borders:false,resources:false,fertility:false},tab:"orders",cat:"root",tool:null,hot:0,collapsed:false,fold:false,modal:null,modalTab:"overview",settings:{markers:true,hints:true,autoApproach:true,edgePan:true},resources:Object.assign({},baseResources),buildings:[{x:15,y:9,type:"hall"},{x:23,y:17,type:"storage"},{x:14,y:20,type:"farm"}],marks:[],logs:["Лагерь готов к управлению.","Шесть NPC доступны для команд."],tick:0};
+ s={units:defs.map(a=>Object.assign({},a,{queue:[],target:null,work:"Ожидает приказ",progress:0})),selected:[1],groups:{},mode:"orders",profile:"wasd",speed:1,day:1,clock:480,cam:{x:19,y:15,zoom:1},layers:{borders:false,resources:false,fertility:false},tab:"orders",cat:"root",tool:null,hot:0,collapsed:false,fold:false,modal:null,modalTab:"overview",hero:{x:18,y:14},heroTarget:null,cursor:{x:-1,y:-1},settings:{markers:true,hints:true,autoApproach:true,edgePan:true},resources:Object.assign({},baseResources),buildings:[{x:15,y:9,type:"hall"},{x:23,y:17,type:"storage"},{x:14,y:20,type:"farm"}],marks:[],logs:["Лагерь готов к управлению.","Шесть NPC доступны для команд."],tick:0};
  $("overlay").hidden=true;notify("Демонстрация сброшена");renderUI();
 }
 function selectedUnits(){return s.units.filter(u=>s.selected.includes(u.id));}
@@ -83,7 +83,7 @@ function renderUI(){
  $("speeds").innerHTML=[["0","Ⅱ"],["1","▶"],["2","▶▶"],["3","»»"]].map(v=>'<button class="tiny '+(s.speed===+v[0]?"active":"")+'" data-speed="'+v[0]+'">'+v[1]+'</button>').join("");
  $("layers").innerHTML=[["borders","▣","Границы F6"],["resources","◆","Ресурсы F7"],["fertility","♣","Плодородие F8"]].map(v=>'<button class="tiny '+(s.layers[v[0]]?"active":"")+'" data-layer="'+v[0]+'" title="'+v[2]+'">'+v[1]+'</button>').join("");
  $("clock").innerHTML="⏱ "+formatTime()+" · День "+s.day+"<small>Скорость: "+s.speed+"× · Игровой полигон</small>";
- $("tips").textContent=s.tool?"Инструмент «"+toolLabel(s.tool)+"»: ЛКМ по клетке / ПКМ для отмены":s.mode==="orders"?"ЛКМ: выбрать NPC · Shift: группа · ПКМ: приказ · Alt+ПКМ: очередь":"Герой: "+s.profile.toUpperCase()+" · WASD или ЛКМ по земле · Tab: приказы";
+ $("tips").style.display=s.settings.hints?"":"none";$("tips").textContent=s.tool?"Инструмент «"+toolLabel(s.tool)+"»: ЛКМ по клетке / ПКМ для отмены":s.mode==="orders"?"ЛКМ: выбрать NPC · Shift: группа · ПКМ: приказ · Alt+ПКМ: очередь":"Герой: "+s.profile.toUpperCase()+" · WASD или ЛКМ по земле · Tab: приказы";
  let alerts=[];let group=selectedUnits();
  if(group.some(u=>u.hunger>65))alerts.push("⚠ Некоторым жителям необходима еда");
  if(group.some(u=>u.hp<=75))alerts.push("✚ Раненому жителю требуется лечение");
@@ -134,10 +134,10 @@ function draw(){
  if(s.layers.resources){for(let i=0;i<12;i++){let x=8+i*2,y=5+(i*7)%15,p=project(x+.5,y+.5);ctx.fillStyle="#ffe8a0aa";ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();}}
  if(s.layers.borders){let a=project(9,6),b=project(29,23);ctx.strokeStyle="#f9d873";ctx.setLineDash([11,7]);ctx.lineWidth=2;ctx.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.setLineDash([]);ctx.lineWidth=1;}
  for(let b of s.buildings)building(b);
- for(let m of s.marks){let p=project(m.x+.5,m.y+.5);ctx.strokeStyle=m.tool==="cancel"?"#ff746c":"#e8c063";ctx.lineWidth=2;ctx.strokeRect(p.x-t*.5,p.y-t*.5,t,t);ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.fillStyle="#ffe7a8";ctx.fillText(m.label,p.x,p.y+5);ctx.lineWidth=1;}
+ for(let m of (s.settings.markers?s.marks:[])){let p=project(m.x+.5,m.y+.5);ctx.strokeStyle=m.tool==="cancel"?"#ff746c":"#e8c063";ctx.lineWidth=2;ctx.strokeRect(p.x-t*.5,p.y-t*.5,t,t);ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.fillStyle="#ffe7a8";ctx.fillText(m.label,p.x,p.y+5);ctx.lineWidth=1;}
  for(let u of s.units){
  let p=project(u.x+.5,u.y+.5);
- if(u.target){let q=project(u.target.x+.5,u.target.y+.5);ctx.strokeStyle="#e9c36f88";ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]);}
+ if(u.target&&s.settings.markers){let q=project(u.target.x+.5,u.target.y+.5);ctx.strokeStyle="#e9c36f88";ctx.setLineDash([5,6]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]);}
  ctx.fillStyle="#111b18aa";ctx.beginPath();ctx.ellipse(p.x,p.y+8,10,4,0,0,7);ctx.fill();
  if(s.selected.includes(u.id)&&s.mode==="orders"){ctx.strokeStyle="#ffdc75";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y+6,14,7,0,0,7);ctx.stroke();ctx.lineWidth=1;}
  ctx.fillStyle=u.color;ctx.fillRect(p.x-7,p.y-9,14,16);ctx.fillStyle="#efc39a";ctx.fillRect(p.x-6,p.y-18,12,10);ctx.fillStyle="#222e28";ctx.fillRect(p.x-3,p.y-14,2,2);ctx.fillRect(p.x+2,p.y-14,2,2);ctx.fillStyle="#414136";ctx.fillRect(p.x-6,p.y+7,5,4);ctx.fillRect(p.x+1,p.y+7,5,4);
@@ -168,7 +168,7 @@ function designation(pt){let x=Math.floor(pt.x),y=Math.floor(pt.y);if(x<0||y<0||
 function chooseTool(action){
  if(action==="back"){s.cat="root";s.tool=null;}
  else if(["res","earth","control"].includes(action)){s.cat=action;s.tool=null;}
- else if(["study","map","crafting"].includes(action)){openModal(action);}
+ else if(["study","map","crafting"].includes(action)||action==="stock"&&s.tab==="craft"){openModal(action);}
  else if(action==="bclose"){s.tool=null;}
  else{s.tool=action===s.tool?null:action;if(s.tool&&s.mode==="hero")s.mode="orders";}
  renderUI();}
@@ -200,6 +200,7 @@ function closeModal(){s.modal=null;$("overlay").hidden=true;}
 function tick(dt){
  if(s.speed===0)return;
  let pace=dt*.001*s.speed;
+ if(s.settings.edgePan&&s.mode==="orders"&&s.cursor.x>=0&&!dragStart&&!movingCamera){let m=16;let px=s.cursor.x,py=s.cursor.y;if(px<m)s.cam.x-=pace*3;if(px>view.w-m)s.cam.x+=pace*3;if(py<m)s.cam.y-=pace*3;if(py>view.h-m)s.cam.y+=pace*3;}
  s.clock+=pace*3.5;if(s.clock>=1440){s.clock%=1440;s.day++;note("Начался новый день");}
  for(let u of s.units){u.hunger=Math.min(100,u.hunger+pace*.035);u.fatigue=Math.min(100,u.fatigue+pace*.028);
  if(u.target){let dx=u.target.x-u.x,dy=u.target.y-u.y,d=Math.hypot(dx,dy),step=pace*2;if(d<.05||d<=step){u.x=u.target.x;u.y=u.target.y;u.target=null;if(u.queue.length){u.target=u.queue.shift();u.work="Очередь: движение";}else{u.work=u.work.startsWith("Работа:")?u.work:"Ожидает приказ";if(u.work.startsWith("Работа:")){u.progress+=1;if(u.progress%3===0){s.resources.wood+=4;s.resources.stone+=2;}}}}else{u.x+=dx/d*step;u.y+=dy/d*step;}}
@@ -214,7 +215,7 @@ field.addEventListener("pointerdown",e=>{
  if(s.modal)return;field.setPointerCapture(e.pointerId);
  let pt=unproject(e.clientX,e.clientY);
  if(e.button===1){movingCamera=true;moveOrigin={x:e.clientX,y:e.clientY,cx:s.cam.x,cy:s.cam.y};return;}
- if(e.button===2){if(s.tool){s.tool=null;renderUI();return;}if(s.mode==="orders")setOrder(pt,e.altKey);else note("Контекстное действие героя (симуляция)");return;}
+ if(e.button===2){if(s.tool){s.tool=null;renderUI();return;}if(s.mode==="orders")setOrder(pt,e.altKey);else if(s.settings.autoApproach){s.heroTarget=pt;note("Герой: автоподход к цели (демо)");}else if(Math.hypot(pt.x-s.hero.x,pt.y-s.hero.y)<2){note("Контекстное действие героя (симуляция)");}else notify("Далеко: автоподход выключен");return;}
  if(e.button!==0)return;
  if(s.tool){designation(pt);return;}
  if(s.mode==="hero"){if(s.profile==="mouse"){s.heroTarget=pt;notify("Герой: движение к цели");}return;}
@@ -223,7 +224,7 @@ field.addEventListener("pointerdown",e=>{
  dragStart=pt;dragEnd=null;if(!e.shiftKey)s.selected=[];renderUI();
 });
 field.addEventListener("pointermove",e=>{
- if(movingCamera&&moveOrigin){s.cam.x=moveOrigin.cx-(e.clientX-moveOrigin.x)/sz();s.cam.y=moveOrigin.cy-(e.clientY-moveOrigin.y)/sz();return;}
+ s.cursor={x:e.clientX,y:e.clientY};if(movingCamera&&moveOrigin){s.cam.x=moveOrigin.cx-(e.clientX-moveOrigin.x)/sz();s.cam.y=moveOrigin.cy-(e.clientY-moveOrigin.y)/sz();return;}
  if(dragStart){dragEnd=unproject(e.clientX,e.clientY);}
 });
 field.addEventListener("pointerup",e=>{
@@ -266,7 +267,7 @@ document.addEventListener("keydown",e=>{
  if(k==="?"||k==="f1")openModal("help");
 });
 window.addEventListener("resize",resize);
-reset();s.hero={x:18,y:14};s.heroTarget=null;resize();requestAnimationFrame(loop);
+reset();resize();requestAnimationFrame(loop);
 })();
 </script>
 </body></html>
