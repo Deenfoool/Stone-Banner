@@ -48,6 +48,10 @@ public final class RpgCameraController {
     private static boolean viewObstructed;
     private static final TacticalCameraRig tacticalRig = new TacticalCameraRig();
     private static boolean wasTactical;
+    private static final CameraAnchorTransition anchorTransition = new CameraAnchorTransition();
+    private static CameraView heroCamera;
+
+    private record CameraView(float yaw, float pitch, double distance) {}
     private static Vec3 lastSafeAnchor;
     private static net.minecraft.resources.ResourceLocation cameraDimension;
     public static boolean viewObstructed() { return viewObstructed; }
@@ -138,6 +142,7 @@ public final class RpgCameraController {
             focusAnchor = focusAnchor.lerp(focusTarget, .22);
         }
         ensureInitialized();
+        anchorTransition.tick();
         if (tacticalRig.initialized()) tacticalRig.tick();
         if (mc.player != null && mc.level != null && mc.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen
                 && dev.stonebanner.client.control.HeroInputController.commandMode() && tacticalRig.initialized()
@@ -173,6 +178,8 @@ public final class RpgCameraController {
             rotatingCamera = false;
             viewObstructed = false;
             tacticalRig.reset(null);
+            anchorTransition.reset();
+            heroCamera = null;
             lastSafeAnchor = null;
             wasTactical = false;
             cameraDimension = null;
@@ -227,15 +234,15 @@ public final class RpgCameraController {
         Vec3 eyes = focusedEntity.getEyePosition(partialTick);
         followedEntity(minecraft);
         var dimension = minecraft.level.dimension().location();
-        if (!dimension.equals(cameraDimension)) recenter();
+        if (cameraDimension != null && !dimension.equals(cameraDimension)) hardReset();
         cameraDimension = dimension;
         boolean tactical = dev.stonebanner.client.control.HeroInputController.commandMode();
-        if (wasTactical != tactical) { tacticalRig.reset(null); clearFocus(); lastSafeAnchor = null; }
-        wasTactical = tactical;
+        if (wasTactical != tactical) commandsChanged(tactical); // safe fallback if an external source changed the mode
         Vec3 requestedAnchor = tactical && tacticalRig.initialized()
                 ? tacticalRig.interpolated(partialTick) : eyes.add(0.0D, ClientConfig.CAMERA_HEIGHT.get(), 0.0D);
         if (focusTarget != null && previousFocusAnchor != null && focusAnchor != null)
             requestedAnchor = previousFocusAnchor.lerp(focusAnchor, partialTick);
+        requestedAnchor = anchorTransition.toward(requestedAnchor, partialTick);
 
         double aspect = (double) minecraft.getWindow().getWidth() / Math.max(1, minecraft.getWindow().getHeight());
         double radius = CameraCollision.radius(minecraft.gameRenderer.getFov(camera, partialTick, true), aspect);
@@ -247,7 +254,7 @@ public final class RpgCameraController {
         var context = CollisionContext.of(focusedEntity);
         java.util.function.Function<AABB, List<AABB>> obstacles = bounds -> obstacles(minecraft, context, bounds);
         // Start at the real eyes, never at an unchecked height offset inside a roof.
-        boolean freeFocus = tactical || followingEntity();
+        boolean freeFocus = tactical || followingEntity() || anchorTransition.active();
         Vec3 sweepStart = freeFocus && lastSafeAnchor != null ? lastSafeAnchor : eyes;
         // A free camera stays in the loaded neighbourhood of the hero, but does not follow their movement.
         if (freeFocus) {
@@ -257,14 +264,15 @@ public final class RpgCameraController {
         }
         var lift = CameraCollision.sweep(sweepStart, requestedAnchor, radius, obstacles);
         if (freeFocus && lift.blockedStart() && sweepStart != eyes) {
-            recenter();
+            hardReset();
             lift = CameraCollision.sweep(eyes, eyes.add(0, ClientConfig.CAMERA_HEIGHT.get(), 0), radius, obstacles);
             requestedAnchor = lift.position();
         }
         viewObstructed = lift.blockedStart();
         Vec3 anchor = lift.position();
         lastSafeAnchor = anchor;
-        if (tactical && (!tacticalRig.initialized() || focusTarget != null || anchor.distanceToSqr(requestedAnchor) > 1e-6))
+        if (tactical && (!tacticalRig.initialized() || focusTarget != null
+                || !anchorTransition.active() && anchor.distanceToSqr(requestedAnchor) > 1e-6))
             tacticalRig.reset(anchor);
         Vector3f look = camera.getLookVector();
         Vec3 desired = anchor.subtract(look.x() * currentDistance, look.y() * currentDistance, look.z() * currentDistance);
@@ -276,8 +284,67 @@ public final class RpgCameraController {
 
     }
 
+    /**
+     * Preserves the last collision-validated pivot for an animated return instead of teleporting
+     * the camera. Does not alter the actor's position, order, inventory or selected hotbar slot.
+     */
     public static void recenter() {
-        clearFocus(); tacticalRig.reset(null); lastSafeAnchor = null;
+        if (lastSafeAnchor != null)
+            anchorTransition.start(lastSafeAnchor, ClientConfig.CAMERA_TRANSITION_TICKS.get());
+        clearFocus();
+        tacticalRig.reset(null);
+    }
+
+    private static void hardReset() {
+        clearFocus();
+        tacticalRig.reset(null);
+        anchorTransition.reset();
+        heroCamera = null;
+        lastSafeAnchor = null;
+    }
+
+    /** Called once when switching between the hero and the detached Orders camera. */
+    public static void commandsChanged(boolean tactical) {
+        Minecraft mc = Minecraft.getInstance();
+        if (!isCameraActive(mc)) {
+            wasTactical = tactical;
+            return;
+        }
+        initializeOrientationIfNeeded(mc.player);
+        ensureInitialized();
+        Vec3 from = lastSafeAnchor != null ? lastSafeAnchor
+                : mc.player.getEyePosition().add(0, ClientConfig.CAMERA_HEIGHT.get(), 0);
+        anchorTransition.start(from, ClientConfig.CAMERA_TRANSITION_TICKS.get());
+        clearFocus();
+        if (tactical) {
+            heroCamera = new CameraView(cameraYaw, cameraPitch, targetDistance);
+            tacticalRig.reset(from);
+            saveCountdown = 0; // RTS zoom/rotation must not overwrite the hero preference.
+        } else {
+            tacticalRig.reset(null);
+            if (heroCamera != null) {
+                cameraYaw = heroCamera.yaw();
+                cameraPitch = heroCamera.pitch();
+                targetDistance = heroCamera.distance();
+                saveCountdown = SAVE_DELAY_TICKS;
+            }
+            heroCamera = null;
+        }
+        wasTactical = tactical;
+    }
+
+    /** Double Home resets the preferred hero viewing angle and distance. */
+    public static void resetDefaultView() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!isCameraActive(mc)) return;
+        initializeOrientationIfNeeded(mc.player);
+        cameraYaw = mc.player.getYRot();
+        cameraPitch = 35.0F;
+        targetDistance = 8.0D;
+        saveCountdown = SAVE_DELAY_TICKS;
+        if (wasTactical && heroCamera != null)
+            heroCamera = new CameraView(cameraYaw, cameraPitch, targetDistance);
+        recenter();
     }
     public static void panByMouse(double dragX, double dragY) {
         if (!tacticalRig.initialized()) return;
@@ -326,7 +393,8 @@ public final class RpgCameraController {
         }
 
         trackedPlayer = player;
-        recenter();
+        hardReset();
+        wasTactical = dev.stonebanner.client.control.HeroInputController.commandMode();
         viewObstructed = false;
         cameraYaw = player.getYRot();
         cameraPitch = Mth.clamp(ClientConfig.CAMERA_PITCH.get().floatValue(), MIN_PITCH, MAX_PITCH);
@@ -412,7 +480,7 @@ public final class RpgCameraController {
     }
 
     private static void saveChangedDistanceWhenReady() {
-        if (saveCountdown <= 0) {
+        if (saveCountdown <= 0 || wasTactical) {
             return;
         }
 
