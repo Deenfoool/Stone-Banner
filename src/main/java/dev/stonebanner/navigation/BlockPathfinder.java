@@ -51,13 +51,19 @@ public final class BlockPathfinder {
     }
 
     public static Optional<List<BlockPos>> findPath(Level level, BlockPos requestedStart, BlockPos requestedGoal) {
+        return findPath(level, requestedStart, requestedGoal, node -> true);
+    }
+
+    /** NPC routes keep nearby-goal resolution, but may not snap or detour outside their territory. */
+    public static Optional<List<BlockPos>> findPath(Level level, BlockPos requestedStart, BlockPos requestedGoal,
+                                                   Predicate<BlockPos> permitted) {
         Optional<BlockPos> startResult = findNearbyWalkable(level, requestedStart, 1);
-        Optional<BlockPos> goalResult = findNearbyWalkable(level, requestedGoal, 3);
+        Optional<BlockPos> goalResult = findNearbyWalkable(level, requestedGoal, 3, permitted);
         if (startResult.isEmpty() || goalResult.isEmpty()) {
             return Optional.empty();
         }
 
-        return search(level, startResult.get(), goalResult.get(), node -> true);
+        return search(level, startResult.get(), goalResult.get(), permitted);
     }
 
     /** Hero safety predicate participates in neighbor search; the requested goal is never substituted. */

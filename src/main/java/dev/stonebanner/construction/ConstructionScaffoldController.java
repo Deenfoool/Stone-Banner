@@ -226,7 +226,7 @@ public final class ConstructionScaffoldController {
             }
         }
         // Damaged/old saves may contain orphaned blocks. Reclaim only reachable, unoccupied cells.
-        var remaining=plan.temporary.keySet().stream().sorted(Comparator.comparingInt(BlockPos::getY).reversed()).toList();
+        var remaining=plan.temporary.keySet().stream().sorted(Comparator.<BlockPos>comparingInt(BlockPos::getY).reversed()).toList();
         for(var p:remaining)if(near(p)&&!new AABB(p).move(0,1,0).intersects(npc.getBoundingBox()))return remove(plan,p,false);
         return blocked(plan,"scaffold_blocked",WorkBlockReason.NO_PATH);
     }

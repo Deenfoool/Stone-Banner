@@ -11,6 +11,71 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenInventoryTest {
     @Test
+    void cargoOnlyMergesWhenOwnersMatchIncludingLegacyNull() {
+        var inventory = new CitizenInventory();
+        var first = java.util.UUID.randomUUID(); var second = java.util.UUID.randomUUID();
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 3), first);
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 5), second);
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 7));
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 2), first);
+        var cargo = inventory.haulCargoSnapshot();
+        assertEquals(3, cargo.size());
+        assertEquals(5, cargo.get(0).stack().getCount()); assertEquals(first, cargo.get(0).owner());
+        assertEquals(5, cargo.get(1).stack().getCount()); assertEquals(second, cargo.get(1).owner());
+        assertEquals(7, cargo.get(2).stack().getCount()); assertEquals(null, cargo.get(2).owner());
+    }
+
+    @Test
+    void ownerRoundTripsWithoutModifyingItemTags() {
+        var inventory = new CitizenInventory(); var owner = java.util.UUID.randomUUID();
+        var stack = new ItemStack(Items.STICK, 70); stack.getOrCreateTag().putString("Custom", "unchanged");
+        inventory.addHaulCargo(stack, owner);
+        var loaded = new CitizenInventory(); loaded.load(inventory.save());
+        assertEquals(2, loaded.haulCargoSnapshot().size());
+        for (var cargo : loaded.haulCargoSnapshot()) {
+            assertEquals(owner, cargo.owner());
+            assertTrue(ItemStack.isSameItemSameTags(stack, cargo.stack()));
+            assertFalse(cargo.stack().getTag().hasUUID("CargoOwner"));
+        }
+    }
+
+    @Test
+    void partialDeliveryPreservesOwnerAndEmptySlotClearsIt() {
+        var inventory = new CitizenInventory(); var owner = java.util.UUID.randomUUID();
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 4), owner);
+        inventory.setHaulCargoStack(0, new ItemStack(Items.STICK, 2));
+        assertEquals(owner, inventory.haulCargoSnapshot().get(0).owner());
+        inventory.setHaulCargoStack(0, ItemStack.EMPTY);
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 3));
+        assertEquals(null, inventory.haulCargoSnapshot().get(0).owner());
+        inventory.clear(); inventory.addHaulCargo(new ItemStack(Items.STICK));
+        assertEquals(null, inventory.haulCargoSnapshot().get(0).owner());
+    }
+
+    @Test
+    void oldSaveRemainsUnownedCargoAndPersonalOwnerFieldIsIgnored() {
+        var inventory = new CitizenInventory();
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 4));
+        inventory.add(new ItemStack(Items.BREAD, 2));
+        var saved = inventory.save();
+        saved.getList("Items", net.minecraft.nbt.Tag.TAG_COMPOUND).getCompound(1).putUUID("CargoOwner", java.util.UUID.randomUUID());
+        var loaded = new CitizenInventory(); loaded.load(saved);
+        assertEquals(null, loaded.haulCargoSnapshot().get(0).owner());
+        assertEquals(2, loaded.countPersonalItem(Items.BREAD));
+        assertFalse(loaded.save().getList("Items", net.minecraft.nbt.Tag.TAG_COMPOUND).getCompound(1).hasUUID("CargoOwner"));
+    }
+
+    @Test
+    void fullInventoryDoesNotMixDifferentOwnersToMakeRoom() {
+        var inventory = new CitizenInventory(); var owner = java.util.UUID.randomUUID();
+        inventory.add(new ItemStack(Items.COBBLESTONE, 8*64));
+        inventory.addHaulCargo(new ItemStack(Items.STICK, 3), owner);
+        var remainder = inventory.addHaulCargo(new ItemStack(Items.STICK, 4), java.util.UUID.randomUUID());
+        assertEquals(4, remainder.getCount()); assertEquals(3, inventory.stack(8).getCount());
+        assertEquals(owner, inventory.haulCargoSnapshot().get(0).owner());
+    }
+
+    @Test
     void addUsesRealStackLimitsAndReturnsRemainder() {
         CitizenInventory inventory = new CitizenInventory();
         ItemStack remainder = inventory.add(new ItemStack(Items.BREAD, 70));

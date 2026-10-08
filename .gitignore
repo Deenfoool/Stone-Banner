@@ -22,6 +22,8 @@ build
 eclipse
 run
 run-gametest
+run-acceptance-server
+run-acceptance-client
 logs
 
 # Files from Forge MDK

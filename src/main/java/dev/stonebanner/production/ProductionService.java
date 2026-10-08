@@ -4,6 +4,7 @@ import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.citizen.*;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.storage.StorageData;
+import dev.stonebanner.settlement.SettlementData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -31,14 +32,21 @@ public final class ProductionService {
         return category==net.minecraft.world.item.crafting.CraftingBookCategory.EQUIPMENT||category==net.minecraft.world.item.crafting.CraftingBookCategory.REDSTONE||category==net.minecraft.world.item.crafting.CraftingBookCategory.MISC;
     }
     public static int stock(ServerLevel level,ProductionData.Bill bill,ItemStack output){
-        int count=0;var storage=StorageData.forLevel(level);
-        for(var pos:storage.registeredPositions())if(level.hasChunkAt(pos)&&pos.distSqr(bill.station)<=64*64&&level.getBlockEntity(pos) instanceof net.minecraft.world.Container container)
+        long count=0;var storage=StorageData.forLevel(level);
+        var settlements=SettlementData.forLevel(level);
+        var community=settlements.ownedBy(bill.owner).orElse(null);
+        for(var pos:storage.registeredPositions())if(level.hasChunkAt(pos)&&pos.distSqr(bill.station)<=64*64
+                &&(community==null||community.contains(pos))&&level.getBlockEntity(pos) instanceof net.minecraft.world.Container container)
             for(int i=0;i<container.getContainerSize();i++){var stack=container.getItem(i);if(ItemStack.isSameItemSameTags(output,stack))count+=stack.getCount();}
-        for(var npc:level.getEntitiesOfClass(HumanNpcEntity.class,new AABB(bill.station).inflate(64),HumanNpcEntity::isAlive))
-            for(var cargo:npc.citizenData().inventory().haulCargoSnapshot())if(ItemStack.isSameItemSameTags(output,cargo.stack()))count+=cargo.stack().getCount();
+        for(var npc:level.getEntitiesOfClass(HumanNpcEntity.class,new AABB(bill.station).inflate(64),HumanNpcEntity::isAlive)) {
+            boolean legacyMember=community==null||settlements.residentHome(npc.getUUID()).map(c->c.id().equals(community.id())).orElse(false);
+            for(var cargo:npc.citizenData().inventory().haulCargoSnapshot())
+                if((cargo.owner()==null?legacyMember:bill.owner.equals(cargo.owner()))
+                        &&ItemStack.isSameItemSameTags(output,cargo.stack()))count+=cargo.stack().getCount();
+        }
         for(var dropped:level.getEntitiesOfClass(ItemEntity.class,new AABB(bill.station).inflate(64),e->e.isAlive()&&e.getPersistentData().hasUUID("SBProductionOwner")&&bill.owner.equals(e.getPersistentData().getUUID("SBProductionOwner"))))
-            if(ItemStack.isSameItemSameTags(output,dropped.getItem()))count+=dropped.getItem().getCount();
-        return count;
+            if((community==null||community.contains(dropped.blockPosition()))&&ItemStack.isSameItemSameTags(output,dropped.getItem()))count+=dropped.getItem().getCount();
+        return (int)Math.min(Integer.MAX_VALUE,count);
     }
     public static ProductionData.Bill activeBill(ServerLevel level,BlockPos station){
         var data=ProductionData.forLevel(level);
@@ -66,7 +74,9 @@ public final class ProductionService {
     public static boolean allowed(HumanNpcEntity npc,CitizenJob job){
         var level=(ServerLevel)npc.level();var field=ProductionData.forLevel(level).fieldAt(job.target());var bill=job.workType()==WorkType.CRAFTING?activeBill(level,job.target()):null;
         UUID owner=job.workType()==WorkType.FARMING?(field==null?null:field.owner):(bill==null?null:bill.owner);
-        return owner!=null&&npc.citizenData().recruitedBy().map(owner::equals).orElse(true);
+        if(owner==null||!npc.citizenData().recruitedBy().map(owner::equals).orElse(true))return false;
+        var settlements=SettlementData.forLevel(level);var community=settlements.ownedBy(owner).orElse(null);
+        return community==null||settlements.residentHome(npc.getUUID()).map(c->c.id().equals(community.id())).orElse(false);
     }
     @SubscribeEvent public static void tick(TickEvent.LevelTickEvent e){
         if(e.phase!=TickEvent.Phase.END||!(e.level instanceof ServerLevel level)||level.getGameTime()%100!=0)return;

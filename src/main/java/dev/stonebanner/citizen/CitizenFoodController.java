@@ -3,6 +3,7 @@ package dev.stonebanner.citizen;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import dev.stonebanner.storage.StorageData;
+import dev.stonebanner.storage.CitizenStorageAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -50,7 +51,7 @@ public final class CitizenFoodController {
         retryAt = level.getGameTime() + 40;
         int attempts = 0;
         for (BlockPos source : StorageData.forLevel(level).containersWithItem(level, owner.blockPosition(), this::edible, 64)) {
-            if (!owner.citizenData().canTravelTo(source)) continue;
+            if (!owner.citizenData().canTravelTo(source) || !CitizenStorageAccess.mayUse(owner, source)) continue;
             if (++attempts > 8) break;
             if (owner.distanceToSqr(Vec3.atCenterOf(source)) <= 2.75 * 2.75 && visible(level, owner.getEyePosition(), source)) {
                 target = source.immutable();
@@ -80,7 +81,8 @@ public final class CitizenFoodController {
             return;
         }
         if (target == null) return;
-        if (!level.hasChunkAt(target) || !owner.citizenData().canTravelTo(target)) {
+        if (!level.hasChunkAt(target) || !owner.citizenData().canTravelTo(target)
+                || !CitizenStorageAccess.mayUse(owner, target)) {
             cancel(true);
             retryAt = level.getGameTime() + 40;
             return;

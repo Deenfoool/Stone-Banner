@@ -9,6 +9,7 @@ import dev.stonebanner.designation.ExcavationPlanData;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import dev.stonebanner.storage.StorageData;
+import dev.stonebanner.storage.CitizenStorageAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -263,6 +264,16 @@ public final class CitizenWorkController {
             owner.sleepController().cancel(true);owner.foodController().cancel(true);interrupt(false);
             owner.commandController().stop();clearBlockReason();currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
         }
+        if (isLadderBuildJob(level, job)) {
+            var board = CitizenJobBoard.forLevel(level);
+            if (!board.reserve(job.id(), owner.getUUID(), level.getGameTime())) return false;
+            owner.sleepController().cancel(true);
+            owner.foodController().cancel(true);
+            interrupt(true);
+            if (beginLadderBuild(level, job)) return true;
+            board.release(job.id(), owner.getUUID());
+            return false;
+        }
         var approach=findJobApproachPosition(level,job).orElse(null);
         if(approach==null){blocked(WorkBlockReason.NO_PATH);return false;}
         var board=CitizenJobBoard.forLevel(level);
@@ -292,26 +303,32 @@ public final class CitizenWorkController {
             return true;
         }
 
-        BlockPos source = StorageData.forLevel(level).nearestContainerWithItem(
-                level,
-                owner.blockPosition(),
-                stack -> stack.is(Items.LADDER),
-                STORAGE_SEARCH_RADIUS
-        ).orElse(null);
-        if (source == null || !owner.citizenData().canTravelTo(source)) {
+        DeliveryRoute supply = findLadderSupply(level).orElse(null);
+        if (supply == null) {
             clearLocalState();
             return false;
         }
 
-        BlockPos approach = findApproachPosition(level, source).orElse(null);
-        if (approach == null || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
+        if (!owner.commandController().issueSystemMove(supply.approach(), CitizenBrainState.WORK)) {
             clearLocalState();
+            blocked(WorkBlockReason.NO_PATH);
             return false;
         }
-        ladderStorageTarget = source.immutable();
+        ladderStorageTarget = supply.storage().immutable();
         ladderBuildPhase = LadderBuildPhase.TO_STORAGE;
         owner.setBrainState(CitizenBrainState.WORK);
         return true;
+    }
+
+    private Optional<DeliveryRoute> findLadderSupply(ServerLevel level) {
+        var candidates = StorageData.forLevel(level).containersWithItem(level, owner.blockPosition(),
+                stack -> stack.is(Items.LADDER), STORAGE_SEARCH_RADIUS).stream()
+                .filter(target -> CitizenStorageAccess.mayUse(owner, target)
+                        && owner.citizenData().canTravelTo(target)).toList();
+        var route = dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 8, target ->
+                findReachableStorageApproach(level, target).map(approach -> new DeliveryRoute(target, approach)));
+        if (route.isEmpty()) blocked(candidates.isEmpty() ? WorkBlockReason.MATERIALS : WorkBlockReason.NO_PATH);
+        return route;
     }
 
     private void tickLadderBuild(ServerLevel level) {
@@ -338,9 +355,19 @@ public final class CitizenWorkController {
                 deferCurrentJob(level);
                 return;
             }
-            if (!isWithinWorkRange(ladderStorageTarget)) {
+            if (!CitizenStorageAccess.mayUse(owner, ladderStorageTarget)) {
+                blocked(WorkBlockReason.MATERIALS);
+                deferCurrentJob(level);
+                return;
+            }
+            if (!owner.citizenData().canTravelTo(ladderStorageTarget)) {
+                blocked(WorkBlockReason.NO_PATH);
+                deferCurrentJob(level);
+                return;
+            }
+            if (!isWithinWorkRange(ladderStorageTarget) || !storageVisible(level, owner.getEyePosition(), ladderStorageTarget)) {
                 if (!owner.commandController().hasActiveCommand()) {
-                    BlockPos approach = findApproachPosition(level, ladderStorageTarget).orElse(null);
+                    BlockPos approach = findReachableStorageApproach(level, ladderStorageTarget).orElse(null);
                     if (approach == null
                             || !owner.commandController().issueSystemMove(approach, CitizenBrainState.WORK)) {
                         deferCurrentJob(level);
@@ -358,6 +385,7 @@ public final class CitizenWorkController {
                     1
             );
             if (extraction.isEmpty()) {
+                blocked(WorkBlockReason.MATERIALS);
                 deferCurrentJob(level);
                 return;
             }
@@ -521,6 +549,17 @@ public final class CitizenWorkController {
             deliveryStatus = dev.stonebanner.storage.DeliveryStatus.PLAYER_COMMAND;
             return;
         }
+        // Membership can change while walking or between arrival and the deposit tick.
+        // Keep the physical cargo and reselect; never blacklist an otherwise valid store.
+        if (cargoStorageTarget != null && (!CitizenStorageAccess.mayUse(owner, cargoStorageTarget)
+                || inventory.haulCargoSnapshot().stream().noneMatch(c -> CargoOwnership.mayDeliver(owner, c.owner(), cargoStorageTarget))
+                || !owner.citizenData().canTravelTo(cargoStorageTarget))) {
+            owner.commandController().stop();
+            cargoStorageTarget = null;
+            cargoPhase = CargoPhase.WAITING_STORAGE;
+            deliveryStatus = dev.stonebanner.storage.DeliveryStatus.WAITING_STORAGE;
+            cargoRetryCooldown = 0;
+        }
         if (cargoRetryCooldown > 0) {
             cargoRetryCooldown--;
             return;
@@ -529,7 +568,10 @@ public final class CitizenWorkController {
         if (cargoStorageTarget == null) {
             StorageData storage = StorageData.forLevel(level);
             var offered = inventory.haulCargoSnapshot().stream().map(CitizenInventory.HaulCargo::stack).toList();
-            var candidates = storage.acceptingContainers(level, owner.blockPosition(), offered, STORAGE_SEARCH_RADIUS);
+            var candidates = storage.acceptingContainers(level, owner.blockPosition(), offered, STORAGE_SEARCH_RADIUS)
+                    .stream().filter(target -> inventory.haulCargoSnapshot().stream().anyMatch(c ->
+                            CargoOwnership.mayDeliver(owner, c.owner(), target)
+                                    && storage.canAcceptAt(level, target, c.stack()))).toList();
             var route = dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 8, target -> {
                 if (!owner.citizenData().canTravelTo(target)
                         || level.getGameTime() < failedCargoStorages.getOrDefault(target, Long.MIN_VALUE)) return Optional.<DeliveryRoute>empty();
@@ -629,9 +671,11 @@ public final class CitizenWorkController {
     }
 
     private void depositCargo(ServerLevel level, BlockPos storageTarget) {
+        if (!CitizenStorageAccess.mayUse(owner, storageTarget)) return;
         StorageData storage = StorageData.forLevel(level);
         CitizenInventory inventory = owner.citizenData().inventory();
         for (CitizenInventory.HaulCargo cargo : inventory.haulCargoSnapshot()) {
+            if (!CargoOwnership.mayDeliver(owner, cargo.owner(), storageTarget)) continue;
             ItemStack remainder = storage.insertAt(level, storageTarget, cargo.stack());
             inventory.setHaulCargoStack(cargo.slot(), remainder);
         }
@@ -699,7 +743,7 @@ public final class CitizenWorkController {
     private void completeHaulingPickup(ServerLevel level) {
         CitizenJob job = currentJob;
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
-        int pickedUp = DroppedItemHauling.collectInto(level, job.target(), owner.citizenData().inventory());
+        int pickedUp = DroppedItemHauling.collectInto(level, job.target(), owner);
         if (pickedUp > 0) {
             board.complete(job.id(), owner.getUUID());
             DroppedItemHauling.publishIfNeeded(level, job.target());
@@ -739,7 +783,9 @@ public final class CitizenWorkController {
             if (original.isEmpty()) {
                 continue;
             }
-            ItemStack remainder = inventory.addHaulCargo(original);
+            UUID workOwner = CargoOwnership.workOwner(owner);
+            CargoOwnership.markDrop(itemEntity, workOwner);
+            ItemStack remainder = inventory.addHaulCargo(original, workOwner);
             if (remainder.getCount() == original.getCount()) {
                 continue;
             }
@@ -830,8 +876,10 @@ public final class CitizenWorkController {
         if(isConstructionJob(level,job))return dev.stonebanner.construction.ConstructionService.allowed(owner,job);
         if (isProductionJob(job)) return dev.stonebanner.production.ProductionService.allowed(owner,job);
         if (job.workType() == WorkType.HAULING) {
-            var drops = DroppedItemHauling.stacksAt(level, job.target());
-            var candidates = StorageData.forLevel(level).acceptingContainers(level, job.target(), drops, STORAGE_SEARCH_RADIUS);
+            var drops = DroppedItemHauling.stacksAt(level, job.target(), owner);
+            if (drops.isEmpty()) return false;
+            var candidates = StorageData.forLevel(level).acceptingContainers(level, job.target(), drops, STORAGE_SEARCH_RADIUS)
+                    .stream().filter(target -> CitizenStorageAccess.mayUse(owner, target)).toList();
             return dev.stonebanner.storage.DeliveryPlanner.choose(candidates, 8, target ->
                     owner.citizenData().canTravelTo(target) ? findReachableStorageApproach(level, target) : Optional.<BlockPos>empty()).isPresent();
         }
@@ -846,15 +894,7 @@ public final class CitizenWorkController {
             if (owner.citizenData().inventory().countPersonalItem(Items.LADDER) > 0) {
                 return findLadderSiteApproach(level, task.target()).isPresent();
             }
-            BlockPos source = StorageData.forLevel(level).nearestContainerWithItem(
-                    level,
-                    owner.blockPosition(),
-                    stack -> stack.is(Items.LADDER),
-                    STORAGE_SEARCH_RADIUS
-            ).orElse(null);
-            return source != null
-                    && owner.citizenData().canTravelTo(source)
-                    && findApproachPosition(level, source).isPresent()
+            return findLadderSupply(level).isPresent()
                     && findLadderSiteApproach(level, task.target()).isPresent();
         }
         return true;

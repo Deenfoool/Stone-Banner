@@ -27,6 +27,12 @@ class ConstructionCodecTest {
     }
     @Test void selectedGeometryAndRejectedCatalogEntryRoundTrip(){
         net.minecraft.SharedConstants.tryDetectVersion();net.minecraft.server.Bootstrap.bootStrap();
+        // Plain JUnit does not run Forge's block-state registry population lifecycle.
+        // Populate vanilla states here; runtime uses Forge's synchronized numeric IDs.
+        if(net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.size()==0)
+            for(var block:net.minecraft.core.registries.BuiltInRegistries.BLOCK)
+                for(var state:block.getStateDefinition().getPossibleStates())
+                    net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.add(state);
         var blueprint=dev.stonebanner.construction.BuildingBlueprint.cottage();
         var packet=new ConstructionSnapshotPacket(dimension,true,"ready",List.of(),List.of(
             new ConstructionSnapshotPacket.Entry(blueprint.id(),blueprint.title(),""),

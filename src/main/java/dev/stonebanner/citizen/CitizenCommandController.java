@@ -39,6 +39,7 @@ public final class CitizenCommandController {
     private ActorCommand activeCommand;
     private UUID targetIdentity;
     private boolean defensiveAttack;
+    private boolean unrestrictedRoute;
     private CitizenBrainState movementState = CitizenBrainState.IDLE;
     private CommandStatus status = CommandStatus.IDLE;
     private BlockPos moveDestination;
@@ -68,6 +69,7 @@ public final class CitizenCommandController {
                 return false;
             }
             queuedMoves.clear();
+            unrestrictedRoute = false;
             return issueMove(moveTo.target(), CitizenBrainState.MOVE);
         }
         if(command instanceof ActorCommand.EntityAction action && action.action()==ActorCommand.EntityActionType.ATTACK) {
@@ -82,6 +84,7 @@ public final class CitizenCommandController {
                 return false;
             }
             activeCommand = command;
+            unrestrictedRoute = false;
             targetIdentity = target.getUUID();
             defensiveAttack = false;
             queuedMoves.clear();
@@ -103,6 +106,7 @@ public final class CitizenCommandController {
     public boolean issueSystemMove(BlockPos target, CitizenBrainState state) {
         if (!owner.isAlive() || !owner.citizenData().health().canMoveIndependently()) return false;
         queuedMoves.clear();
+        unrestrictedRoute = true;
         CitizenBrainState resolvedState = state == null ? CitizenBrainState.MOVE : state;
         return issueMove(target, resolvedState);
     }
@@ -209,6 +213,11 @@ public final class CitizenCommandController {
     }
 
     private boolean tickPath(CitizenBrainState state, CommandStatus movingStatus) {
+        if (!unrestrictedRoute && moveDestination != null
+                && !owner.citizenData().canTravelTo(moveDestination)) {
+            failMove();
+            return false;
+        }
         BlockPos next = path.peekFirst();
         if (next == null) {
             if (state != CitizenBrainState.FOLLOW && moveDestination != null && status == CommandStatus.REPATHING)
@@ -255,7 +264,8 @@ public final class CitizenCommandController {
             attemptedDoor = null;
         }
 
-        if (!BlockPathfinder.isWalkable(owner.level(), next)) {
+        if ((!unrestrictedRoute && !owner.citizenData().canTravelTo(next))
+                || !BlockPathfinder.isWalkable(owner.level(), next)) {
             return recoverMove(state, movingStatus);
         }
 
@@ -370,11 +380,7 @@ public final class CitizenCommandController {
         }
 
         moveReplanAttempts++;
-        Optional<List<BlockPos>> result = BlockPathfinder.findPath(
-                owner.level(),
-                BlockPos.containing(owner.position()),
-                moveDestination
-        );
+        Optional<List<BlockPos>> result = routeTo(moveDestination);
         path.clear();
         if (result.isEmpty()) {
             moveReplanCooldown = MOVE_REPLAN_BACKOFF_TICKS;
@@ -397,11 +403,7 @@ public final class CitizenCommandController {
     }
 
     private boolean rebuildPath(BlockPos target, CitizenBrainState state, CommandStatus movingStatus) {
-        Optional<List<BlockPos>> result = BlockPathfinder.findPath(
-                owner.level(),
-                BlockPos.containing(owner.position()),
-                target
-        );
+        Optional<List<BlockPos>> result = routeTo(target);
 
         path.clear();
         owner.getNavigation().stop();
@@ -424,7 +426,14 @@ public final class CitizenCommandController {
         return true;
     }
 
+    private Optional<List<BlockPos>> routeTo(BlockPos target) {
+        return BlockPathfinder.findPath(owner.level(), owner.blockPosition(), target,
+                pos -> owner.level().hasChunkAt(pos)
+                        && (unrestrictedRoute || owner.citizenData().canTravelTo(pos)));
+    }
+
     public void stop() {
+        unrestrictedRoute = false;
         targetIdentity = null;
         defensiveAttack = false;
         attackCooldown = 0;
@@ -442,6 +451,7 @@ public final class CitizenCommandController {
     }
 
     private void completeMove() {
+        unrestrictedRoute = false;
         activeCommand = null;
         moveDestination = null;
         path.clear();
@@ -455,6 +465,7 @@ public final class CitizenCommandController {
     }
 
     private void failMove() {
+        unrestrictedRoute = false;
         queuedMoves.clear();
         activeCommand = null;
         moveDestination = null;

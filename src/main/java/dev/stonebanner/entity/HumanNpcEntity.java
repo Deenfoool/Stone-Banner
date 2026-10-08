@@ -389,10 +389,16 @@ public class HumanNpcEntity extends PathfinderMob {
         super.dropCustomDeathLoot(source, looting, recentlyHit);
         // Called by vanilla's loot pipeline (doMobLoot and Forge death/drop hooks still apply).
         var contents = citizenData.inventory().snapshot();
+        var cargo = citizenData.inventory().haulCargoSnapshot();
         citizenData.inventory().clear();
-        for (var stack : contents) {
-            if (!stack.isEmpty() && !net.minecraft.world.item.enchantment.EnchantmentHelper.hasVanishingCurse(stack))
-                spawnAtLocation(stack);
+        for (int slot = 0; slot < contents.size(); slot++) {
+            var stack = contents.get(slot);
+            if (!stack.isEmpty() && !net.minecraft.world.item.enchantment.EnchantmentHelper.hasVanishingCurse(stack)) {
+                var item = spawnAtLocation(stack);
+                int droppedSlot = slot;
+                cargo.stream().filter(c -> c.slot() == droppedSlot).findFirst().ifPresent(c ->
+                        dev.stonebanner.citizen.CargoOwnership.markDrop(item, c.owner()));
+            }
         }
     }
 

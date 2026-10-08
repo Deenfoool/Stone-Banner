@@ -91,11 +91,18 @@ minecraft {
         }
 
         client {
+            if (project.hasProperty('stonebanner.qaClient')) {
+                workingDirectory project.file('run-acceptance-client')
+                args '--quickPlayMultiplayer', '127.0.0.1:25575'
+                property 'stonebanner.qaDiagnostics', 'true'
+            }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
+            // Opt-in acceptance world, separate from client saves and ordinary dev-server data.
+            if (project.hasProperty('stonebanner.qaServer')) workingDirectory project.file('run-acceptance-server')
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
         }
@@ -228,6 +235,9 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
+
+// Allow graceful save/stop and read-only diagnostics from the QA server console.
+tasks.matching { it.name == 'runServer' }.configureEach { standardInput = System.in }
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()

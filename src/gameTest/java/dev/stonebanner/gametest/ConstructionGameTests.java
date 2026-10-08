@@ -36,6 +36,12 @@ public final class ConstructionGameTests {
             int remaining=material.getValue();while(remaining>0){int amount=Math.min(material.getKey().getMaxStackSize(),remaining);chest.setItem(slot++,new ItemStack(material.getKey(),amount));remaining-=amount;}
         }
         npc.citizenData().inventory().add(new ItemStack(Items.BREAD,16));npc.setWorkPriority(WorkType.BUILDING,WorkPriority.HIGH);ConstructionService.reconcile(h.getLevel());
+        for(int tick=1000;tick<9000;tick+=1000)h.runAfterDelay(tick,()->{
+            var next=ConstructionService.next(h.getLevel(),plan);
+            com.mojang.logging.LogUtils.getLogger().info("Cottage QA: done={} status={} worker={} pos={} next={} command={}",
+                CottageBlueprint.placements().stream().filter(p->p.matches(h.getLevel(),plan.origin,plan.rotation)).count(),
+                plan.status,npc.workController().blockReason(),npc.position(),next.map(p->p.cells().get(0).at(plan.origin,plan.rotation)).orElse(null),npc.commandController().status());
+        });
         h.startSequence().thenWaitUntil(()->h.assertTrue(plan.completed,"Cottage unfinished: "+plan.status+" worker="+npc.workController().blockReason()))
             .thenExecute(()->{
                 for(var placement:CottageBlueprint.placements())h.assertTrue(placement.matches(h.getLevel(),plan.origin,plan.rotation),"Missing cottage placement");

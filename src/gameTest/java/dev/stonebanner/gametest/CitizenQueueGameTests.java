@@ -140,6 +140,77 @@ public final class CitizenQueueGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 300)
+    public static void reloadedWorkerReacquiresPublishedWorkExactlyOnce(GameTestHelper helper) {
+        var npc = prepare(helper);
+        npc.setWorkPriority(dev.stonebanner.citizen.WorkType.HAULING, dev.stonebanner.citizen.WorkPriority.DISABLED);
+        long id = assignTree(helper, npc);
+        // Read a real compressed NBT round trip while work is unfinished. Published jobs are
+        // world data, not executable state inside the entity; they must remain available.
+        var tag = new net.minecraft.nbt.CompoundTag();
+        npc.addAdditionalSaveData(tag);
+        npc.readAdditionalSaveData(compressedRoundTrip(tag));
+        var board = dev.stonebanner.citizen.CitizenJobBoard.forLevel(helper.getLevel());
+        helper.assertTrue(board.job(id).isPresent(), "Reload removed published work");
+        helper.assertTrue(!npc.workController().hasActiveJob()
+                && !npc.commandController().hasActiveCommand(), "Reload restored a runtime lease or route");
+        helper.assertTrue(npc.citizenData().workPriority(dev.stonebanner.citizen.WorkType.FORESTRY)
+                == dev.stonebanner.citizen.WorkPriority.NORMAL, "Saved work priority lost");
+        helper.startSequence().thenWaitUntil(() -> {
+            helper.assertTrue(board.job(id).isEmpty(), "Reloaded worker did not finish published work");
+            helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).isAir(), "Tree was not harvested");
+            assertSingleLogDrop(helper);
+        }).thenExecuteAfter(20, () -> {
+            helper.assertTrue(board.job(id).isEmpty(), "Completed job reappeared");
+            assertSingleLogDrop(helper);
+        }).thenSucceed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void compressedReloadClearsMixedAndMovementQueues(GameTestHelper helper) {
+        var npc = prepare(helper);
+        var commander = java.util.UUID.randomUUID();
+        npc.citizenData().setRecruitedBy(commander);
+        var first = helper.absolutePos(new BlockPos(9, 1, 2));
+        var second = helper.absolutePos(new BlockPos(9, 1, 9));
+        helper.assertTrue(npc.orderSequence().enqueue(
+                dev.stonebanner.command.CitizenOrderQueue.Entry.move(first), commander), "First order rejected");
+        helper.assertTrue(npc.orderSequence().enqueue(
+                dev.stonebanner.command.CitizenOrderQueue.Entry.move(second), commander), "Queued order rejected");
+        helper.assertTrue(npc.commandController().queueMove(second), "Movement waypoint rejected");
+        var tag = new net.minecraft.nbt.CompoundTag();
+        npc.addAdditionalSaveData(tag);
+        npc.readAdditionalSaveData(compressedRoundTrip(tag));
+        var position = npc.position();
+        helper.assertTrue(npc.citizenData().recruitedBy().orElseThrow().equals(commander), "Reload lost employer");
+        helper.startSequence().thenExecuteAfter(20, () -> {
+            helper.assertTrue(!npc.orderSequence().hasOrders()
+                    && npc.orderSequence().pendingCount() == 0, "Old mixed queue survived reload");
+            helper.assertTrue(!npc.commandController().hasActiveCommand()
+                    && npc.commandController().queuedMoveCount() == 0, "Old movement queue survived reload");
+            helper.assertTrue(npc.position().distanceToSqr(position) < .1, "Reload replayed old movement");
+        }).thenSucceed();
+    }
+
+    private static net.minecraft.nbt.CompoundTag compressedRoundTrip(net.minecraft.nbt.CompoundTag tag) {
+        try {
+            var bytes = new java.io.ByteArrayOutputStream();
+            net.minecraft.nbt.NbtIo.writeCompressed(tag, bytes);
+            return net.minecraft.nbt.NbtIo.readCompressed(new java.io.ByteArrayInputStream(bytes.toByteArray()));
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("NPC persistence fixture could not round-trip NBT", exception);
+        }
+    }
+
+    private static void assertSingleLogDrop(GameTestHelper helper) {
+        int count = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(1, 1, 1)),
+                        helper.absolutePos(new BlockPos(10, 5, 10))))
+                .stream().filter(item -> item.getItem().is(net.minecraft.world.item.Items.OAK_LOG))
+                .mapToInt(item -> item.getItem().getCount()).sum();
+        helper.assertTrue(count == 1, "Reloaded forestry lost or duplicated its physical log: " + count);
+    }
+
     @GameTest(template = "empty", timeoutTicks = 150)
     public static void guardInterruptsQueueAndDefends(GameTestHelper helper) {
         var npc = prepare(helper);

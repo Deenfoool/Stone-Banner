@@ -10,28 +10,48 @@ package dev.stonebanner.client.hud;
  */
 public final class StoneBannerHudLayout {
     public static final int SCREEN_MARGIN = 6;
-    public static final int TOP_HEIGHT = 44;
+    public static final int TOP_HEIGHT = 34;
 
-    public static final int CITIZEN_WIDTH = 235;
-    public static final int CITIZEN_EXPANDED_HEIGHT = 226;
+    public static final int CITIZEN_WIDTH = 210;
+    public static final int CITIZEN_EXPANDED_HEIGHT = 186;
     public static final int CITIZEN_COLLAPSED_HEIGHT = 42;
-    public static final int CITIZEN_TAB_HEIGHT = 28;
+    public static final int CITIZEN_TAB_HEIGHT = 22;
 
-    public static final int RIGHT_RAIL_WIDTH = 178;
-    public static final int RIGHT_RAIL_HEIGHT = 212;
-    public static final int TIME_BUTTON_HEIGHT = 28;
+    public static final int RIGHT_RAIL_WIDTH = 144;
+    public static final int RIGHT_RAIL_HEIGHT = 156;
+    public static final int TIME_BUTTON_HEIGHT = 20;
 
-    public static final int BOTTOM_DOCK_MAX_WIDTH = 680;
-    public static final int BOTTOM_DOCK_MIN_WIDTH = 360;
-    public static final int BOTTOM_DOCK_EXPANDED_HEIGHT = 142;
-    public static final int BOTTOM_DOCK_COLLAPSED_HEIGHT = 42;
-    public static final int BOTTOM_TAB_HEIGHT = 34;
+    public static final int BOTTOM_DOCK_MAX_WIDTH = 560;
+    public static final int BOTTOM_DOCK_MIN_WIDTH = 300;
+    public static final int BOTTOM_DOCK_EXPANDED_HEIGHT = 106;
+    public static final int BOTTOM_DOCK_COLLAPSED_HEIGHT = 34;
+    public static final int BOTTOM_TAB_HEIGHT = 24;
     public static final int BOTTOM_TOGGLE_WIDTH = 48;
     public static final int BOTTOM_TOGGLE_HEIGHT = 15;
-    public static final int HOTBAR_HEIGHT = 34;
+    public static final int HOTBAR_HEIGHT = 28;
     public static final int HOTBAR_SLOTS = 9;
 
-    public static final int ALERT_WIDTH = 250;
+    public static final int ALERT_WIDTH = 220;
+
+    /** Narrow viewports stack the corner panels above the command dock. */
+    private static boolean sideBySide(int screenWidth) {
+        return screenWidth >= CITIZEN_WIDTH + RIGHT_RAIL_WIDTH + BOTTOM_DOCK_MIN_WIDTH + 36;
+    }
+
+    public static boolean canExpandCitizen(int screenWidth, int screenHeight) {
+        int dockSpace = sideBySide(screenWidth) ? 0 : BOTTOM_DOCK_EXPANDED_HEIGHT + 18;
+        return screenHeight >= TOP_HEIGHT + 24 + CITIZEN_EXPANDED_HEIGHT + dockSpace;
+    }
+
+    private static int cornerBottom(int screenWidth, int screenHeight) {
+        return sideBySide(screenWidth) ? screenHeight - SCREEN_MARGIN
+                : bottomDock(screenWidth, screenHeight, true).y() - 18;
+    }
+
+    private static int citizenWidth(int screenWidth) {
+        return Math.min(CITIZEN_WIDTH, Math.max(1, screenWidth - (sideBySide(screenWidth)
+                ? SCREEN_MARGIN * 2 : RIGHT_RAIL_WIDTH + SCREEN_MARGIN * 3)));
+    }
 
     private StoneBannerHudLayout() {
     }
@@ -42,15 +62,15 @@ public final class StoneBannerHudLayout {
 
     public static Rect citizenCard(int screenWidth, int screenHeight, boolean expanded) {
         int height = expanded ? CITIZEN_EXPANDED_HEIGHT : CITIZEN_COLLAPSED_HEIGHT;
-        int width = Math.min(CITIZEN_WIDTH, Math.max(1, screenWidth - SCREEN_MARGIN * 2));
-        return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, screenHeight - height - SCREEN_MARGIN), width, height);
+        int width = citizenWidth(screenWidth);
+        return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, cornerBottom(screenWidth, screenHeight) - height), width, height);
     }
 
     /** Group overview replaces the single-citizen inspector rather than opening one at random. */
     public static Rect groupCard(int screenWidth, int screenHeight) {
-        int height = 70;
-        int width = Math.min(CITIZEN_WIDTH, Math.max(1, screenWidth - SCREEN_MARGIN * 2));
-        return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, screenHeight - height - SCREEN_MARGIN), width, height);
+        int height = 58;
+        int width = citizenWidth(screenWidth);
+        return new Rect(SCREEN_MARGIN, Math.max(TOP_HEIGHT + 16, cornerBottom(screenWidth, screenHeight) - height), width, height);
     }
 
     public static Rect citizenTab(int screenWidth, int screenHeight, boolean expanded, int index, int count) {
@@ -69,9 +89,10 @@ public final class StoneBannerHudLayout {
 
     public static Rect rightRail(int screenWidth, int screenHeight) {
         int width = Math.min(RIGHT_RAIL_WIDTH, Math.max(1, screenWidth - SCREEN_MARGIN * 2));
-        int height = Math.min(RIGHT_RAIL_HEIGHT, Math.max(1, screenHeight - TOP_HEIGHT - 20));
+        int bottom = cornerBottom(screenWidth, screenHeight);
+        int height = Math.min(RIGHT_RAIL_HEIGHT, Math.max(1, bottom - TOP_HEIGHT - 12));
         return new Rect(Math.max(SCREEN_MARGIN, screenWidth - width - SCREEN_MARGIN),
-                Math.max(TOP_HEIGHT + 12, screenHeight - height - SCREEN_MARGIN), width, height);
+                Math.max(TOP_HEIGHT + 12, bottom - height), width, height);
     }
 
     public static Rect timeButton(int screenWidth, int screenHeight, int index) {
@@ -80,28 +101,38 @@ public final class StoneBannerHudLayout {
         }
         Rect rail = rightRail(screenWidth, screenHeight);
         int gap = 3;
-        int width = (rail.width() - 10 - gap * 3) / 4;
+        int controlsWidth = shortRail(rail) ? rail.width() - 66 : rail.width() - 10;
+        int width = (controlsWidth - gap * 3) / 4;
         return new Rect(rail.x() + 5 + index * (width + gap), rail.y() + 5, width, TIME_BUTTON_HEIGHT);
     }
 
     public static Rect layerButton(int screenWidth, int screenHeight, int index) {
         if (index < 0 || index >= 3) throw new IllegalArgumentException("Layer index");
         Rect rail = rightRail(screenWidth, screenHeight);
-        int gap = 3, width = (rail.width() - 10 - gap * 2) / 3;
-        return new Rect(rail.x() + 5 + index * (width + gap), rail.y() + 38, width, 24);
+        int controlsWidth = shortRail(rail) ? rail.width() - 66 : rail.width() - 10;
+        int gap = 3, width = (controlsWidth - gap * 2) / 3;
+        return new Rect(rail.x() + 5 + index * (width + gap), rail.y() + 28, width, 20);
     }
     public static Rect clockPanel(int screenWidth, int screenHeight) {
         Rect rail = rightRail(screenWidth, screenHeight);
-        return new Rect(rail.x() + 5, rail.y() + 68, rail.width() - 10, 42);
+        return new Rect(rail.x() + 5, rail.y() + 51, rail.width() - 10, 30);
     }
 
     public static Rect miniMap(int screenWidth, int screenHeight) {
         Rect rail = rightRail(screenWidth, screenHeight);
-        return new Rect(rail.x() + 5, rail.y() + 115, rail.width() - 10, Math.max(1, rail.height() - 120));
+        if (shortRail(rail)) {
+            return new Rect(rail.x() + rail.width() - 58, rail.y() + 5, 53,
+                    Math.min(53, Math.max(1, rail.height() - 10)));
+        }
+        return new Rect(rail.x() + 5, rail.y() + 84, rail.width() - 10, Math.max(1, rail.height() - 89));
+    }
+
+    private static boolean shortRail(Rect rail) {
+        return rail.height() < 112;
     }
 
     public static Rect bottomDock(int screenWidth, int screenHeight, boolean expanded) {
-        boolean reserveCorners = screenWidth >= 700;
+        boolean reserveCorners = sideBySide(screenWidth);
         int leftReserved = reserveCorners ? CITIZEN_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
         int rightReserved = reserveCorners ? RIGHT_RAIL_WIDTH + SCREEN_MARGIN + 12 : SCREEN_MARGIN;
         int available = Math.max(1, screenWidth - leftReserved - rightReserved);
@@ -166,7 +197,7 @@ public final class StoneBannerHudLayout {
         }
         Rect area = hotbarArea(screenWidth, screenHeight, expanded);
         int gap = 2;
-        int maxSlot = 34;
+        int maxSlot = 28;
         int slot = Math.max(1, Math.min(maxSlot, (area.width() - gap * (HOTBAR_SLOTS - 1)) / HOTBAR_SLOTS));
         int used = slot * HOTBAR_SLOTS + gap * (HOTBAR_SLOTS - 1);
         int start = area.x() + Math.max(0, (area.width() - used) / 2);
@@ -176,7 +207,7 @@ public final class StoneBannerHudLayout {
     public static Rect alerts(int screenWidth, int lineCount) {
         int count = Math.max(1, Math.min(3, lineCount));
         int width = Math.min(ALERT_WIDTH, Math.max(1, screenWidth - SCREEN_MARGIN * 2));
-        int height = 6 + count * 22;
+        int height = 6 + count * 18;
         return new Rect(Math.max(SCREEN_MARGIN, screenWidth - width - SCREEN_MARGIN),
                 TOP_HEIGHT + SCREEN_MARGIN + 8, width, height);
     }

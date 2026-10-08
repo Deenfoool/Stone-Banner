@@ -11,6 +11,8 @@ import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Small persistent personal inventory shared by every Citizen implementation.
@@ -24,9 +26,11 @@ public final class CitizenInventory {
     private static final String TAG_ITEMS = "Items";
     private static final String TAG_SLOT = "Slot";
     private static final String TAG_HAUL_CARGO = "HaulCargo";
+    private static final String TAG_CARGO_OWNER = "CargoOwner";
 
     private final List<ItemStack> slots = new ArrayList<>(SLOT_COUNT);
     private final boolean[] haulCargo = new boolean[SLOT_COUNT];
+    private final UUID[] cargoOwners = new UUID[SLOT_COUNT];
 
     public CitizenInventory() {
         for (int index = 0; index < SLOT_COUNT; index++) {
@@ -90,6 +94,7 @@ public final class CitizenInventory {
             inserted.setCount(moved);
             slots.set(index, inserted);
             haulCargo[index] = false;
+            cargoOwners[index] = null;
             remainder.shrink(moved);
         }
         return remainder;
@@ -100,6 +105,11 @@ public final class CitizenInventory {
      * Cargo only merges with other cargo, so personal food/tools are never silently deposited into storage.
      */
     public ItemStack addHaulCargo(ItemStack incoming) {
+        return addHaulCargo(incoming, null);
+    }
+
+    /** Owner metadata belongs to the slot, never to the item/recipe NBT. Null is legacy cargo. */
+    public ItemStack addHaulCargo(ItemStack incoming, UUID owner) {
         if (incoming == null || incoming.isEmpty()) {
             return ItemStack.EMPTY;
         }
@@ -107,7 +117,8 @@ public final class CitizenInventory {
         ItemStack remainder = incoming.copy();
         for (int index = 0; index < SLOT_COUNT && !remainder.isEmpty(); index++) {
             ItemStack existing = slots.get(index);
-            if (!haulCargo[index] || existing.isEmpty() || !ItemStack.isSameItemSameTags(existing, remainder)) {
+            if (!haulCargo[index] || !Objects.equals(cargoOwners[index], owner)
+                    || existing.isEmpty() || !ItemStack.isSameItemSameTags(existing, remainder)) {
                 continue;
             }
             int room = Math.max(0, existing.getMaxStackSize() - existing.getCount());
@@ -128,6 +139,7 @@ public final class CitizenInventory {
             inserted.setCount(moved);
             slots.set(index, inserted);
             haulCargo[index] = true;
+            cargoOwners[index] = owner;
             remainder.shrink(moved);
         }
         return remainder;
@@ -179,7 +191,7 @@ public final class CitizenInventory {
         ArrayList<HaulCargo> cargo = new ArrayList<>();
         for (int index = 0; index < SLOT_COUNT; index++) {
             if (haulCargo[index] && !slots.get(index).isEmpty()) {
-                cargo.add(new HaulCargo(index, slots.get(index).copy()));
+                cargo.add(new HaulCargo(index, slots.get(index).copy(), cargoOwners[index]));
             }
         }
         return List.copyOf(cargo);
@@ -193,6 +205,7 @@ public final class CitizenInventory {
         if (stack == null || stack.isEmpty()) {
             slots.set(slot, ItemStack.EMPTY);
             haulCargo[slot] = false;
+            cargoOwners[slot] = null;
             return;
         }
         slots.set(slot, stack.copy());
@@ -242,6 +255,7 @@ public final class CitizenInventory {
             CompoundTag entry = new CompoundTag();
             entry.putByte(TAG_SLOT, (byte) index);
             entry.putBoolean(TAG_HAUL_CARGO, haulCargo[index]);
+            if (haulCargo[index] && cargoOwners[index] != null) entry.putUUID(TAG_CARGO_OWNER, cargoOwners[index]);
             stack.save(entry);
             items.add(entry);
         }
@@ -265,6 +279,7 @@ public final class CitizenInventory {
             ItemStack stack = ItemStack.of(entry);
             slots.set(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
             haulCargo[slot] = !stack.isEmpty() && entry.getBoolean(TAG_HAUL_CARGO);
+            cargoOwners[slot] = haulCargo[slot] && entry.hasUUID(TAG_CARGO_OWNER) ? entry.getUUID(TAG_CARGO_OWNER) : null;
         }
     }
 
@@ -272,6 +287,7 @@ public final class CitizenInventory {
         for (int index = 0; index < SLOT_COUNT; index++) {
             slots.set(index, ItemStack.EMPTY);
             haulCargo[index] = false;
+            cargoOwners[index] = null;
         }
     }
 
@@ -285,7 +301,7 @@ public final class CitizenInventory {
         return Optional.empty();
     }
 
-    public record HaulCargo(int slot, ItemStack stack) {
+    public record HaulCargo(int slot, ItemStack stack, UUID owner) {
         public HaulCargo {
             stack = stack == null ? ItemStack.EMPTY : stack.copy();
         }

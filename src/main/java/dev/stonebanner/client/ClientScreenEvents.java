@@ -29,6 +29,19 @@ public final class ClientScreenEvents {
     private ClientScreenEvents() {
     }
 
+    /** Opt-in acceptance tracing: no screen/input mutation and no output in ordinary runs. */
+    @SubscribeEvent
+    public static void traceAcceptanceScreen(ScreenEvent.Opening event) {
+        if (Boolean.getBoolean("stonebanner.qaDiagnostics")) {
+            com.mojang.logging.LogUtils.getLogger().info("P5 QA opening screen: {}",
+                    event.getNewScreen() == null ? "<world>" : event.getNewScreen().getClass().getName());
+            if (event.getNewScreen() instanceof net.minecraft.client.gui.screens.DisconnectedScreen disconnected) {
+                com.mojang.logging.LogUtils.getLogger().warn("P5 QA disconnect reason: {}",
+                        disconnected.getNarrationMessage().getString());
+            }
+        }
+    }
+
     @SubscribeEvent
     public static void storageHint(net.minecraftforge.event.entity.player.ItemTooltipEvent event) {
         if(event.getItemStack().getItem() instanceof net.minecraft.world.item.BlockItem item

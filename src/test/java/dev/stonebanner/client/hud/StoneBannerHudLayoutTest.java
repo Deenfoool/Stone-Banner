@@ -7,6 +7,80 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StoneBannerHudLayoutTest {
     @Test
+    void miniMapRemainsVisibleAndSeparateFromControlsOnSmallViewports() {
+        for (int[] resolution : new int[][]{{320, 240}, {427, 240}, {427, 280}, {640, 300}, {640, 360}, {870, 519}}) {
+            int w = resolution[0], h = resolution[1];
+            var rail = StoneBannerHudLayout.rightRail(w, h);
+            var map = StoneBannerHudLayout.miniMap(w, h);
+            assertTrue(map.width() >= 23 && map.height() >= 23);
+            assertTrue(rail.contains(map.x(), map.y()));
+            assertTrue(rail.contains(map.x() + map.width() - 1, map.y() + map.height() - 1));
+            for (int i = 0; i < 4; i++) assertFalse(map.overlaps(StoneBannerHudLayout.timeButton(w, h, i)));
+            for (int i = 0; i < 3; i++) assertFalse(map.overlaps(StoneBannerHudLayout.layerButton(w, h, i)));
+        }
+    }
+
+    @Test
+    void compactPanelsUseLessSpaceWithoutShrinkingItemIcons() {
+        assertTrue(StoneBannerHudLayout.TOP_HEIGHT <= 34);
+        assertTrue(StoneBannerHudLayout.BOTTOM_DOCK_EXPANDED_HEIGHT <= 106);
+        assertTrue(StoneBannerHudLayout.CITIZEN_EXPANDED_HEIGHT <= 186);
+        assertTrue(StoneBannerHudLayout.RIGHT_RAIL_HEIGHT <= 156);
+        assertTrue(StoneBannerHudLayout.CITIZEN_TAB_HEIGHT >= 20);
+        assertTrue(StoneBannerHudLayout.HOTBAR_HEIGHT >= 24);
+    }
+
+    @Test
+    void narrowViewportsStackCornersAboveDockWithoutOverlap() {
+        for (int[] resolution : new int[][]{{320, 240}, {427, 240}, {640, 360}, {690, 400}, {700, 400}}) {
+            int w = resolution[0], h = resolution[1];
+            var dock = StoneBannerHudLayout.bottomDock(w, h, true);
+            var toggle = StoneBannerHudLayout.bottomToggle(w, h, true);
+            var rail = StoneBannerHudLayout.rightRail(w, h);
+            boolean expanded = StoneBannerHudLayout.canExpandCitizen(w, h);
+            var citizen = StoneBannerHudLayout.citizenCard(w, h, expanded);
+            var group = StoneBannerHudLayout.groupCard(w, h);
+            assertFalse(citizen.overlaps(dock));
+            assertFalse(group.overlaps(dock));
+            assertFalse(rail.overlaps(dock));
+            assertFalse(citizen.overlaps(rail));
+            assertFalse(group.overlaps(rail));
+            assertFalse(citizen.overlaps(toggle));
+            assertFalse(rail.overlaps(toggle));
+            for (var rect : new StoneBannerHudLayout.Rect[]{dock, rail, citizen, group, toggle}) {
+                assertTrue(rect.x() >= 0 && rect.y() >= 0);
+                assertTrue(rect.x() + rect.width() <= w);
+                assertTrue(rect.y() + rect.height() <= h);
+            }
+            for (int i = 0; i < 4; i++) {
+                var button = StoneBannerHudLayout.timeButton(w, h, i);
+                assertTrue(rail.contains(button.x(), button.y()));
+                assertTrue(rail.contains(button.x() + button.width() - 1, button.y() + button.height() - 1));
+            }
+        }
+    }
+
+    @Test
+    void compactDockKeepsAllRowsAndSlotsSeparatedOnSmallScreens() {
+        for (int w : new int[]{320, 427, 640, 690, 870, 1280}) {
+            var dock = StoneBannerHudLayout.bottomDock(w, 400, true);
+            var hotbar = StoneBannerHudLayout.hotbarArea(w, 400, true);
+            for (int i = 0; i < 5; i++) {
+                var tab = StoneBannerHudLayout.bottomTab(w, 400, i, 5);
+                var tool = StoneBannerHudLayout.bottomTool(w, 400, i, 5);
+                assertFalse(tab.overlaps(tool));
+                assertFalse(tool.overlaps(hotbar));
+                assertTrue(dock.contains(tool.x() + tool.width() - 1, tool.y() + tool.height() - 1));
+            }
+            for (int i = 0; i < 9; i++) {
+                var slot = StoneBannerHudLayout.hotbarSlot(w, 400, true, i);
+                assertTrue(hotbar.contains(slot.x(), slot.y()));
+                assertTrue(hotbar.contains(slot.x() + slot.width() - 1, slot.y() + slot.height() - 1));
+            }
+        }
+    }
+
+    @Test
     void mainHudZonesProtectTheCenterAtCommonGuiScale() {
         int width = 870;
         int height = 519;

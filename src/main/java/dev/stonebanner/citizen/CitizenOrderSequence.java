@@ -10,7 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.ClipContext;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.*;
@@ -34,6 +34,7 @@ public final class CitizenOrderSequence {
     private boolean starting;
     private String failure = "";
     private java.util.UUID commander;
+    private net.minecraft.world.entity.LivingEntity attackTarget;
 
     public CitizenOrderSequence(HumanNpcEntity owner) { this.owner = owner; }
     public boolean starting() { return starting; }
@@ -64,7 +65,7 @@ public final class CitizenOrderSequence {
         var trace = level.clip(new ClipContext(owner.getEyePosition(), Vec3.atCenterOf(pos),
                 ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, owner));
         return trace.getType() == HitResult.Type.MISS
-                || trace instanceof BlockHitResult block && block.getBlockPos().equals(pos);
+                || trace.getBlockPos().equals(pos);
     }
 
     private boolean executeInteraction(ServerLevel level, BlockPos pos) {
@@ -98,11 +99,13 @@ public final class CitizenOrderSequence {
         pending.clear();
         active = null;
         activeJobId = 0;
+        attackTarget = null;
     }
 
     public boolean enqueue(CitizenOrderQueue.Entry entry, java.util.UUID issuedBy) {
         if (!(owner.level() instanceof ServerLevel level) || !owner.isAlive()
-                || owner.citizenData().health().needsRecovery()
+                || issuedBy == null || !owner.citizenData().canBeDirectedBy(issuedBy)
+                || CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
                 || !owner.citizenData().health().canMoveIndependently()
                 || owner.citizenData().returningToVillage()
                 || owner.commandController().queuedMoveCount() > 0
@@ -149,7 +152,13 @@ public final class CitizenOrderSequence {
             clear();
             return;
         }
-        if (owner.citizenData().health().needsRecovery()
+        if (CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
+                && (movement == CitizenBrainState.EAT || movement == CitizenBrainState.SLEEP)) {
+            clear();
+            return;
+        }
+        if (CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
+                || commander == null || !owner.citizenData().canBeDirectedBy(commander)
                 || !owner.citizenData().health().canMoveIndependently()
                 || owner.citizenData().returningToVillage()) { abort("preempted"); return; }
         if (active == null) {
@@ -196,7 +205,10 @@ public final class CitizenOrderSequence {
         }
 
         Entity target = level.getEntity(active.target());
-        if (active.kind() == CitizenOrderQueue.Kind.ATTACK && (target == null || !target.isAlive())) {
+        // Unloading, discarding or changing dimension is not a confirmed kill. Retain the
+        // original living target only for this short-lived order to observe genuine death.
+        if (active.kind() == CitizenOrderQueue.Kind.ATTACK
+                && attackTarget != null && attackTarget.isDeadOrDying()) {
             owner.commandController().stop();
             finish(level);
             return;
@@ -267,6 +279,9 @@ public final class CitizenOrderSequence {
         if (next == null) { active = null; activeJobId = 0; return; }
         if (!begin(level, next)) { abort("invalid_target"); return; }
         active = next;
+        attackTarget = next.kind() == CitizenOrderQueue.Kind.ATTACK
+                && level.getEntity(next.target()) instanceof net.minecraft.world.entity.LivingEntity living
+                ? living : null;
         activeJobId = next.kind() == CitizenOrderQueue.Kind.WORK
                 ? owner.workController().currentJob().map(CitizenJob::id).orElse(0L) : 0L;
         activeStarted = level.getGameTime();
@@ -275,6 +290,7 @@ public final class CitizenOrderSequence {
 
     private void finish(ServerLevel level) {
         active = null;
+        attackTarget = null;
         activeJobId = 0;
         // On the next tick start the next instruction, never more than one new A* query per tick.
     }

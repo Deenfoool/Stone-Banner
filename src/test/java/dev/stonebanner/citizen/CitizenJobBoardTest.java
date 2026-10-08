@@ -12,6 +12,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenJobBoardTest {
     @Test
+    void legacySaveWithoutNextIdDoesNotReuseExistingJobIdentity() throws java.io.IOException {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long first = board.publish(WorkType.MINING, new BlockPos(1, 40, 1), 5);
+        long surviving = board.publish(WorkType.FORESTRY, new BlockPos(2, 70, 2), 6);
+        UUID worker = UUID.randomUUID();
+        assertTrue(board.reserve(first, worker, 7));
+        board.complete(first, worker);
+        CompoundTag saved = board.save(new CompoundTag());
+        saved.remove("NextId");
+        var bytes = new java.io.ByteArrayOutputStream();
+        net.minecraft.nbt.NbtIo.writeCompressed(saved, bytes);
+        CitizenJobBoard loaded = CitizenJobBoard.load(net.minecraft.nbt.NbtIo.readCompressed(
+                new java.io.ByteArrayInputStream(bytes.toByteArray())));
+        assertEquals(1, loaded.size());
+        assertFalse(loaded.job(first).isPresent(), "Completed work must not reappear after reload");
+        assertEquals(board.job(surviving), loaded.job(surviving));
+        long next = loaded.publish(WorkType.MINING, new BlockPos(3, 40, 3), 8);
+        assertTrue(next > surviving, "Legacy reload reused a persistent job identity");
+    }
+
+    @Test
+    void reloadedReservationBelongsOnlyToNewClaimant() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.FORESTRY, BlockPos.ZERO, 0);
+        UUID previousWorker = UUID.randomUUID();
+        UUID newWorker = UUID.randomUUID();
+        assertTrue(board.reserve(id, previousWorker, 1));
+        CitizenJobBoard loaded = CitizenJobBoard.load(board.save(new CompoundTag()));
+        assertFalse(loaded.touch(id, previousWorker, 2), "Reload resurrected the old lease");
+        assertTrue(loaded.reserve(id, newWorker, 2));
+        loaded.complete(id, previousWorker);
+        loaded.release(id, previousWorker);
+        assertTrue(loaded.job(id).isPresent(), "Old worker completed newly reassigned work");
+        assertTrue(loaded.touch(id, newWorker, 3));
+        loaded.complete(id, newWorker);
+        assertFalse(loaded.job(id).isPresent());
+    }
+
+    @Test
     void heartbeatCannotStealReassignedReservation() {
         CitizenJobBoard board = new CitizenJobBoard();
         long id = board.publish(WorkType.MINING, BlockPos.ZERO, 0);

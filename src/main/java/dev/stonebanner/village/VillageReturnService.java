@@ -69,7 +69,8 @@ public final class VillageReturnService {
             restored.setHealth(Math.min(npc.getHealth(),restored.getMaxHealth()));restored.setPersistenceRequired();
             if(npc.hasCustomName())restored.setCustomName(npc.getCustomName());
             var overflow=new ArrayList<ItemStack>();
-            for(var stack:npc.citizenData().inventory().snapshot()){
+            var cargo=npc.citizenData().inventory().haulCargoSnapshot();
+            for(var stack:npc.citizenData().inventory().personalSnapshot()){
                 var remainder=restored.getInventory().addItem(stack);if(!remainder.isEmpty())overflow.add(remainder);
             }
             if(!level.addFreshEntity(restored))return;
@@ -77,6 +78,12 @@ public final class VillageReturnService {
             SettlementData.forLevel(level).removeResident(npc.getUUID());
             npc.citizenData().inventory().clear();npc.workController().interrupt(true);npc.foodController().cancel(true);
             for(var stack:overflow)restored.spawnAtLocation(stack);
+            // A village conversion must not turn a former employer's cargo into personal supplies.
+            for(var carried:cargo){
+                var item=restored.spawnAtLocation(carried.stack());
+                dev.stonebanner.citizen.CargoOwnership.markDrop(item,carried.owner());
+                if(item!=null)DroppedItemHauling.publishIfNeeded(level,item.blockPosition());
+            }
             npc.discard();return;
         }
         if(npc.tickCount%40==0&&!npc.commandController().hasActiveCommand()&&npc.citizenData().health().canMoveIndependently())

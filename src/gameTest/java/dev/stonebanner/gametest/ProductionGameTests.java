@@ -71,7 +71,10 @@ public final class ProductionGameTests {
     @GameTest(template="empty",timeoutTicks=100,batch="production-rules")
     public static void allFourCropsPlantConsumeRealSeedsAndIgnoreImmaturePlants(GameTestHelper h){
         var npc=prepare(h);var d=ProductionData.forLevel(h.getLevel());
-        h.startSequence().thenExecuteAfter(10,()->{
+        // Clear a former station/plant before waiting for light, not inside the synchronous work loop.
+        h.setBlock(SOIL,Blocks.FARMLAND);h.setBlock(SOIL.above(),Blocks.AIR);
+        h.startSequence().thenWaitUntil(()->h.assertTrue(h.getLevel().getRawBrightness(h.absolutePos(SOIL.above()),0)>=9,
+                "Crop fixture light has not propagated")).thenExecute(()->{
         for(var crop:FarmCrop.values()){
             h.setBlock(SOIL,Blocks.FARMLAND);h.setBlock(SOIL.above(),Blocks.AIR);long id=d.addField(UUID.randomUUID(),h.absolutePos(SOIL),h.absolutePos(SOIL),crop);
             npc.citizenData().inventory().add(new ItemStack(crop.seed(),2));var controller=new CitizenProductionController(npc);
@@ -84,8 +87,9 @@ public final class ProductionGameTests {
 
     @GameTest(template="empty",timeoutTicks=100,batch="production-rules")
     public static void missingSeedsDoNotCreatePlants(GameTestHelper h){
-        var npc=prepare(h);h.setBlock(SOIL,Blocks.FARMLAND);var d=ProductionData.forLevel(h.getLevel());long id=d.addField(UUID.randomUUID(),h.absolutePos(SOIL),h.absolutePos(SOIL),FarmCrop.WHEAT);
-        h.startSequence().thenExecuteAfter(10,()->{
+        var npc=prepare(h);h.setBlock(SOIL,Blocks.FARMLAND);h.setBlock(SOIL.above(),Blocks.AIR);var d=ProductionData.forLevel(h.getLevel());long id=d.addField(UUID.randomUUID(),h.absolutePos(SOIL),h.absolutePos(SOIL),FarmCrop.WHEAT);
+        h.startSequence().thenWaitUntil(()->h.assertTrue(h.getLevel().getRawBrightness(h.absolutePos(SOIL.above()),0)>=9,
+                "Crop fixture light has not propagated")).thenExecute(()->{
         var controller=new CitizenProductionController(npc);h.assertTrue(controller.tick(job(h,WorkType.FARMING,SOIL))==CitizenProductionController.Result.DEFER,"Missing seeds not deferred");
         h.assertTrue(controller.reason()==WorkBlockReason.MATERIALS&&h.getBlockState(SOIL.above()).isAir(),"Free planting or missing reason: "+controller.reason()+" soil="+h.getBlockState(SOIL)+" plant="+h.getBlockState(SOIL.above())+" id="+id);d.edit(d.field(id).owner,id,"pause");}).thenSucceed();
     }

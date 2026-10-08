@@ -45,17 +45,19 @@ public final class VillageGameTests {
     @GameTest(template="empty",batch="village_migration",timeoutTicks=350)
     public static void preparedSettlerWalksToCamp(GameTestHelper h){
         var f=prepare(h);var old=recruit(f);beside(f.player,old);
-        for(int x=15;x<=44;x++)for(int z=1;z<15;z++)h.setBlock(new BlockPos(x,0,z),Blocks.STONE);
-        for(int y=1;y<5;y++)h.setBlock(new BlockPos(15,y,4),Blocks.AIR);
-        var banner=new BlockPos(40,1,4);h.setBlock(banner,Blocks.WHITE_BANNER);
+        // Keep the entire migration route inside the template's loaded, isolated arena.
+        // The old 40-block route crossed other test fixtures and unloaded chunks.
+        for(int x=8;x<15;x++)for(int z=1;z<15;z++)
+            for(int y=1;y<5;y++)h.setBlock(new BlockPos(x,y,z),Blocks.AIR);
+        var banner=new BlockPos(12,1,4);h.setBlock(banner,Blocks.WHITE_BANNER);
         var settlements=dev.stonebanner.settlement.SettlementData.forLevel(h.getLevel());
         h.assertTrue(settlements.create(f.player.getUUID(),"Test camp",h.absolutePos(banner))==dev.stonebanner.settlement.SettlementData.Result.CREATED,"Camp creation failed");
-        for(int x:new int[]{39,41}){
+        for(int x:new int[]{11,13}){
             h.setBlock(new BlockPos(x,1,6),Blocks.RED_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING,net.minecraft.core.Direction.SOUTH));
             h.setBlock(new BlockPos(x,1,7),Blocks.RED_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING,net.minecraft.core.Direction.SOUTH)
                     .setValue(net.minecraft.world.level.block.BedBlock.PART,net.minecraft.world.level.block.state.properties.BedPart.HEAD));
         }
-        var chest=new BlockPos(40,1,9);h.setBlock(chest,Blocks.CHEST);
+        var chest=new BlockPos(12,1,9);h.setBlock(chest,Blocks.CHEST);
         ((net.minecraft.world.Container)h.getLevel().getBlockEntity(h.absolutePos(chest))).setItem(0,new ItemStack(Items.BREAD,8));
         dev.stonebanner.storage.StorageData.forLevel(h.getLevel()).register(h.getLevel(),h.absolutePos(chest));
         VillageData.forLevel(h.getLevel()).reputation(f.village,f.player.getUUID(),100);f.player.getInventory().add(new ItemStack(Items.EMERALD,64));

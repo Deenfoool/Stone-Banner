@@ -4,6 +4,7 @@ import dev.stonebanner.citizen.*;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import dev.stonebanner.storage.StorageData;
+import dev.stonebanner.storage.CitizenStorageAccess;
 import net.minecraft.core.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -52,6 +53,11 @@ public final class CitizenConstructionController {
         candidates.sort(Comparator.comparingDouble(p->npc.distanceToSqr(Vec3.atCenterOf(p))));
         for(var p:candidates.stream().limit(8).toList()){
             var feet=BlockPathfinder.waypoint(level,p);
+            // A center-point ray can graze a wall corner while the NPC's actual eyes
+            // remain occluded a few millimetres away. Navigation considers this cell
+            // reached already; issuing it again forever cannot improve visibility.
+            // Choose another standing cell instead of treating that no-op as progress.
+            if(npc.distanceToSqr(feet)<=.1*.1)continue;
             if(npc.distanceToSqr(feet)<.55*.55&&npc.distanceToSqr(feet)>.1*.1){
                 npc.commandController().stop();npc.getMoveControl().setWantedPosition(feet.x,feet.y,feet.z,.5);return true;
             }
@@ -70,6 +76,7 @@ public final class CitizenConstructionController {
         }
         var stores=StorageData.forLevel(level);
         if(source!=null){
+            if(!CitizenStorageAccess.mayUse(npc,source)){reason=WorkBlockReason.MATERIALS;return Result.DEFER;}
             if(!level.hasChunkAt(source)||!npc.citizenData().canTravelTo(source)){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
             if(!near(level,source)){
                 if(!npc.commandController().hasActiveCommand()){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}return Result.RUNNING;
@@ -89,7 +96,8 @@ public final class CitizenConstructionController {
             if(full){reason=WorkBlockReason.INVENTORY_FULL;return Result.DEFER;}
             source=null;return Result.RUNNING;
         }
-        for(var p:stores.containersWithItem(level,npc.blockPosition(),s->s.is(item),64).stream().limit(8).toList())
+        for(var p:stores.containersWithItem(level,npc.blockPosition(),s->s.is(item),64).stream()
+                .filter(pos->CitizenStorageAccess.mayUse(npc,pos)&&npc.citizenData().canTravelTo(pos)).limit(8).toList())
             if(npc.citizenData().canTravelTo(p)&&(near(level,p)||walk(level,p,null,null))){source=p;return Result.RUNNING;}
         reason=WorkBlockReason.MATERIALS;return Result.DEFER;
     }

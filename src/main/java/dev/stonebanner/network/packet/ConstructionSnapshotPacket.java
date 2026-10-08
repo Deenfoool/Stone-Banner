@@ -59,7 +59,9 @@ public record ConstructionSnapshotPacket(ResourceLocation dimension,boolean open
             var key=b.readResourceLocation();if(!BuiltInRegistries.ITEM.containsKey(key))throw new IllegalArgumentException("Unknown blueprint item");var item=BuiltInRegistries.ITEM.get(key);int cost=count(b,64),cells=count(b,2);var group=new ArrayList<CottageBlueprint.Cell>();
             for(int c=0;c<cells;c++){
                 var pos=position(b,x,y,z);int stateId=b.readVarInt();var state=Block.stateById(stateId);
-                if(stateId<0||Block.getId(state)!=stateId||state.isAir()||!occupied.add(pos))throw new IllegalArgumentException("Invalid blueprint state or duplicate cell");group.add(new CottageBlueprint.Cell(pos,state));
+                if(stateId<0||Block.getId(state)!=stateId||state.isAir())throw new IllegalArgumentException("Invalid blueprint state ID: " + stateId);
+                if(!occupied.add(pos))throw new IllegalArgumentException("Duplicate blueprint cell: " + pos);
+                group.add(new CottageBlueprint.Cell(pos,state));
             }
             placements.add(new CottageBlueprint.Placement(item,cost,group));
         }

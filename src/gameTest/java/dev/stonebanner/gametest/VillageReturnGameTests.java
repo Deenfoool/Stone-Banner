@@ -33,7 +33,7 @@ public final class VillageReturnGameTests {
         f.residents().stream().filter(v->v!=source).findFirst().orElseThrow().setVillagerData(source.getVillagerData());
         source.getOffers().clear();source.getOffers().add(new MerchantOffer(new ItemStack(Items.EMERALD,2),new ItemStack(Items.APPLE,3),5,2,.05f));
         var offers=source.getOffers().createTag();source.getInventory().addItem(new ItemStack(Items.BREAD,3));
-        var npc=hire(h,f,source);npc.citizenData().inventory().addHaulCargo(new ItemStack(Items.DIAMOND,7));
+        var npc=hire(h,f,source);npc.citizenData().inventory().addHaulCargo(new ItemStack(Items.DIAMOND,7),f.player().getUUID());
         npc.setPos(h.absolutePos(new BlockPos(2,1,2)).getX()+.5,h.absolutePos(new BlockPos(2,1,2)).getY(),h.absolutePos(new BlockPos(2,1,2)).getZ()+.5);
         f.player().setPos(npc.getX(),npc.getY(),npc.getZ()-1);
         int funds=VillageService.count(f.player(),s->s.is(Items.EMERALD));
@@ -50,7 +50,12 @@ public final class VillageReturnGameTests {
             int bread=0,diamonds=0;for(int i=0;i<villager.getInventory().getContainerSize();i++){
                 var stack=villager.getInventory().getItem(i);if(stack.is(Items.BREAD))bread+=stack.getCount();if(stack.is(Items.DIAMOND))diamonds+=stack.getCount();
             }
-            h.assertTrue(bread==3&&diamonds==7,"Old food resurrected or current cargo lost");
+            h.assertTrue(bread==3&&diamonds==0,"Old food resurrected or employer cargo became personal supplies");
+            var drops=h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    new net.minecraft.world.phys.AABB(villager.blockPosition()).inflate(3));
+            int dropped= drops.stream().filter(e->e.getItem().is(Items.DIAMOND)
+                    &&f.player().getUUID().equals(dev.stonebanner.citizen.CargoOwnership.dropOwner(e))).mapToInt(e->e.getItem().getCount()).sum();
+            h.assertTrue(dropped==7&&!npc.citizenData().inventory().hasHaulCargo(),"Return lost, duplicated or unmarked employer cargo");
             h.assertTrue(VillageService.count(f.player(),s->s.is(Items.EMERALD))==funds,"Dismissal refunded contract payment");
         }).thenSucceed();
     }

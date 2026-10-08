@@ -5,6 +5,7 @@ import dev.stonebanner.citizen.*;
 import dev.stonebanner.entity.HumanNpcEntity;
 import dev.stonebanner.navigation.BlockPathfinder;
 import dev.stonebanner.storage.StorageData;
+import dev.stonebanner.storage.CitizenStorageAccess;
 import net.minecraft.core.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.*;
@@ -52,6 +53,7 @@ public final class CitizenProductionController {
     private Result supplies(ServerLevel level,Predicate<ItemStack> predicate){
         var storage=StorageData.forLevel(level);
         if(source!=null){
+            if(!CitizenStorageAccess.mayUse(npc,source)){reason=WorkBlockReason.MATERIALS;return Result.DEFER;}
             if(!level.hasChunkAt(source)||!npc.citizenData().canTravelTo(source)){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
             if(!near(level,source)){if(!npc.commandController().hasActiveCommand()){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}return Result.RUNNING;}
             npc.commandController().stop();var removed=storage.extractAt(level,source,predicate,1);
@@ -60,7 +62,8 @@ public final class CitizenProductionController {
             if(!rest.isEmpty()){var leftover=storage.insertAt(level,source,rest);if(!leftover.isEmpty())drop(level,source,leftover,null);reason=WorkBlockReason.INVENTORY_FULL;return Result.DEFER;}
             source=null;return Result.RUNNING;
         }
-        for(var pos:storage.containersWithItem(level,npc.blockPosition(),predicate,64).stream().limit(8).toList()){
+        for(var pos:storage.containersWithItem(level,npc.blockPosition(),predicate,64).stream()
+                .filter(p->CitizenStorageAccess.mayUse(npc,p)&&npc.citizenData().canTravelTo(p)).limit(8).toList()){
             if(!npc.citizenData().canTravelTo(pos))continue;
             if(near(level,pos)||walk(level,pos)){source=pos.immutable();return Result.RUNNING;}
         }
@@ -117,9 +120,10 @@ public final class CitizenProductionController {
         if(!level.destroyBlock(plantPos,true,npc))return Result.DEFER;
         for(var item:level.getEntitiesOfClass(ItemEntity.class,new AABB(plantPos).inflate(2),ItemEntity::isAlive)){
             if(before.contains(item.getUUID()))continue;var stack=item.getItem();
+            CargoOwnership.markDrop(item, field.owner);
             // Keep exactly one physical planting unit; all remaining harvested items are work cargo.
             if(stack.is(field.crop.seed())&&npc.citizenData().inventory().countPersonalItem(field.crop.seed())==0){var one=stack.copy();one.setCount(1);if(npc.citizenData().inventory().add(one).isEmpty())stack.shrink(1);}
-            var rest=npc.citizenData().workPriority(WorkType.HAULING)==WorkPriority.DISABLED?stack:npc.citizenData().inventory().addHaulCargo(stack);if(rest.isEmpty())item.discard();else item.setItem(rest);
+            var rest=npc.citizenData().workPriority(WorkType.HAULING)==WorkPriority.DISABLED?stack:npc.citizenData().inventory().addHaulCargo(stack,field.owner);if(rest.isEmpty())item.discard();else item.setItem(rest);
         }
         DroppedItemHauling.publishIfNeeded(level,plantPos);return Result.COMPLETE;
     }
@@ -141,7 +145,8 @@ public final class CitizenProductionController {
         // Recompute immediately before committing: food consumption, inventory edits and recipe reloads may change it.
         matched=CraftingPlan.match(recipe,npc.citizenData().inventory().personalSnapshot(),level);if(matched.isEmpty())return Result.DEFER;
         var match=matched.get();var output=recipe.assemble(match.grid(),level.registryAccess());if(output.isEmpty())return Result.DEFER;
-        if(StorageData.forLevel(level).acceptingContainers(level,bill.station,List.of(output),64).stream().limit(8).noneMatch(pos->reachable(level,pos))){bill.status="output";reason=WorkBlockReason.OUTPUT_FULL;return Result.DEFER;}
+        if(StorageData.forLevel(level).acceptingContainers(level,bill.station,List.of(output),64).stream()
+                .filter(pos->CitizenStorageAccess.mayUse(npc,pos)).limit(8).noneMatch(pos->reachable(level,pos))){bill.status="output";reason=WorkBlockReason.OUTPUT_FULL;return Result.DEFER;}
         var remaining=recipe.getRemainingItems(match.grid());
         for(int slot:match.slots())if(slot>=0)npc.citizenData().inventory().removePersonalSlot(slot,1);
         var player=adapter(level);output.onCraftedBy(level,player,output.getCount());
@@ -150,7 +155,7 @@ public final class CitizenProductionController {
         storeOutput(level,bill.station,output,bill.owner);for(var stack:remaining)if(!stack.isEmpty())storeOutput(level,bill.station,stack,bill.owner);
         return Result.COMPLETE;
     }
-    private void storeOutput(ServerLevel level,BlockPos pos,ItemStack stack,UUID owner){var rest=npc.citizenData().workPriority(WorkType.HAULING)==WorkPriority.DISABLED?stack:npc.citizenData().inventory().addHaulCargo(stack);if(!rest.isEmpty())drop(level,pos,rest,owner);}
+    private void storeOutput(ServerLevel level,BlockPos pos,ItemStack stack,UUID owner){var rest=npc.citizenData().workPriority(WorkType.HAULING)==WorkPriority.DISABLED?stack:npc.citizenData().inventory().addHaulCargo(stack,owner);if(!rest.isEmpty())drop(level,pos,rest,owner);}
     private boolean reachable(ServerLevel level,BlockPos target){
         if(!npc.citizenData().canTravelTo(target))return false;if(near(level,target))return true;
         for(Direction d:Direction.Plane.HORIZONTAL)for(int dy:new int[]{0,1,-1}){

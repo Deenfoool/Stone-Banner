@@ -11,7 +11,6 @@ import dev.stonebanner.client.control.TunnelExtensionController;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.designation.ExcavationAccessMode;
 import dev.stonebanner.entity.HumanNpcEntity;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -33,8 +32,8 @@ import java.util.List;
  * of occupying the HUD permanently; currently Orders owns the designation hierarchy.</p>
  */
 public final class StoneBannerHudRenderer {
-    private static final int PANEL_OUTER = 0xF20B0D0F;
-    private static final int PANEL_INNER = 0xE71A1D20;
+    private static final int PANEL_OUTER = 0xD00B0D0F;
+    private static final int PANEL_INNER = 0xC01A1D20;
     private static final int PANEL_SHADOW = 0xA0000000;
     private static final int FRAME = 0xFF4E3D2C;
     private static final int FRAME_LIGHT = 0xFF8B6C42;
@@ -116,6 +115,10 @@ public final class StoneBannerHudRenderer {
     private StoneBannerHudRenderer() {
     }
 
+    private static boolean expandedCitizen(int screenWidth, int screenHeight) {
+        return citizenPanelExpanded && StoneBannerHudLayout.canExpandCitizen(screenWidth, screenHeight);
+    }
+
     public static void render(GuiGraphics graphics, Minecraft minecraft, int screenWidth, int screenHeight) {
         if (minecraft == null || minecraft.font == null || screenWidth <= 0 || screenHeight <= 0) {
             return;
@@ -142,6 +145,22 @@ public final class StoneBannerHudRenderer {
         } else if (selectedMembers.size() > 1) {
             renderGroupInspector(graphics, minecraft.font, selectedMembers, screenWidth, screenHeight);
         }
+        renderCompactLabels(graphics, minecraft, screenWidth, screenHeight);
+    }
+
+    /** Full labels remain available when narrow buttons abbreviate their text. */
+    private static void renderCompactLabels(GuiGraphics graphics, Minecraft minecraft, int screenWidth, int screenHeight) {
+        if (minecraft.mouseHandler.isMouseGrabbed()) return;
+        int mouseX = (int) (minecraft.mouseHandler.xpos() * screenWidth / minecraft.getWindow().getScreenWidth());
+        int mouseY = (int) (minecraft.mouseHandler.ypos() * screenHeight / minecraft.getWindow().getScreenHeight());
+        if (!bottomDockExpanded) return;
+        BottomTab[] tabs = BottomTab.values();
+        for (int i = 0; i < tabs.length; i++) {
+            if (StoneBannerHudLayout.bottomTab(screenWidth, screenHeight, i, tabs.length).contains(mouseX, mouseY)) {
+                graphics.renderTooltip(minecraft.font, Component.translatable(tabs[i].translationKey()), mouseX, mouseY);
+                return;
+            }
+        }
     }
 
     public static HudAction actionAt(double mouseX, double mouseY, int screenWidth, int screenHeight,
@@ -155,14 +174,15 @@ public final class StoneBannerHudRenderer {
             if (StoneBannerHudLayout.groupCard(screenWidth, screenHeight).contains(mouseX, mouseY))
                 return HudAction.CONSUME;
         } else if (hasSelectedCitizen && dev.stonebanner.client.control.HeroInputController.commandMode()) {
-            StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(screenWidth, screenHeight, citizenPanelExpanded);
+            boolean expanded = expandedCitizen(screenWidth, screenHeight);
+            StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(screenWidth, screenHeight, expanded);
             StoneBannerHudLayout.Rect toggle = new StoneBannerHudLayout.Rect(
                     card.x() + card.width() - 27, card.y() + 5, 22, 22
             );
             if (toggle.contains(mouseX, mouseY)) {
                 return HudAction.TOGGLE_CITIZEN;
             }
-            if (citizenPanelExpanded) {
+            if (expanded) {
                 for (int index = 0; index < 5; index++) {
                     if (StoneBannerHudLayout.citizenTab(screenWidth, screenHeight, true, index, 5)
                             .contains(mouseX, mouseY)) {
@@ -177,7 +197,7 @@ public final class StoneBannerHudRenderer {
                 }
             }
             if (card.contains(mouseX, mouseY)) {
-                return citizenPanelExpanded ? HudAction.OPEN_CITIZEN_OVERVIEW : HudAction.TOGGLE_CITIZEN;
+                return expanded ? HudAction.OPEN_CITIZEN_OVERVIEW : HudAction.TOGGLE_CITIZEN;
             }
         }
 
@@ -332,30 +352,27 @@ public final class StoneBannerHudRenderer {
         StoneBannerHudLayout.Rect bar = StoneBannerHudLayout.topBar(screenWidth);
         panel(graphics, bar.x(), bar.y(), bar.width(), bar.height(), false);
 
-        int leftWidth = Math.min(220, Math.max(165, bar.width() / 4));
+        int leftWidth = Math.min(150, Math.max(90, bar.width() / 4));
         int rightButtonsWidth = 78;
-        int vitalsWidth = Math.min(225, Math.max(175, bar.width() / 4));
+        int vitalsWidth = Math.min(192, Math.max(100, bar.width() / 4));
         int resourcesX = bar.x() + leftWidth + vitalsWidth;
         int resourcesWidth = Math.max(0, bar.width() - leftWidth - vitalsWidth - rightButtonsWidth);
 
         graphics.renderItem(BANNER_ICON, bar.x() + 8, bar.y() + 7);
         graphics.drawString(font,
-                Component.translatable("hud.stonebanner.top.settlement").copy().withStyle(ChatFormatting.BOLD),
-                bar.x() + 29, bar.y() + 7, TEXT, true);
-        graphics.drawString(font, Component.translatable("hud.stonebanner.top.not_founded"),
+                font.plainSubstrByWidth(Component.translatable("hud.stonebanner.top.settlement").getString(), leftWidth - 54),
+                bar.x() + 29, bar.y() + 5, TEXT, true);
+        graphics.drawString(font, font.plainSubstrByWidth(Component.translatable("hud.stonebanner.top.not_founded").getString(), leftWidth - 34),
                 bar.x() + 29, bar.y() + 21, MUTED, false);
 
         WorldClock clock = worldClock(minecraft);
-        int weatherX = bar.x() + Math.max(100, leftWidth - 91);
+        int weatherX = bar.x() + leftWidth - 22;
         graphics.renderItem(clock.weatherIcon(), weatherX, bar.y() + 6);
-        graphics.drawString(font, clock.weatherLabel(), weatherX + 20, bar.y() + 6, TEXT, false);
-        graphics.drawString(font, Component.translatable("hud.stonebanner.top.day_time", clock.day(), clock.time()),
-                weatherX + 20, bar.y() + 20, MUTED, false);
 
         vDivider(graphics, bar.x() + leftWidth, bar.y() + 4, bar.height() - 8);
         int vitalX = bar.x() + leftWidth + 5;
         int vitalGap = 3;
-        int vitalWidth = Math.max(34, (vitalsWidth - 10 - vitalGap * 3) / 4);
+        int vitalWidth = Math.max(1, (vitalsWidth - 10 - vitalGap * 3) / 4);
         topMetric(graphics, font, vitalX, bar.y() + 4, vitalWidth, POPULATION_ICON, Component.literal("—"));
         topMetric(graphics, font, vitalX + (vitalWidth + vitalGap), bar.y() + 4, vitalWidth, HOUSING_ICON, Component.literal("—"));
         topMetric(graphics, font, vitalX + (vitalWidth + vitalGap) * 2, bar.y() + 4, vitalWidth, FOOD_ICON, Component.literal("—"));
@@ -373,9 +390,9 @@ public final class StoneBannerHudRenderer {
         }
 
         int actionX = bar.x() + bar.width() - rightButtonsWidth + 4;
-        smallTopAction(graphics, actionX, bar.y() + 7, ALERT_ICON, false);
-        smallTopAction(graphics, actionX + 24, bar.y() + 7, MINE_ICON, false);
-        smallTopAction(graphics, actionX + 48, bar.y() + 7, MAP_ICON, false);
+        smallTopAction(graphics, actionX, bar.y() + 5, ALERT_ICON, false);
+        smallTopAction(graphics, actionX + 24, bar.y() + 5, MINE_ICON, false);
+        smallTopAction(graphics, actionX + 48, bar.y() + 5, MAP_ICON, false);
     }
 
     private static void renderAlerts(GuiGraphics graphics, Font font, List<HumanNpcEntity> selected, int screenWidth) {
@@ -423,10 +440,10 @@ public final class StoneBannerHudRenderer {
         panel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), false);
         for (int i = 0; i < count; i++) {
             Alert alert = alerts.get(i);
-            int y = bounds.y() + 4 + i * 22;
-            graphics.renderItem(alert.icon(), bounds.x() + 5, y + 2);
+            int y = bounds.y() + 3 + i * 18;
+            graphics.renderItem(alert.icon(), bounds.x() + 5, y);
             String text = font.plainSubstrByWidth(alert.message().getString(), bounds.width() - 31);
-            graphics.drawString(font, text, bounds.x() + 26, y + 6, alert.color(), true);
+            graphics.drawString(font, text, bounds.x() + 26, y + 4, alert.color(), true);
         }
     }
 
@@ -443,27 +460,28 @@ public final class StoneBannerHudRenderer {
                 : (int) group.stream().filter(npc -> npc.hudCanDirect(viewer)).count();
         graphics.drawString(font, Component.translatable("hud.stonebanner.group.title", group.size()),
                 card.x() + 9, card.y() + 9, ACCENT);
-        graphics.drawString(font, Component.translatable("hud.stonebanner.group.status", busy, waiting),
-                card.x() + 9, card.y() + 27, TEXT);
-        graphics.drawString(font, Component.translatable("hud.stonebanner.group.available", able),
-                card.x() + 9, card.y() + 45, MUTED);
+        graphics.drawString(font, font.plainSubstrByWidth(Component.translatable("hud.stonebanner.group.status", busy, waiting).getString(), card.width() - 18),
+                card.x() + 9, card.y() + 24, TEXT);
+        graphics.drawString(font, font.plainSubstrByWidth(Component.translatable("hud.stonebanner.group.available", able).getString(), card.width() - 18),
+                card.x() + 9, card.y() + 39, MUTED);
     }
 
     private static void renderCitizenInspector(GuiGraphics graphics, Font font, HumanNpcEntity npc,
                                                int screenWidth, int screenHeight) {
-        StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(screenWidth, screenHeight, citizenPanelExpanded);
+        boolean expanded = expandedCitizen(screenWidth, screenHeight);
+        StoneBannerHudLayout.Rect card = StoneBannerHudLayout.citizenCard(screenWidth, screenHeight, expanded);
         panel(graphics, card.x(), card.y(), card.width(), card.height(), true);
 
-        int portraitSize = citizenPanelExpanded ? 54 : 30;
-        inset(graphics, card.x() + 7, card.y() + 7, portraitSize, portraitSize, true);
-        renderScaledItem(graphics, CITIZEN_ICON, card.x() + 12, card.y() + 12,
-                citizenPanelExpanded ? 2.6F : 1.25F);
+        int portraitSize = expanded ? 40 : 26;
+        inset(graphics, card.x() + 5, card.y() + 5, portraitSize, portraitSize, true);
+        renderScaledItem(graphics, CITIZEN_ICON, card.x() + 8, card.y() + 8,
+                expanded ? 2.0F : 1.25F);
 
-        int infoX = card.x() + portraitSize + 15;
-        graphics.drawString(font, npc.getDisplayName().copy().withStyle(ChatFormatting.BOLD),
+        int infoX = card.x() + portraitSize + 10;
+        graphics.drawString(font, font.plainSubstrByWidth(npc.getDisplayName().getString(), Math.max(1, card.x() + card.width() - infoX - 29)),
                 infoX, card.y() + 8, TEXT, true);
         graphics.drawString(font,
-                Component.translatable("profession.stonebanner." + npc.hudProfession().serializedName()),
+                font.plainSubstrByWidth(Component.translatable("profession.stonebanner." + npc.hudProfession().serializedName()).getString(), Math.max(1, card.x() + card.width() - infoX - 29)),
                 infoX, card.y() + 21, MUTED, false);
 
         WorkType workType = npc.hudWorkType();
@@ -477,49 +495,50 @@ public final class StoneBannerHudRenderer {
             activity = Component.translatable("hud.stonebanner.order.active",
                     Component.translatable("hud.stonebanner.order.kind." + kind), npc.hudQueuedMoves());
         }
-        graphics.drawString(font,
+        if (expanded) graphics.drawString(font,
                 font.plainSubstrByWidth(activity.getString(), Math.max(35, card.width() - infoX + card.x() - 30)),
                 infoX, card.y() + 33, ACCENT, false);
 
-        if (citizenPanelExpanded && npc.hudCargoCount() > 0) {
+        if (expanded && npc.hudCargoCount() > 0) {
             String delivery = Component.translatable("hud.stonebanner.cargo", npc.hudCargoCount(),
                     Component.translatable(npc.hudDeliveryStatus().key())).getString();
             graphics.drawString(font, font.plainSubstrByWidth(delivery, card.width() - 16), card.x() + 8, card.y() + 52, MUTED, false);
         }
-        if (citizenPanelExpanded && npc.hudCargoCount() == 0 && npc.hudWorkBlockReason() != dev.stonebanner.citizen.WorkBlockReason.NONE) {
+        if (expanded && npc.hudCargoCount() == 0 && npc.hudWorkBlockReason() != dev.stonebanner.citizen.WorkBlockReason.NONE) {
             String reason = Component.translatable(npc.hudWorkBlockReason().key()).getString();
             graphics.drawString(font, font.plainSubstrByWidth(reason, card.width() - 16), card.x() + 8, card.y() + 52, 0xFFE7C46A, false);
         }
         int toggleX = card.x() + card.width() - 27;
         inset(graphics, toggleX, card.y() + 5, 22, 22, true);
-        graphics.drawCenteredString(font, citizenPanelExpanded ? "−" : "+", toggleX + 11, card.y() + 12, ACCENT);
-        if (!citizenPanelExpanded) {
+        graphics.drawCenteredString(font, expanded ? "−" : "+", toggleX + 11, card.y() + 12, ACCENT);
+        if (!expanded) {
             return;
         }
 
-        int barsY = card.y() + 67;
+        int barsY = card.y() + 64;
         int health = percentage(npc.getHealth(), npc.getMaxHealth());
         drawCompactBar(graphics, font, card.x() + 8, barsY, card.width() - 16,
                 HEALTH_ICON, Component.translatable("hud.stonebanner.npc.health"), health, healthColor(health));
-        drawCompactBar(graphics, font, card.x() + 8, barsY + 22, card.width() - 16,
+        drawCompactBar(graphics, font, card.x() + 8, barsY + 20, card.width() - 16,
                 HUNGER_ICON, Component.translatable("hud.stonebanner.npc.hunger"), npc.hudHunger(),
                 pressureColor(npc.hudHunger(), 60, 85));
-        drawCompactBar(graphics, font, card.x() + 8, barsY + 44, card.width() - 16,
+        drawCompactBar(graphics, font, card.x() + 8, barsY + 40, card.width() - 16,
                 FATIGUE_ICON, Component.translatable("hud.stonebanner.npc.fatigue"), npc.hudFatigue(),
                 pressureColor(npc.hudFatigue(), 65, 90));
 
-        int statY = barsY + 70;
-        skillMetric(graphics, font, card.x() + 8, statY, 69, COMBAT_ICON, npc.hudSkill(CitizenSkill.COMBAT));
-        skillMetric(graphics, font, card.x() + 81, statY, 69, CONSTRUCTION_ICON,
+        int statY = barsY + 62;
+        int statWidth = (card.width() - 22) / 3;
+        skillMetric(graphics, font, card.x() + 8, statY, statWidth, COMBAT_ICON, npc.hudSkill(CitizenSkill.COMBAT));
+        skillMetric(graphics, font, card.x() + 8 + statWidth + 3, statY, statWidth, CONSTRUCTION_ICON,
                 npc.hudSkill(CitizenSkill.CONSTRUCTION));
-        skillMetric(graphics, font, card.x() + 154, statY, card.width() - 162, MINING_ICON,
+        skillMetric(graphics, font, card.x() + 8 + (statWidth + 3) * 2, statY, statWidth, MINING_ICON,
                 npc.hudSkill(CitizenSkill.MINING));
 
         ItemStack[] tabIcons = {OVERVIEW_ICON, DETAILS_HEALTH_ICON, SKILLS_ICON, PRIORITIES_ICON, INVENTORY_ICON};
         for (int i = 0; i < tabIcons.length; i++) {
             StoneBannerHudLayout.Rect tab = StoneBannerHudLayout.citizenTab(screenWidth, screenHeight, true, i, tabIcons.length);
             inset(graphics, tab.x(), tab.y(), tab.width(), tab.height(), true);
-            graphics.renderItem(tabIcons[i], tab.x() + Math.max(1, (tab.width() - 16) / 2), tab.y() + 6);
+            graphics.renderItem(tabIcons[i], tab.x() + Math.max(1, (tab.width() - 16) / 2), tab.y() + 3);
         }
     }
 
@@ -612,7 +631,7 @@ public final class StoneBannerHudRenderer {
                 continue;
             }
             int itemX = slot.x() + Math.max(2, (slot.width() - 16) / 2);
-            int itemY = slot.y() + 9;
+            int itemY = slot.y() + 6;
             graphics.renderItem(stack, itemX, itemY);
             if (stack.getCount() > 1) {
                 String count = Integer.toString(stack.getCount());
@@ -629,7 +648,7 @@ public final class StoneBannerHudRenderer {
         panel(graphics, rail.x(), rail.y(), rail.width(), rail.height(), false);
 
         GameSpeedController.Speed speed = GameSpeedController.speed();
-        String[] labels = {"II", ">", ">>", ">>>"};
+        String[] labels = {"II", ">", "2", "3"};
         GameSpeedController.Speed[] speeds = {
                 GameSpeedController.Speed.PAUSED,
                 GameSpeedController.Speed.NORMAL,
@@ -645,7 +664,7 @@ public final class StoneBannerHudRenderer {
                         BORDER_ACTIVE);
             }
             graphics.drawCenteredString(font, labels[i], button.x() + button.width() / 2,
-                    button.y() + 10, active ? ACCENT : TEXT);
+                    button.y() + (button.height() - font.lineHeight) / 2, active ? ACCENT : TEXT);
         }
 
         ItemStack[] layerIcons = {BANNER_ICON, MINE_ICON, ZONES_TAB_ICON};
@@ -653,19 +672,23 @@ public final class StoneBannerHudRenderer {
         for (int i = 0; i < layers.length; i++) {
             var button = StoneBannerHudLayout.layerButton(screenWidth, screenHeight, i);
             inset(graphics, button.x(), button.y(), button.width(), button.height(), true);
-            graphics.renderItem(layerIcons[i], button.x() + (button.width() - 16) / 2, button.y() + 4);
+            graphics.renderItem(layerIcons[i], button.x() + (button.width() - 16) / 2, button.y() + 2);
             if (dev.stonebanner.client.control.MapLayerState.enabled(layers[i]))
                 graphics.renderOutline(button.x() + 1, button.y() + 1, button.width() - 2, button.height() - 2, BORDER_ACTIVE);
         }
         StoneBannerHudLayout.Rect clock = StoneBannerHudLayout.clockPanel(screenWidth, screenHeight);
-        inset(graphics, clock.x(), clock.y(), clock.width(), clock.height(), true);
-        graphics.renderItem(CLOCK_ICON, clock.x() + 8, clock.y() + 12);
-        WorldClock worldClock = worldClock(minecraft);
-        graphics.drawString(font, worldClock.time(), clock.x() + 31, clock.y() + 8, TEXT, true);
-        graphics.drawString(font, Component.translatable("hud.stonebanner.top.day", worldClock.day()),
-                clock.x() + 31, clock.y() + 22, MUTED, false);
+        // A short rail places the map next to its controls, not underneath the clock.
+        if (rail.height() >= 112) {
+            inset(graphics, clock.x(), clock.y(), clock.width(), clock.height(), true);
+            graphics.renderItem(CLOCK_ICON, clock.x() + 6, clock.y() + 7);
+            WorldClock worldClock = worldClock(minecraft);
+            graphics.drawString(font, worldClock.time(), clock.x() + 27, clock.y() + 4, TEXT, true);
+            graphics.drawString(font, Component.translatable("hud.stonebanner.top.day", worldClock.day()),
+                    clock.x() + 27, clock.y() + 16, MUTED, false);
+        }
 
         StoneBannerHudLayout.Rect map = StoneBannerHudLayout.miniMap(screenWidth, screenHeight);
+        if (map.height() < MiniMapCache.SIZE + 8) return;
         inset(graphics, map.x(), map.y(), map.width(), map.height(), true);
         renderMiniMap(graphics, minecraft, map);
     }
@@ -703,17 +726,17 @@ public final class StoneBannerHudRenderer {
         if (width <= 12) {
             return;
         }
-        graphics.renderItem(icon, x + Math.max(1, (width - 16) / 2), y + 1);
-        String text = font.plainSubstrByWidth(value.getString(), width - 2);
-        graphics.drawCenteredString(font, text, x + width / 2, y + 22, TEXT);
+        graphics.renderItem(icon, x + 1, y + 4);
+        String text = font.plainSubstrByWidth(value.getString(), Math.max(1, width - 20));
+        graphics.drawString(font, text, x + 20, y + 8, TEXT);
     }
 
     private static void smallTopAction(GuiGraphics graphics, int x, int y, ItemStack icon, boolean active) {
-        inset(graphics, x, y, 21, 28, true);
+        inset(graphics, x, y, 21, 24, true);
         if (active) {
-            graphics.renderOutline(x + 1, y + 1, 19, 26, BORDER_ACTIVE);
+            graphics.renderOutline(x + 1, y + 1, 19, 22, BORDER_ACTIVE);
         }
-        graphics.renderItem(icon, x + 3, y + 6);
+        graphics.renderItem(icon, x + 3, y + 4);
     }
 
     private static void drawCompactBar(GuiGraphics graphics, Font font, int x, int y, int width, ItemStack icon,
@@ -739,9 +762,9 @@ public final class StoneBannerHudRenderer {
         if (width <= 20) {
             return;
         }
-        inset(graphics, x, y, width, 25, true);
-        graphics.renderItem(icon, x + 3, y + 4);
-        graphics.drawString(font, Integer.toString(value), x + 22, y + 9, TEXT, true);
+        inset(graphics, x, y, width, 22, true);
+        graphics.renderItem(icon, x + 3, y + 3);
+        graphics.drawString(font, Integer.toString(value), x + 22, y + 7, TEXT, true);
     }
 
     private static void toolbarButton(GuiGraphics graphics, Font font, StoneBannerHudLayout.Rect bounds,
@@ -750,8 +773,8 @@ public final class StoneBannerHudRenderer {
                 active ? SLOT_HOVER : enabled ? SLOT : SLOT_DISABLED);
         graphics.renderOutline(bounds.x(), bounds.y(), bounds.width(), bounds.height(),
                 active ? BORDER_ACTIVE : FRAME);
-        graphics.renderItem(icon, bounds.x() + 7, bounds.y() + 9);
-        drawScaledString(graphics, font, label, bounds.x() + 27, bounds.y() + 13,
+        graphics.renderItem(icon, bounds.x() + 4, bounds.y() + (bounds.height() - 16) / 2);
+        drawScaledString(graphics, font, label, bounds.x() + 24, bounds.y() + (bounds.height() - font.lineHeight) / 2,
                 Math.max(1, bounds.width() - 29), enabled ? (active ? ACCENT : TEXT) : 0xFF77736C);
     }
 
@@ -777,6 +800,7 @@ public final class StoneBannerHudRenderer {
 
     private static void drawScaledString(GuiGraphics graphics, Font font, Component text, int x, int y,
                                          int maxWidth, int color) {
+        text = Component.literal(font.plainSubstrByWidth(text.getString(), Math.max(1, (int) (maxWidth / 0.85F))));
         int width = Math.max(1, font.width(text));
         float scale = Math.min(1.0F, maxWidth / (float) width);
         graphics.pose().pushPose();
@@ -788,6 +812,7 @@ public final class StoneBannerHudRenderer {
 
     private static void drawCenteredScaledString(GuiGraphics graphics, Font font, Component text,
                                                   int centerX, int y, int maxWidth, int color) {
+        text = Component.literal(font.plainSubstrByWidth(text.getString(), Math.max(1, (int) (maxWidth / 0.85F))));
         int width = Math.max(1, font.width(text));
         float scale = Math.min(1.0F, maxWidth / (float) width);
         float scaledWidth = width * scale;
@@ -978,13 +1003,12 @@ public final class StoneBannerHudRenderer {
         private static final int RADIUS = 7;
         private static final int SIZE = RADIUS * 2 + 1;
         private static final int SAMPLE_STEP = 4;
-        private static final long REFRESH_TICKS = 20L;
 
         private final int[] colors = new int[SIZE * SIZE];
-        private long lastRefresh = Long.MIN_VALUE;
-        private int centerX = Integer.MIN_VALUE;
+        private final MiniMapRefreshState refresh = new MiniMapRefreshState();
+        private int centerX;
         private int centerY;
-        private int centerZ = Integer.MIN_VALUE;
+        private int centerZ;
 
         private MiniMapCache() {
             for (int i = 0; i < colors.length; i++) colors[i] = MAP_LEVEL;
@@ -994,19 +1018,20 @@ public final class StoneBannerHudRenderer {
             if (minecraft.player == null || minecraft.level == null) return;
             BlockPos center = minecraft.player.blockPosition();
             long gameTime = minecraft.level.getGameTime();
-            boolean moved = Math.abs(center.getX() - centerX) >= SAMPLE_STEP
-                    || Math.abs(center.getZ() - centerZ) >= SAMPLE_STEP;
-            if (!moved && gameTime - lastRefresh < REFRESH_TICKS) return;
+            if (!refresh.shouldRefresh(minecraft.level, center.getX(), center.getY(), center.getZ(), gameTime)) return;
 
             centerX = center.getX();
             centerY = center.getY();
             centerZ = center.getZ();
-            lastRefresh = gameTime;
 
             for (int gridZ = 0; gridZ < SIZE; gridZ++) {
                 for (int gridX = 0; gridX < SIZE; gridX++) {
                     int worldX = centerX + (gridX - RADIUS) * SAMPLE_STEP;
                     int worldZ = centerZ + (gridZ - RADIUS) * SAMPLE_STEP;
+                    if (!minecraft.level.hasChunkAt(new BlockPos(worldX, centerY, worldZ))) {
+                        colors[gridZ * SIZE + gridX] = BAR_TRACK;
+                        continue;
+                    }
                     int surfaceY = minecraft.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1;
                     surfaceY = Math.max(minecraft.level.getMinBuildHeight(), surfaceY);
                     BlockPos surface = new BlockPos(worldX, surfaceY, worldZ);
@@ -1029,6 +1054,7 @@ public final class StoneBannerHudRenderer {
                     colors[gridZ * SIZE + gridX] = color;
                 }
             }
+            refresh.refreshed(minecraft.level, centerX, centerY, centerZ, gameTime);
         }
 
         private int colorAt(int x, int z) {

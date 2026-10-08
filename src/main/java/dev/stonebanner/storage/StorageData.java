@@ -193,6 +193,13 @@ public final class StorageData extends SavedData {
         return List.copyOf(result);
     }
 
+    /** Checks one registered loaded container without moving items. */
+    public boolean canAcceptAt(ServerLevel level, BlockPos pos, ItemStack stack) {
+        if (level == null || pos == null || stack == null || stack.isEmpty()
+                || !containerPositions.contains(pos.asLong()) || !level.hasChunkAt(pos)) return false;
+        return liveContainer(level, pos).map(container -> canAccept(container, stack)).orElse(false);
+    }
+
     /** Removes matching items from one specific registered container. */
     public Extraction extractAt(ServerLevel level, BlockPos pos, Predicate<ItemStack> predicate, int amount) {
         if (level == null || pos == null || predicate == null || amount <= 0
