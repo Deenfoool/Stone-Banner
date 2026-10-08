@@ -21,7 +21,9 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.42`.
+The Phase 1.7 Hero ↔ Orders transition is implemented in source: tap `Tab` to toggle Orders, or hold it from Hero to give temporary orders and return automatically on release. `Home` returns the camera to the hero; double-pressing it resets the default angle and zoom. Detached Orders camera pans at screen edges and keeps independent yaw/zoom while the hero's previous camera view is restored on return. Controls are rebindable; `ordersHoldMs`, `homeDoubleMs` and `transitionTicks` live in the client TOML. Camera interpolation still uses collision and loaded-chunk checks. See [CONTROLS.md](CONTROLS.md). These changes have not been verified in a Forge client or Gradle build yet.
+
+Version: `0.1.0-alpha.43` (Hero ↔ Orders camera/input source implementation; alpha.35–43 verification pending).
 
 Cottage construction is implemented in source: **B** / the Build tab opens a fixed 5×7 blueprint with rotation and a world outline preview. One NPC fetches real supplies from registered storage, builds in stages, and places a door/two beds with one item per furniture piece. Plans, ownership and pause persist; removing a plan keeps blocks and carried items. Existing sleep/camp provision detects the ordinary beds. See [CONSTRUCTION.md](CONSTRUCTION.md). Build and gameplay verification remain deferred.
 
