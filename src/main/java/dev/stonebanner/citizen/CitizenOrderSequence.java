@@ -70,6 +70,14 @@ public final class CitizenOrderSequence {
         // This sequencer is optional. Never stop autonomous work/food/sleep for an NPC
         // without an explicitly queued player order.
         if (!hasOrders()) return;
+        // The emergency AI owns its movement: discard queued player work without stopping
+        // FLEE / DEFEND / RETURN_HOME, which would defeat the safety preemption.
+        var movement = owner.commandController().movementState();
+        if (movement == CitizenBrainState.FLEE || movement == CitizenBrainState.DEFEND
+                || movement == CitizenBrainState.RETURN_HOME) {
+            clear();
+            return;
+        }
         if (owner.citizenData().health().needsRecovery()
                 || !owner.citizenData().health().canMoveIndependently()
                 || owner.citizenData().returningToVillage()) { abort("preempted"); return; }
@@ -89,6 +97,11 @@ public final class CitizenOrderSequence {
 
         if (active.kind() == CitizenOrderQueue.Kind.WORK) {
             if (CitizenJobBoard.forLevel(level).job(activeJobId).isEmpty()) {
+                // Job cancellation by a designation change is not a successful mining order.
+                if (level.hasChunkAt(active.block()) && !level.getBlockState(active.block()).isAir()) {
+                    abort("work_blocked");
+                    return;
+                }
                 finish(level); return;
             }
             if (owner.workController().currentJob().stream().noneMatch(job -> job.id() == activeJobId)
