@@ -649,5 +649,13 @@
   "message.stonebanner.order_reason.no_path": "нет пути",
   "message.stonebanner.order_reason.work_blocked": "работа заблокирована или не завершена вовремя",
   "message.stonebanner.order_reason.target_unreachable": "цель потеряна, недоступна или истекло время",
-  "message.stonebanner.order_reason.invalid_target": "цель или работа уже недоступна"
+  "message.stonebanner.order_reason.invalid_target": "цель или работа уже недоступна",
+  "message.stonebanner.interaction_unsupported": "Этот блок недоступен для приказа взаимодействия NPC.",
+  "message.stonebanner.order_reason.interaction_unreachable": "нельзя подойти или взаимодействовать с блоком",
+  "hud.stonebanner.order.active": "%s · ожидают %s",
+  "hud.stonebanner.order.kind.move": "Идёт",
+  "hud.stonebanner.order.kind.follow": "Следует",
+  "hud.stonebanner.order.kind.attack": "Атакует",
+  "hud.stonebanner.order.kind.work": "Работает",
+  "hud.stonebanner.order.kind.interact": "Взаимодействует"
 }

@@ -471,7 +471,10 @@ public final class TacticalControlScreen extends Screen {
         if(hoveredTarget.orElse(null) instanceof EntityHitResult e)
             CitizenSelectionController.commandTarget(e.getEntity(), hasAltDown());
         else if(hoveredTarget.orElse(null) instanceof BlockHitResult b) {
-            if(hasAltDown() && hasShiftDown() && CitizenSelectionController.workSelected(b,true)) { }
+            if (hasAltDown() && hasShiftDown()) {
+                if (!CitizenSelectionController.workSelected(b, true))
+                    CitizenSelectionController.interactSelected(b);
+            }
             else if(hasAltDown())CitizenSelectionController.moveSelected(b,true);
             else if(hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
                 dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(b.getBlockPos().relative(b.getDirection()),

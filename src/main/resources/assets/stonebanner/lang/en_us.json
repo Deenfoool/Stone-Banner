@@ -649,5 +649,13 @@
   "message.stonebanner.order_reason.no_path": "no path",
   "message.stonebanner.order_reason.work_blocked": "work blocked or timed out",
   "message.stonebanner.order_reason.target_unreachable": "target lost, unreachable or timed out",
-  "message.stonebanner.order_reason.invalid_target": "target or job is no longer available"
+  "message.stonebanner.order_reason.invalid_target": "target or job is no longer available",
+  "message.stonebanner.interaction_unsupported": "Citizens cannot interact with this block.",
+  "message.stonebanner.order_reason.interaction_unreachable": "cannot reach or use the block",
+  "hud.stonebanner.order.active": "%s · %s waiting",
+  "hud.stonebanner.order.kind.move": "Moving",
+  "hud.stonebanner.order.kind.follow": "Following",
+  "hud.stonebanner.order.kind.attack": "Attacking",
+  "hud.stonebanner.order.kind.work": "Working",
+  "hud.stonebanner.order.kind.interact": "Interacting"
 }

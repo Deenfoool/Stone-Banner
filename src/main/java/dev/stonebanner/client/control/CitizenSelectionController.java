@@ -97,6 +97,13 @@ public final class CitizenSelectionController {
         if(!state.is(net.minecraft.tags.BlockTags.LOGS)&&!state.is(net.minecraftforge.common.Tags.Blocks.ORES))return false;
         for(var npc:all)StoneBannerNetwork.sendCitizenWorkTarget(npc.getId(),hit.getBlockPos(),append);return true;
     }
+    /** Queue an interaction for each selected citizen; server whitelists eligible controls. */
+    public static boolean interactSelected(BlockHitResult hit) {
+        var citizens = selectedAll();
+        if (citizens.isEmpty()) return false;
+        for (var npc : citizens) StoneBannerNetwork.sendCitizenInteract(npc.getId(), hit.getBlockPos());
+        return true;
+    }
     public static boolean moveSelected(BlockHitResult hit) {
         return moveSelected(hit, false);
     }

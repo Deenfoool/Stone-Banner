@@ -394,6 +394,13 @@ public final class StoneBannerHudRenderer {
         Component activity = workType == null
                 ? Component.translatable("brain_state.stonebanner." + npc.brainState().serializedName())
                 : Component.translatable("work_type.stonebanner." + workType.serializedName());
+        var activeOrder = dev.stonebanner.command.CitizenOrderQueue.decodePreview(npc.hudOrderPreview())
+                .stream().filter(dev.stonebanner.command.CitizenOrderQueue.Preview::active).findFirst();
+        if (activeOrder.isPresent()) {
+            String kind = activeOrder.get().entry().kind().name().toLowerCase(java.util.Locale.ROOT);
+            activity = Component.translatable("hud.stonebanner.order.active",
+                    Component.translatable("hud.stonebanner.order.kind." + kind), npc.hudQueuedMoves());
+        }
         graphics.drawString(font,
                 font.plainSubstrByWidth(activity.getString(), Math.max(35, card.width() - infoX + card.x() - 30)),
                 infoX, card.y() + 33, ACCENT, false);

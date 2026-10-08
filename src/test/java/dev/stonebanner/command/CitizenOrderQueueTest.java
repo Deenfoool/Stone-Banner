@@ -22,6 +22,33 @@ class CitizenOrderQueueTest {
         assertEquals(target,q.poll().target());
         assertTrue(q.isEmpty());
     }
+    @Test void interactionIsBlockOnlyAndQueuePreviewSurvivesClear() {
+        var queue = new CitizenOrderQueue();
+        var interact = CitizenOrderQueue.Entry.interact(new BlockPos(-4, 70, 8));
+        var target = UUID.randomUUID();
+        assertTrue(queue.offer(interact));
+        assertTrue(queue.offer(CitizenOrderQueue.Entry.target(CitizenOrderQueue.Kind.FOLLOW, target)));
+        String text = CitizenOrderQueue.encodePreview(CitizenOrderQueue.Entry.move(new BlockPos(1, 70, 1)), queue.snapshot());
+        var restored = CitizenOrderQueue.decodePreview(text);
+        assertEquals(3, restored.size());
+        assertTrue(restored.get(0).active());
+        assertEquals(CitizenOrderQueue.Kind.MOVE, restored.get(0).entry().kind());
+        assertEquals(interact, restored.get(1).entry());
+        assertFalse(restored.get(1).active());
+        assertEquals(target, restored.get(2).entry().target());
+        queue.clear();
+        assertEquals(3, restored.size());
+        assertThrows(IllegalArgumentException.class,
+                () -> CitizenOrderQueue.Entry.target(CitizenOrderQueue.Kind.INTERACT, target));
+    }
+    @Test void malformedPreviewIsIgnoredAndEncodedQueueIsBounded() {
+        assertTrue(CitizenOrderQueue.decodePreview("bad;1:WORK:not_a_number;0:ATTACK:bad_uuid").isEmpty());
+        assertTrue(CitizenOrderQueue.decodePreview("1:MOVE:" + "1".repeat(2100)).isEmpty());
+        var previews = CitizenOrderQueue.decodePreview(
+                CitizenOrderQueue.encodePreview(null, java.util.Collections.nCopies(20,
+                        CitizenOrderQueue.Entry.interact(new BlockPos(3, 64, 4)))));
+        assertEquals(CitizenOrderQueue.LIMIT, previews.size());
+    }
     @Test void maxSixteenAndStopClearsEverything() {
         var q=new CitizenOrderQueue();
         for(int i=0;i<CitizenOrderQueue.LIMIT;i++)

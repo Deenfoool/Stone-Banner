@@ -121,11 +121,41 @@ public final class PathPreviewRenderer {
                     0.35F,
                     1.0F
             );
+            renderCitizenOrders(minecraft, poses, lines, selectedMember);
         }
         renderExcavationPlans(poses, lines);
         renderDesignationPreview(poses, lines);
         poses.popPose();
         buffers.endBatch(RenderType.lines());
+    }
+
+    /** All markers are visual-only server snapshots and never drive a new command. */
+    private static void renderCitizenOrders(Minecraft mc, PoseStack poses, VertexConsumer lines,
+                                            dev.stonebanner.entity.HumanNpcEntity citizen) {
+        if (mc.level == null) return;
+        for (var preview : dev.stonebanner.command.CitizenOrderQueue.decodePreview(citizen.hudOrderPreview())) {
+            var entry = preview.entry();
+            Vec3 point = null;
+            if (entry.block() != null) {
+                if (!mc.level.hasChunkAt(entry.block())) continue;
+                point = Vec3.atCenterOf(entry.block());
+            } else {
+                for (var entity : mc.level.entitiesForRendering()) {
+                    if (entity.isAlive() && entity.getUUID().equals(entry.target())) {
+                        point = entity.getBoundingBox().getCenter();
+                        break;
+                    }
+                }
+            }
+            if (point == null) continue;
+            float r = preview.active() ? 1.0F : 0.32F;
+            float g = preview.active() ? 0.83F : 0.76F;
+            float b = preview.active() ? 0.18F : 0.99F;
+            double radius = preview.active() ? 0.48D : 0.28D;
+            var marker = new AABB(point.x - radius, point.y - 0.06D, point.z - radius,
+                    point.x + radius, point.y + 0.12D, point.z + radius);
+            LevelRenderer.renderLineBox(poses, lines, marker, r, g, b, preview.active() ? 1.0F : 0.68F);
+        }
     }
 
     private static void renderExcavationPlans(PoseStack poses, VertexConsumer lines) {
