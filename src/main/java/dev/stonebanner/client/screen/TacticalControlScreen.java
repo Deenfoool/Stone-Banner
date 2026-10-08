@@ -49,7 +49,7 @@ public final class TacticalControlScreen extends Screen {
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
     }
-    @Override public void removed() { HeroInputController.resetGroundClicks();dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
+    @Override public void removed() { PlayerCommandController.cancelPendingActions();dev.stonebanner.client.control.BlockPlacementPreview.reset();HeroInputController.resetGroundClicks();dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public HitResult hoveredHit(){return hoveredTarget.orElse(null);}
@@ -93,6 +93,13 @@ public final class TacticalControlScreen extends Screen {
         if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
             graphics.drawString(font,Component.translatable("construction.stonebanner.ui.preview"),8,110,0xFFE7C46A);
             graphics.drawString(font,Component.translatable("construction.stonebanner.status."+dev.stonebanner.client.control.ConstructionPreviewController.status()),8,122,0xFFD8D2C8);
+        }
+        float progress=HeroInputController.miningProgress();
+        if(progress>0){graphics.fill(width/2-40,height/2+18,width/2+40,height/2+23,0xAA222222);
+            graphics.fill(width/2-40,height/2+18,width/2-40+(int)(80*Math.min(1,progress)),height/2+23,0xDDCDA96E);}
+        if(minecraft.player!=null && minecraft.player.isUsingItem() && minecraft.player.getUseItem().getItem() instanceof net.minecraft.world.item.BowItem){
+            float charge=net.minecraft.world.item.BowItem.getPowerForTime(minecraft.player.getTicksUsingItem());
+            graphics.drawString(font,Component.translatable("hud.stonebanner.bow_charge",(int)(charge*100)),width/2-35,height/2+28,0xFFD8D2C8);
         }
         ExcavationLadderStatusHud.render(graphics, minecraft, width);
 
@@ -415,6 +422,7 @@ public final class TacticalControlScreen extends Screen {
             return true;
         }
         if(!commands()) {
+            if(!primary && hasAltDown()) {openActionMenu();return true;}
             if(!primary && hasShiftDown() && minecraft.player.getMainHandItem().isEmpty()
                     && hoveredTarget.orElse(null) instanceof BlockHitResult b
                     && dev.stonebanner.storage.StorageManagementService.supported(minecraft.level,b.getBlockPos())) {
@@ -521,7 +529,14 @@ public final class TacticalControlScreen extends Screen {
         if(StoneBannerHudRenderer.hotbarIndex(StoneBannerHudRenderer.actionAt(mouseX,mouseY,width,height,CitizenSelectionController.hasSelection()))>=0 && minecraft.player!=null) {
             dev.stonebanner.client.control.HeroInputController.cancel();
             selectHotbarSlot(Math.floorMod(minecraft.player.getInventory().selected+(delta>0?-1:1),9));
-        } else if(!overUi(mouseX,mouseY)) RpgCameraController.adjustZoom(delta);
+        } else if(!overUi(mouseX,mouseY)) {
+            if(dev.stonebanner.client.control.InputBindings.held(ClientKeyMappings.ROTATE_PLACEMENT_MODIFIER)
+                    && dev.stonebanner.client.control.ConstructionPreviewController.active())
+                dev.stonebanner.client.control.ConstructionPreviewController.rotate(delta>0?1:-1);
+            else if(dev.stonebanner.client.control.InputBindings.held(ClientKeyMappings.ROTATE_PLACEMENT_MODIFIER)
+                    && dev.stonebanner.client.control.BlockPlacementPreview.rotate(delta>0?1:-1)) { }
+            else RpgCameraController.adjustZoom(delta);
+        }
         return true;
     }
 
@@ -606,11 +621,8 @@ public final class TacticalControlScreen extends Screen {
         }
         if(InputBindings.matches(ClientKeyMappings.ALTERNATIVE_USE,keyCode,scanCode)) {
             var active=context(overUi(cursorX,cursorY));
-            if(active!=InputContext.WASD && active!=InputContext.MOUSE)return true;
-            HeroInputController.cancel();
-            var hit=WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null);
-            if(hit instanceof EntityHitResult e)PlayerCommandController.interactEntity(e.getEntity());
-            else if(hit instanceof BlockHitResult b)PlayerCommandController.interactBlock(b);
+            if(active!=InputContext.WASD && active!=InputContext.MOUSE && active!=InputContext.ORDERS)return true;
+            openActionMenu();
             return true;
         }
         if(InputBindings.matches(minecraft.options.keyAttack,keyCode,scanCode))return worldAction(true);
@@ -643,13 +655,17 @@ public final class TacticalControlScreen extends Screen {
                 dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID);
     }
 
+    private void openActionMenu(){
+        var hit=WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null);
+        HeroInputController.cancel();PlayerCommandController.cancelPendingActions();
+        if(hit!=null)minecraft.setScreen(new ContextActionScreen(this,hit));
+    }
     private boolean heroAction(boolean primary) {
         var hit=WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null);
         ActionResolver.Target target=ActionResolver.Target.NONE;
-        if(hit instanceof EntityHitResult e) target=e.getEntity() instanceof dev.stonebanner.entity.HumanNpcEntity
-                || e.getEntity() instanceof net.minecraft.world.entity.npc.AbstractVillager
-                || e.getEntity() instanceof net.minecraft.world.entity.player.Player
-                ? ActionResolver.Target.FRIENDLY : ActionResolver.Target.HOSTILE;
+        if(hit instanceof EntityHitResult e) target=dev.stonebanner.control.HeroActionRules.protectedTarget(minecraft.player,e.getEntity())
+                ? ActionResolver.Target.FRIENDLY : e.getEntity() instanceof net.minecraft.world.entity.monster.Monster
+                ? ActionResolver.Target.HOSTILE : ActionResolver.Target.NEUTRAL;
         else if(hit instanceof BlockHitResult b) target=PlayerCommandController.isInteractiveBlock(b.getBlockPos())
                 ? ActionResolver.Target.INTERACTIVE_BLOCK : ActionResolver.Target.BLOCK;
         var item=minecraft.player.getMainHandItem();
@@ -687,7 +703,7 @@ public final class TacticalControlScreen extends Screen {
                 else if(hit instanceof BlockHitResult b)PlayerCommandController.interactBlock(b);
             }
             case ATTACK_OR_MINE, USE_ITEM -> HeroInputController.setActionHeld(
-                    primary?minecraft.options.keyAttack:minecraft.options.keyUse,action==ActionResolver.Action.ATTACK_OR_MINE);
+                    primary?minecraft.options.keyAttack:minecraft.options.keyUse,action==ActionResolver.Action.ATTACK_OR_MINE,hit);
             default -> { }
         }
         return true;

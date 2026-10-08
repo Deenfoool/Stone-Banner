@@ -50,7 +50,8 @@ public record TacticalActionPacket(Action action,int entityId,BlockPos block,Dir
                 ||!TacticalInteractionRules.visible(level,player,entity.getBoundingBox().getCenter(),null))return;
         if(p.action==Action.ATTACK) {
             if(entity instanceof ItemEntity||entity instanceof ExperienceOrb||entity instanceof AbstractArrow
-                    ||!entity.isAttackable()||player.getAttackStrengthScale(.5f)<.9f||player.isUsingItem())return;
+                    ||!dev.stonebanner.control.HeroActionRules.canAttack(player,entity)
+                    ||player.getAttackStrengthScale(.5f)<.9f||player.isUsingItem())return;
             player.attack(entity);player.swing(InteractionHand.MAIN_HAND,true);
         } else if(entity instanceof net.minecraft.world.entity.npc.Villager villager
                 &&dev.stonebanner.village.VillageService.talk(player,villager)) { }

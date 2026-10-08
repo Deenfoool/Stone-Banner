@@ -20,10 +20,16 @@ public final class ConstructionPreviewRenderer {
         boolean allowed=ConstructionPreviewController.allowed();float red=allowed?.35f:1,green=allowed?.9f:.25f;
         poses.pushPose();poses.translate(-camera.x,-camera.y,-camera.z);
         LevelRenderer.renderLineBox(poses,lines,ConstructionPreviewController.blueprint().bounds(origin,rotation).inflate(.008),red,green,.35f,.5f);
+        int ghostCount=0;
         for(var placement:ConstructionPreviewController.blueprint().placements())for(var cell:placement.cells()){
             var at=cell.at(origin,rotation);var shape=cell.oriented(rotation).getShape(mc.level,at);
-            for(var box:shape.toAabbs())LevelRenderer.renderLineBox(poses,lines,box.move(at).inflate(.002),red,green,.35f,.75f);
+            for(var box:shape.toAabbs()){
+                var absolute=box.move(at);
+                if(ghostCount++<512)LevelRenderer.addChainedFilledBoxVertices(poses,buffers.getBuffer(RenderType.debugFilledBox()),
+                        absolute.minX,absolute.minY,absolute.minZ,absolute.maxX,absolute.maxY,absolute.maxZ,red,green,.35f,.12f);
+                LevelRenderer.renderLineBox(poses,lines,absolute.inflate(.002),red,green,.35f,.75f);
+            }
         }
-        poses.popPose();buffers.endBatch(RenderType.lines());
+        poses.popPose();buffers.endBatch(RenderType.debugFilledBox());buffers.endBatch(RenderType.lines());
     }
 }

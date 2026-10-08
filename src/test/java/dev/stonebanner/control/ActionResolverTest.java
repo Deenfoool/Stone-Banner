@@ -24,7 +24,7 @@ class ActionResolverTest {
     }
     @Test void friendlyTargetsAndContainersPreferInteraction() {
         for(var context:new InputContext[]{InputContext.WASD,InputContext.MOUSE})
-            for(var target:new Target[]{Target.FRIENDLY,Target.INTERACTIVE_BLOCK})
+            for(var target:new Target[]{Target.FRIENDLY,Target.NEUTRAL,Target.INTERACTIVE_BLOCK})
                 assertEquals(Action.INTERACT,resolve(context,Button.SECONDARY,target,false,false,false));
         assertEquals(Action.CONSUME,resolve(InputContext.WASD,Button.PRIMARY,Target.FRIENDLY,false,false,false));
     }
@@ -39,5 +39,12 @@ class ActionResolverTest {
             assertEquals(Action.SELECT,resolve(InputContext.ORDERS,Button.PRIMARY,target,true,true,true));
             assertEquals(Action.ORDER,resolve(InputContext.ORDERS,Button.SECONDARY,target,true,true,true));
         }
+    }
+    @Test void hostileMouseActionRespectsBowAndBlockWhileWasdUsesSecondary() {
+        assertEquals(Action.ATTACK_OR_MINE,resolve(InputContext.MOUSE,Button.SECONDARY,Target.HOSTILE,false,false,false));
+        assertEquals(Action.USE_ITEM,resolve(InputContext.MOUSE,Button.SECONDARY,Target.HOSTILE,false,true,false));
+        assertEquals(Action.USE_ITEM,resolve(InputContext.MOUSE,Button.SECONDARY,Target.HOSTILE,false,false,true));
+        assertEquals(Action.USE_ITEM,resolve(InputContext.WASD,Button.SECONDARY,Target.HOSTILE,false,false,false));
+        assertEquals(Action.CONSUME,resolve(InputContext.BOW,Button.PRIMARY,Target.HOSTILE,false,true,false));
     }
 }

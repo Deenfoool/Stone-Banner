@@ -36,7 +36,8 @@ public final class ConstructionPreviewController {
     public static void checkWorld(){
         var mc=Minecraft.getInstance();if(active&&(mc.level==null||mc.player==null||!mc.player.isAlive()||!mc.level.dimension().location().equals(dimension)))cancel();
     }
-    public static void rotate(){rotation=Rotation.values()[(rotation.ordinal()+1)%4];checkedAt=Long.MIN_VALUE;}
+    public static void rotate(){rotate(1);}
+    public static void rotate(int direction){rotation=Rotation.values()[Math.floorMod(rotation.ordinal()+(direction<0?-1:1),4)];checkedAt=Long.MIN_VALUE;}
     public static void update(HitResult hit){
         if(!active)return;var mc=Minecraft.getInstance();checkWorld();if(!active)return;
         BlockPos next=hit instanceof BlockHitResult block&&block.getDirection()==Direction.UP?block.getBlockPos().above():null;

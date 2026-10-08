@@ -78,6 +78,7 @@ public final class ClientRuntime {
         ControlMode nextMode = ClientConfig.controlMode().next();
         ClientConfig.setControlMode(nextMode);
         dev.stonebanner.client.control.HeroInputController.cancel();
+        PlayerCommandController.cancelPendingActions();
         if (minecraft.player != null) {
             minecraft.player.displayClientMessage(
                     Component.translatable("message.stonebanner.control_mode", nextMode.displayName()),

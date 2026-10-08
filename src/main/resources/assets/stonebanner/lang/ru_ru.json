@@ -616,7 +616,7 @@
   "hud.stonebanner.mouse.bindings": "Mouse · %s: идти · %s: действие · %s: приказы · %s: профиль · %s: вверх · %s: вниз · %s: бег",
   "hud.stonebanner.commands.bindings": "Приказы · %s: выбор/рамка · %s: приказ · %s: герой · %s: профиль · 1–9: хотбар · Alt+номер: группа",
   "key.stonebanner.camera_rotate": "Вращать камеру (удерживать)",
-  "key.stonebanner.alternative_use": "Альтернативное взаимодействие (герой)",
+  "key.stonebanner.alternative_use": "Меню альтернативных действий",
   "movement.stonebanner.reason.none": "Путь доступен",
   "movement.stonebanner.reason.unloaded": "Участок мира не загружен",
   "movement.stonebanner.reason.border": "Граница мира или высоты",
@@ -631,5 +631,14 @@
   "movement.stonebanner.refused": "Нет пути: %s",
   "movement.stonebanner.pace.walk": "Ходьба",
   "movement.stonebanner.pace.run": "Бег",
-  "movement.stonebanner.pace.careful": "Осторожный шаг"
+  "movement.stonebanner.pace.careful": "Осторожный шаг",
+  "screen.stonebanner.actions": "Действия по цели",
+  "screen.stonebanner.actions.inspect": "Осмотреть",
+  "screen.stonebanner.actions.interact": "Взаимодействовать",
+  "screen.stonebanner.actions.attack": "Атаковать",
+  "screen.stonebanner.actions.work": "Назначить работу",
+  "screen.stonebanner.actions.attack_hint": "Только живая доступная для атаки цель. Граждане, жители, игроки и приручённые питомцы защищены.",
+  "screen.stonebanner.actions.work_hint": "Сначала выберите граждан в Orders; работа доступна по брёвнам или руде. Назначьте клавишу меню альтернатив для вызова в Orders.",
+  "key.stonebanner.rotate_placement_modifier": "Модификатор поворота размещения (с колесом)",
+  "hud.stonebanner.bow_charge": "Лук: %s%%"
 }

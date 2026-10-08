@@ -616,7 +616,7 @@
   "hud.stonebanner.mouse.bindings": "Mouse · %s: move · %s: action · %s: orders · %s: profile · %s: up · %s: down · %s: sprint",
   "hud.stonebanner.commands.bindings": "Orders · %s: select/drag · %s: order · %s: hero · %s: profile · 1–9: hotbar · Alt+number: group",
   "key.stonebanner.camera_rotate": "Rotate camera (hold)",
-  "key.stonebanner.alternative_use": "Alternative interaction (hero)",
+  "key.stonebanner.alternative_use": "Alternative actions menu",
   "movement.stonebanner.reason.none": "Path available",
   "movement.stonebanner.reason.unloaded": "World area is not loaded",
   "movement.stonebanner.reason.border": "World or height limit",
@@ -631,5 +631,14 @@
   "movement.stonebanner.refused": "No path: %s",
   "movement.stonebanner.pace.walk": "Walking",
   "movement.stonebanner.pace.run": "Running",
-  "movement.stonebanner.pace.careful": "Careful movement"
+  "movement.stonebanner.pace.careful": "Careful movement",
+  "screen.stonebanner.actions": "Target actions",
+  "screen.stonebanner.actions.inspect": "Inspect",
+  "screen.stonebanner.actions.interact": "Interact",
+  "screen.stonebanner.actions.attack": "Attack",
+  "screen.stonebanner.actions.work": "Assign work",
+  "screen.stonebanner.actions.attack_hint": "Only living attackable targets. Citizens, villagers, players and tame pets are protected.",
+  "screen.stonebanner.actions.work_hint": "Select citizens in Orders first; work requires logs or ore. Bind Alternative actions to open this menu in Orders.",
+  "key.stonebanner.rotate_placement_modifier": "Placement rotation modifier (with wheel)",
+  "hud.stonebanner.bow_charge": "Bow: %s%%"
 }

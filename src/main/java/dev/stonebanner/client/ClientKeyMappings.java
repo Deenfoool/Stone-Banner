@@ -50,6 +50,7 @@ public final class ClientKeyMappings {
     public static final KeyMapping LAYER_BOUNDARIES = new KeyMapping("key.stonebanner.layer_boundaries", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, CATEGORY);
     public static final KeyMapping LAYER_RESOURCES = new KeyMapping("key.stonebanner.layer_resources", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, CATEGORY);
     public static final KeyMapping LAYER_FERTILITY = new KeyMapping("key.stonebanner.layer_fertility", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY);
+    public static final KeyMapping ROTATE_PLACEMENT_MODIFIER=binding("rotate_placement_modifier",GLFW.GLFW_KEY_LEFT_SHIFT);
     public static final KeyMapping CAMERA_ROTATE = new KeyMapping("key.stonebanner.camera_rotate",KeyConflictContext.IN_GAME,
             InputConstants.Type.MOUSE,GLFW.GLFW_MOUSE_BUTTON_MIDDLE,CATEGORY);
     public static final KeyMapping ALTERNATIVE_USE = binding("alternative_use", GLFW.GLFW_KEY_UNKNOWN);
@@ -77,7 +78,7 @@ public final class ClientKeyMappings {
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        event.register(CAMERA_ROTATE); event.register(ALTERNATIVE_USE); event.register(ORDERS); event.register(STOP); event.register(ROTATE_BLUEPRINT);
+        event.register(ROTATE_PLACEMENT_MODIFIER);event.register(CAMERA_ROTATE); event.register(ALTERNATIVE_USE); event.register(ORDERS); event.register(STOP); event.register(ROTATE_BLUEPRINT);
         event.register(CAMERA_UP); event.register(CAMERA_DOWN); event.register(CONTROLS_HELP);
         for (int i=0;i<9;i++) { event.register(SAVE_GROUP[i]); event.register(RECALL_GROUP[i]); }
         event.register(PRODUCTION);event.register(BUILDING);

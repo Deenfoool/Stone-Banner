@@ -21,7 +21,7 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.41`.
+Version: `0.1.0-alpha.42`.
 
 Cottage construction is implemented in source: **B** / the Build tab opens a fixed 5×7 blueprint with rotation and a world outline preview. One NPC fetches real supplies from registered storage, builds in stages, and places a door/two beds with one item per furniture piece. Plans, ownership and pause persist; removing a plan keeps blocks and carried items. Existing sleep/camp provision detects the ordinary beds. See [CONSTRUCTION.md](CONSTRUCTION.md). Build and gameplay verification remain deferred.
 
@@ -257,3 +257,23 @@ TOML: `controls.doubleClickRun`, `doubleClickMs` (150–600), `heldPathInterval`
 
 **Сборка, unit/GameTest и клиентский прогон alpha.41 отложены.** Подготовлены
 HeroMovementRulesTest, HeroNavigationGameTests и сценарии в [CONTROLS.md](CONTROLS.md).
+
+### Предметы, добыча, строительство и бой 1.6 (alpha.42)
+
+В исходниках добавлены меню Alt+ПКМ с проверкой снимка цели, защита союзников
+на клиенте и сервере, фиксация цели удерживаемого действия, реальный ванильный
+прогресс добычи и индикатор натяжения лука. Преследование ограничено 200 тиками,
+24 блоками удаления от начальной позиции и 32 блоками до цели. Атаки сохраняют
+ванильные дальность, видимость и cooldown; поворот к противнику ограничен по шагу.
+Добыча в пределах reach может продолжаться дольше лимита подхода.
+
+Прозрачные объёмы показывают форму устанавливаемого блока и клеток blueprint.
+Для предмета-блока проверяются место, высота мира, граница, коллизии, выживание
+состояния, базовые права и реальный reach/LOS; окончательное решение принимает
+сервер Minecraft и его хуки защиты. Shift+колесо вращает размещение без zoom;
+модификатор переназначается. R также сохраняет поворот blueprint.
+
+Назначить работу можно выбранным гражданам по брёвнам/руде. В Orders меню
+вызывается переназначаемой клавишей «Меню альтернативных действий»; Alt+ПКМ
+сохраняет очередь перемещения. Валка всего дерева не включена: ломается выбранный
+блок. **Сборка, unit/GameTest и ручной игровой прогон alpha.42 отложены.**

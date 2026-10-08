@@ -71,6 +71,11 @@ public final class PlayerCommandController {
     private static BlockPos attemptedControlledDoor;
     private static BlockHitResult pendingBlock;
     private static boolean pendingStorage;
+    private static Vec3 pendingOrigin;
+    private static int pendingStarted;
+    private static java.util.UUID pendingUuid;
+    private static net.minecraft.world.level.block.state.BlockState pendingBlockState;
+    public static void cancelPendingActions(){if(pendingBlock!=null||pendingAction!=PendingAction.NONE)stopInternal();}
     private static BlockPos actionGoal;
     private static Vec3 swimTarget;
     private static LocalPlayer commandPlayer;
@@ -186,7 +191,7 @@ public final class PlayerCommandController {
         if (mc.player == null || mc.level == null) return;
         ensureWorld(mc); stopInternal();retryBudget.reset();
         pendingBlock = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), false);
-        pendingStorage=storage;
+        pendingStorage=storage;pendingOrigin=mc.player.position();pendingStarted=mc.player.tickCount;pendingBlockState=mc.level.getBlockState(hit.getBlockPos());
         if (!executePendingBlock(mc.player)) createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
     }
     public static boolean isInteractiveBlock(BlockPos pos) {
@@ -260,7 +265,8 @@ public final class PlayerCommandController {
     }
 
     private static void issueEntityAction(Player player, Entity entity, ActorCommand.EntityActionType action) {
-        selectedEntityId = entity.getId();
+        if(action==ActorCommand.EntityActionType.ATTACK && !dev.stonebanner.control.HeroActionRules.canAttack(player,entity))return;
+        selectedEntityId = entity.getId();pendingOrigin=player.position();pendingStarted=player.tickCount;pendingUuid=entity.getUUID();
         if (action == ActorCommand.EntityActionType.ATTACK) {
             pendingAction = PendingAction.ATTACK;
         } else if (action == ActorCommand.EntityActionType.INTERACT) {
@@ -288,7 +294,7 @@ public final class PlayerCommandController {
         path.clear();
         destination = null;
         selectedEntityId = null;
-        pendingAction = PendingAction.NONE;
+        pendingAction = PendingAction.NONE;pendingOrigin=null;pendingUuid=null;pendingBlockState=null;
         attemptedControlledDoor = null;
         status = CommandStatus.IDLE;
         movePace=dev.stonebanner.control.MovementPace.WALK;arrivalScale=1;waitingForPassage=false;
@@ -345,13 +351,13 @@ public final class PlayerCommandController {
 
         if (!ClientConfig.ENFORCE_THIRD_PERSON.get() || !minecraft.player.isAlive()) { stop(); return; }
         if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) {
-            clearMovement(event.getInput()); return;
+            cancelPendingActions();clearMovement(event.getInput()); return;
         }
         if(org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(minecraft.getWindow().getWindow(),org.lwjgl.glfw.GLFW.GLFW_FOCUSED)!=1) {
-            clearMovement(event.getInput());return;
+            cancelPendingActions();clearMovement(event.getInput());return;
         }
         if (HeroInputController.commandMode() || ConstructionPreviewController.active()) {
-            clearMovement(event.getInput()); return;
+            cancelPendingActions();clearMovement(event.getInput()); return;
         }
         if (ClientConfig.controlMode() == ControlMode.ACTION
                 && HeroInputController.manualMovement()) {
@@ -365,7 +371,7 @@ public final class PlayerCommandController {
             BlockPos marker=swimTarget!=null?BlockPos.containing(swimTarget):destination;
             stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.NO_AIR,marker,true);return;
         }
-        if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) return;
+        if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) {cancelPendingActions();return;}
         Player player = minecraft.player;
         ClientLevel level = minecraft.level;
         if (level == null) {
@@ -383,12 +389,19 @@ public final class PlayerCommandController {
         }
 
         if (pendingBlock != null) {
+            if(pendingOrigin==null || !dev.stonebanner.control.HeroActionBudget.permits(player.tickCount-pendingStarted,
+                    player.position().distanceToSqr(pendingOrigin),player.position().distanceToSqr(pendingBlock.getLocation()))
+                    || !pendingBlockState.equals(level.getBlockState(pendingBlock.getBlockPos()))){stopInternal();return;}
             if (executePendingBlock(player)) return;
             if (path.isEmpty() && status != CommandStatus.UNREACHABLE)
                 createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), player.getBlockReach());
         }
         if(status==CommandStatus.UNREACHABLE)return;
         Entity actionTarget = selectedEntity().orElse(null);
+        if(pendingAction!=PendingAction.NONE && (actionTarget==null || !actionTarget.isAlive()
+                || !actionTarget.getUUID().equals(pendingUuid) || pendingOrigin==null
+                || !dev.stonebanner.control.HeroActionBudget.permits(player.tickCount-pendingStarted,
+                    player.position().distanceToSqr(pendingOrigin),player.position().distanceToSqr(actionTarget.position())))) {stopInternal();return;}
         if (actionTarget != null && pendingAction != PendingAction.NONE) {
             facePlayerToward(player, actionTarget);
             if (executePendingActionIfInRange(player, actionTarget)) {
@@ -657,6 +670,7 @@ public final class PlayerCommandController {
 
     private static boolean executePendingActionIfInRange(Player player, Entity target) {
         var mc = Minecraft.getInstance();
+        if(pendingAction==PendingAction.ATTACK&&!dev.stonebanner.control.HeroActionRules.canAttack(player,target)){stopInternal();return true;}
         double entityReach = Math.max(0, player.getEntityReach() - .4);
         if (mc.level == null || pendingAction == PendingAction.NONE || !player.canReach(target, 0)
                 || player.getEyePosition().distanceToSqr(target.getBoundingBox().getCenter()) > entityReach * entityReach
@@ -664,11 +678,13 @@ public final class PlayerCommandController {
         facePlayerToward(player, target);
         clearPath(); attemptedControlledDoor = null; status = CommandStatus.TARGET_SELECTED;
         if (pendingAction == PendingAction.ATTACK) {
-            if (player.getAttackStrengthScale(.5f) >= .9f && !player.isUsingItem()) {
+            float desired=CameraSpace.yawForWorldDirection(target.getX()-player.getX(),target.getZ()-player.getZ());
+            if (Math.abs(net.minecraft.util.Mth.wrapDegrees(desired-player.getYRot()))<20
+                    && player.getAttackStrengthScale(.5f) >= .9f && !player.isUsingItem()) {
                 sendAction(new TacticalActionPacket(TacticalActionPacket.Action.ATTACK, target.getId(), BlockPos.ZERO, Direction.UP, Vec3.ZERO));
                 player.swing(InteractionHand.MAIN_HAND); player.resetAttackStrengthTicker();
             }
-            // Attack order persists until death, stop or a replacement order; vanilla attack cooldown still applies.
+            // The action budget bounds pursuit; vanilla attack cooldown still applies.
         } else {
             sendAction(new TacticalActionPacket(TacticalActionPacket.Action.INTERACT_ENTITY, target.getId(), BlockPos.ZERO, Direction.UP, Vec3.ZERO));
             pendingAction = PendingAction.NONE;
@@ -727,7 +743,10 @@ public final class PlayerCommandController {
     private static void facePlayerToward(Player player, Entity target) {
         double deltaX = target.getX() - player.getX();
         double deltaZ = target.getZ() - player.getZ();
-        facePlayerTowardDirection(player, deltaX, deltaZ);
+        if(pendingAction==PendingAction.ATTACK){
+            float desired=CameraSpace.yawForWorldDirection(deltaX,deltaZ);
+            player.setYRot(dev.stonebanner.control.HeroActionBudget.turn(player.getYRot(),desired,12));player.setYHeadRot(player.getYRot());
+        }else facePlayerTowardDirection(player, deltaX, deltaZ);
     }
 
     private static void facePlayerTowardDirection(Player player, double worldX, double worldZ) {
