@@ -21,6 +21,9 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue DOUBLE_CLICK_RUN;
     public static final ForgeConfigSpec.IntValue DOUBLE_CLICK_MS;
     public static final ForgeConfigSpec.IntValue HELD_PATH_INTERVAL;
+    public static final ForgeConfigSpec.IntValue ORDERS_HOLD_MS;
+    public static final ForgeConfigSpec.IntValue HOME_DOUBLE_MS;
+    public static final ForgeConfigSpec.IntValue CAMERA_TRANSITION_TICKS;
 
     public static final ForgeConfigSpec SPEC;
 
@@ -37,6 +40,7 @@ public final class ClientConfig {
         DOUBLE_CLICK_RUN=BUILDER.comment("Double ground click starts running in Mouse profile.").define("doubleClickRun",true);
         DOUBLE_CLICK_MS=BUILDER.defineInRange("doubleClickMs",300,150,600);
         HELD_PATH_INTERVAL=BUILDER.comment("Ticks between held-cursor path queries (20 ticks per second).").defineInRange("heldPathInterval",5,5,20);
+        ORDERS_HOLD_MS=BUILDER.comment("Holding Orders longer than this temporarily enters Orders from Hero, returning on release.").defineInRange("ordersHoldMs",230,150,750);
         BUILDER.pop();
 
         BUILDER.push("camera");
@@ -70,6 +74,8 @@ public final class ClientConfig {
         CAMERA_EDGE_PAN = BUILDER
                 .comment("Move the tactical camera when the cursor reaches the screen edge.")
                 .define("edgePan", true);
+        HOME_DOUBLE_MS=BUILDER.comment("Maximum time between Home presses to reset the camera angle and zoom.").defineInRange("homeDoubleMs",350,180,700);
+        CAMERA_TRANSITION_TICKS=BUILDER.comment("Hero/Orders camera transition duration in client ticks, collision checked each frame.").defineInRange("transitionTicks",7,1,20);
         BUILDER.pop();
 
         SPEC = BUILDER.build();
