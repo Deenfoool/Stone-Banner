@@ -54,7 +54,7 @@ function replaceGlyphs(text){
  const nodes=[];let i=0,start=0;
  while(i<source.length){
  let hit=icons.find(pair=>source.startsWith(pair[0],i));
- if(hit){if(start<i)nodes.push(document.createTextNode(source.slice(start,i)));nodes.push(icon(hit[1]));i+=hit[0].length;start=i;}
+ if(hit){if(start<i)nodes.push(document.createTextNode(source.slice(start,i)));const key=(hit[0]==="⚙"||hit[0]==="⚙️")&&parent.closest("[data-action=\"settings\"]")?"settings":hit[1];nodes.push(icon(key));i+=hit[0].length;start=i;}
  else i++;
  }
  if(start<source.length)nodes.push(document.createTextNode(source.slice(start)));
