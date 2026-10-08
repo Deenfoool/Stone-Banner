@@ -69,9 +69,9 @@ public final class CitizenSelectionController {
                 : Component.translatable("message.stonebanner.group_saved", slot + 1, selected.size()), true);
     }
 
-    public static void recallGroup(int slot, boolean additive) {
+    public static List<HumanNpcEntity> recallGroup(int slot, boolean additive) {
         checkWorld();
-        if (world == null) return;
+        if (world == null) return List.of();
         var loaded = new HashMap<UUID, HumanNpcEntity>();
         for (Entity entity : world.entitiesForRendering()) {
             if (entity instanceof HumanNpcEntity npc && npc.isAlive()) loaded.put(npc.getUUID(), npc);
@@ -88,6 +88,7 @@ public final class CitizenSelectionController {
         var player = Minecraft.getInstance().player;
         if (player != null) player.displayClientMessage(Component.translatable(
                 "message.stonebanner.group_recalled", slot + 1, available.size(), groups.members(slot).size()), true);
+        return available;
     }
     public static boolean workSelected(BlockHitResult hit) {
         var all=selectedAll();var mc=Minecraft.getInstance();if(all.isEmpty()||mc.level==null)return false;
