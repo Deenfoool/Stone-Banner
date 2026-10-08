@@ -3,6 +3,7 @@
 Stone & Banner is a work-in-progress total-conversion mod for Minecraft Java Edition 1.20.1 on Forge. It is designed around a third-person action-RPG camera, selectable WASD or mouse movement, real-time combat, settlement management, and terrain-driven resources.
 
 The product direction and development stages are documented in [ROADMAP.md](ROADMAP.md).
+The **approved hybrid-start faction world** (5–9 AI-run states of different maturity plus a lone player, with emerging states later) is specified in [FACTION_WORLD_DESIGN.md](FACTION_WORLD_DESIGN.md). This is a **design goal, not current world-generation behavior**.
 The **ten-goal NPC civilization target** (cooperative building, hospitals, husbandry, trade/caravans, formations, households, private settlement economies, infrastructure, social simulation, and unloaded-chunk continuity) is tracked in [NPC_DEVELOPMENT_GOAL.md](NPC_DEVELOPMENT_GOAL.md). These are **future goals, not completed features**.
 
 The strict input acceptance checklist for Phase 1.12 is [docs/ACCEPTANCE_1_12.md](docs/ACCEPTANCE_1_12.md);
