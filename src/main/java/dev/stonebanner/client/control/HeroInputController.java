@@ -18,6 +18,20 @@ public final class HeroInputController {
     private static net.minecraft.client.player.LocalPlayer tracked;
     private static int selectedSlot = -1, approachCooldown;
     private static HitResult target;
+    private static final dev.stonebanner.control.GroundClickTracker groundClicks=new dev.stonebanner.control.GroundClickTracker();
+    private static long lastGroundPressTick=-1;
+    public static void resetGroundClicks(){groundClicks.reset();lastGroundPressTick=-1;}
+    public static dev.stonebanner.control.MovementPace groundClickPace(boolean plainGround,double x,double y) {
+        var mc=Minecraft.getInstance();
+        if(mc.player.tickCount==lastGroundPressTick)return PlayerCommandController.movePace();
+        lastGroundPressTick=mc.player.tickCount;
+        if(!plainGround || descend()) {
+            groundClicks.reset();return descend()?dev.stonebanner.control.MovementPace.CAREFUL:dev.stonebanner.control.MovementPace.WALK;
+        }
+        boolean twice=groundClicks.click(net.minecraft.Util.getMillis(),x,y,ClientConfig.DOUBLE_CLICK_MS.get());
+        return InputBindings.held(mc.options.keySprint) || twice && ClientConfig.DOUBLE_CLICK_RUN.get()
+                ? dev.stonebanner.control.MovementPace.RUN : dev.stonebanner.control.MovementPace.WALK;
+    }
     public static boolean commandMode() { return commands; }
     private static net.minecraft.client.KeyMapping heldBinding;
     private static boolean attackIntent;
@@ -25,10 +39,11 @@ public final class HeroInputController {
     public static boolean descend() { return InputBindings.held(Minecraft.getInstance().options.keyShift); }
     public static boolean manualMovement() { var o=Minecraft.getInstance().options; return InputBindings.held(o.keyUp)||InputBindings.held(o.keyLeft)||InputBindings.held(o.keyDown)||InputBindings.held(o.keyRight); }
     public static void toggleCommands() {
-        cancel(); commands=!commands;
+        resetGroundClicks();cancel(); commands=!commands;
         CitizenSelectionController.clear(); DesignationController.deactivate(); TunnelExtensionController.deactivate();
         RpgCameraController.recenter();
     }
+    public static boolean moveHeld(){return moveHeld;}
     public static void setMoveHeld(boolean held) { moveHeld=held; }
     public static void setActionHeld(boolean held) {
         if(!held) { cancelAction(); return; }
@@ -66,15 +81,15 @@ public final class HeroInputController {
     public static void tick(HitResult hover, boolean overUi, HitResult movementHit) {
         var mc=Minecraft.getInstance();
         if(mc.player==null||mc.level==null||mc.gameMode==null) { cancel(); commands=false; tracked=null; return; }
-        if(tracked!=mc.player) { cancel(); commands=false; tracked=mc.player; selectedSlot=mc.player.getInventory().selected; }
+        if(tracked!=mc.player) { resetGroundClicks();cancel(); commands=false; tracked=mc.player; selectedSlot=mc.player.getInventory().selected; }
         if(GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(),GLFW.GLFW_FOCUSED)!=1) { cancel(); return; }
         if(commands||overUi||mc.player.isSpectator()||!mc.player.isAlive()) { cancel(); return; }
         if(actionHeld && (heldBinding==null || !InputBindings.held(heldBinding)))cancelAction();
         if(moveHeld && !InputBindings.held(mc.options.keyAttack))moveHeld=false;
         if(approachCooldown>0)approachCooldown--;
         if(selectedSlot!=mc.player.getInventory().selected) { cancelAction(false); selectedSlot=mc.player.getInventory().selected; }
-        if(moveHeld&&!overUi&&ClientConfig.controlMode()==ControlMode.HYBRID&&mc.player.tickCount%5==0
-                && movementHit instanceof BlockHitResult block) PlayerCommandController.moveTo(block);
+        if(moveHeld && ClientConfig.controlMode()==ControlMode.HYBRID && movementHit instanceof BlockHitResult block)
+            PlayerCommandController.updateHeldMove(block);
         if(!actionHeld||overUi||RpgCameraController.viewObstructed()) { if((overUi||RpgCameraController.viewObstructed())&&actionHeld)cancelAction(false); return; }
         target=hover;
         var item=mc.player.getMainHandItem();

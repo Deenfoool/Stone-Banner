@@ -18,6 +18,9 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue CAMERA_INVERT_VERTICAL;
     public static final ForgeConfigSpec.BooleanValue CAMERA_EDGE_PAN;
     public static final ForgeConfigSpec.BooleanValue SHOW_PATH_PREVIEW;
+    public static final ForgeConfigSpec.BooleanValue DOUBLE_CLICK_RUN;
+    public static final ForgeConfigSpec.IntValue DOUBLE_CLICK_MS;
+    public static final ForgeConfigSpec.IntValue HELD_PATH_INTERVAL;
 
     public static final ForgeConfigSpec SPEC;
 
@@ -31,6 +34,9 @@ public final class ClientConfig {
         SHOW_PATH_PREVIEW = BUILDER
                 .comment("Show the planned route when moving with the mouse.")
                 .define("showPathPreview", true);
+        DOUBLE_CLICK_RUN=BUILDER.comment("Double ground click starts running in Mouse profile.").define("doubleClickRun",true);
+        DOUBLE_CLICK_MS=BUILDER.defineInRange("doubleClickMs",300,150,600);
+        HELD_PATH_INTERVAL=BUILDER.comment("Ticks between held-cursor path queries (20 ticks per second).").defineInRange("heldPathInterval",5,5,20);
         BUILDER.pop();
 
         BUILDER.push("camera");

@@ -60,6 +60,16 @@ public final class BlockPathfinder {
         return search(level, startResult.get(), goalResult.get(), node -> true);
     }
 
+    /** Hero safety predicate participates in neighbor search; the requested goal is never substituted. */
+    public static Optional<List<BlockPos>> findPermittedPath(Level level,BlockPos requestedStart,
+                                                            BlockPos requestedGoal,Predicate<BlockPos> permitted) {
+        var start=findNearbyWalkable(level,requestedStart,1,node->true);
+        if(start.isEmpty() || !isWalkable(level,requestedGoal) || !permitted.test(requestedGoal))return Optional.empty();
+        var goal=Optional.of(requestedGoal.immutable());
+        // The start may be a hazard occupied by the player; edges may only lead out onto safe nodes.
+        return search(level,start.get(),goal.get(),permitted);
+    }
+
     /** Safety queries must reach the requested cells, never a nearby substitute. */
     public static Optional<List<BlockPos>> findExactPath(Level level, BlockPos start, BlockPos goal,
                                                         Predicate<BlockPos> permitted) {
@@ -313,13 +323,16 @@ public final class BlockPathfinder {
     }
 
     private static Optional<BlockPos> findNearbyWalkable(Level level, BlockPos origin, int radius) {
+        return findNearbyWalkable(level,origin,radius,node->true);
+    }
+    private static Optional<BlockPos> findNearbyWalkable(Level level,BlockPos origin,int radius,Predicate<BlockPos> permitted) {
         for (int horizontal = 0; horizontal <= radius; horizontal++) {
             for (int x = -horizontal; x <= horizontal; x++) {
                 int zDistance = horizontal - Math.abs(x);
                 for (int zSign : zDistance == 0 ? new int[]{0} : new int[]{-zDistance, zDistance}) {
                     for (int yOffset : new int[]{0, 1, -1, 2, -2}) {
                         BlockPos candidate = origin.offset(x, yOffset, zSign);
-                        if (isWalkable(level, candidate)) {
+                        if (isWalkable(level, candidate) && permitted.test(candidate)) {
                             return Optional.of(candidate.immutable());
                         }
                     }

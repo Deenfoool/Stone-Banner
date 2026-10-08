@@ -616,5 +616,20 @@
   "hud.stonebanner.mouse.bindings": "Mouse · %s: идти · %s: действие · %s: приказы · %s: профиль · %s: вверх · %s: вниз · %s: бег",
   "hud.stonebanner.commands.bindings": "Приказы · %s: выбор/рамка · %s: приказ · %s: герой · %s: профиль · 1–9: хотбар · Alt+номер: группа",
   "key.stonebanner.camera_rotate": "Вращать камеру (удерживать)",
-  "key.stonebanner.alternative_use": "Альтернативное взаимодействие (герой)"
+  "key.stonebanner.alternative_use": "Альтернативное взаимодействие (герой)",
+  "movement.stonebanner.reason.none": "Путь доступен",
+  "movement.stonebanner.reason.unloaded": "Участок мира не загружен",
+  "movement.stonebanner.reason.border": "Граница мира или высоты",
+  "movement.stonebanner.reason.fire": "Лава, огонь или опасный блок",
+  "movement.stonebanner.reason.water": "Нет безопасного прохода по воде",
+  "movement.stonebanner.reason.no_air": "Мало воздуха — двигайтесь к поверхности вручную",
+  "movement.stonebanner.reason.collision": "Проход перекрыт",
+  "movement.stonebanner.reason.drop": "Нет опоры — риск падения",
+  "movement.stonebanner.reason.no_path": "Безопасный путь не найден",
+  "movement.stonebanner.reason.blocked": "Герой застрял",
+  "movement.stonebanner.reason.retries": "Попытки обхода исчерпаны",
+  "movement.stonebanner.refused": "Нет пути: %s",
+  "movement.stonebanner.pace.walk": "Ходьба",
+  "movement.stonebanner.pace.run": "Бег",
+  "movement.stonebanner.pace.careful": "Осторожный шаг"
 }

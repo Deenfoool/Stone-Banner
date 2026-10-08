@@ -42,16 +42,30 @@ import java.util.Optional;
 /** Client-side executor for player commands. The command model itself is shared with Citizen AI. */
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, value = Dist.CLIENT)
 public final class PlayerCommandController {
-    private static final double ARRIVAL_DISTANCE = 0.55D;
+    private static final double ARRIVAL_DISTANCE = 0.25D;
     private static final int STUCK_REPLAN_TICKS = 30;
-    private static final int REPLAN_COOLDOWN_TICKS = 20;
+    private static final dev.stonebanner.control.RouteRetryBudget retryBudget=new dev.stonebanner.control.RouteRetryBudget();
+    private static dev.stonebanner.control.MovementPace movePace=dev.stonebanner.control.MovementPace.WALK;
+    private static dev.stonebanner.navigation.HeroRouteSafety.Reason failureReason=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE;
+    private static BlockPos rejectedGoal,lastCursorGoal;
+    private static long lastCursorQuery=-100, failedCursorUntil, markerUntil, lastFailureMessage=-100;
+    private static float arrivalScale=1;
+    private static boolean waitingForPassage;
+    public static boolean waitingForPassage(){return waitingForPassage;}
+    public static dev.stonebanner.control.MovementPace movePace(){return movePace;}
+    public static float arrivalScale(){return arrivalScale;}
+    public static dev.stonebanner.navigation.HeroRouteSafety.Reason failureReason(){return failureReason;}
+    public static Optional<BlockPos> rejectedGoal(){
+        var p=Minecraft.getInstance().player;
+        return p!=null && p.tickCount<markerUntil ? Optional.ofNullable(rejectedGoal):Optional.empty();
+    }
+    public static boolean navigationFailed(){return status==CommandStatus.UNREACHABLE;}
     private static final Deque<BlockPos> path = new ArrayDeque<>();
     private static final dev.stonebanner.command.MoveOrderQueue queuedMoves = new dev.stonebanner.command.MoveOrderQueue();
     private static BlockPos destination;
     private static CommandStatus status = CommandStatus.IDLE;
     private static Vec3 lastProgressPosition;
     private static int stuckTicks;
-    private static int replanCooldown;
     private static Integer selectedEntityId;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static BlockPos attemptedControlledDoor;
@@ -66,16 +80,51 @@ public final class PlayerCommandController {
     }
 
     public static void moveTo(BlockHitResult hit) {
-        var mc = Minecraft.getInstance();
-        if (mc.player != null && mc.level != null && mc.player.isInWater()
-                && !mc.level.getFluidState(hit.getBlockPos()).isEmpty()) {
-            ensureWorld(mc); stopInternal(); swimTarget = hit.getLocation(); status = CommandStatus.MOVING; return;
+        moveTo(hit,dev.stonebanner.control.MovementPace.WALK,false);
+    }
+    public static void updateHeldMove(BlockHitResult hit) { moveTo(hit,movePace,true); }
+    public static void moveTo(BlockHitResult hit,dev.stonebanner.control.MovementPace pace,boolean held) {
+        var mc=Minecraft.getInstance();ensureWorld(mc);
+        if(mc.player==null || mc.level==null)return;
+        BlockPos requested=movementGoal(hit);
+        if(!mc.level.hasChunkAt(hit.getBlockPos())) {
+            if(!held)stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.UNLOADED,requested,!held);return;
         }
-        Direction face = hit.getDirection();
-        BlockPos requestedTarget = face == Direction.UP
-                ? hit.getBlockPos().above()
-                : hit.getBlockPos().relative(face);
-        issue(new ActorCommand.MoveTo(requestedTarget));
+        boolean swimming=mc.player.isInWater() && mc.level.getFluidState(hit.getBlockPos()).is(net.minecraft.tags.FluidTags.WATER);
+        if(held) {
+            if(mc.player.tickCount-lastCursorQuery<ClientConfig.HELD_PATH_INTERVAL.get())return;
+            if(requested.equals(lastCursorGoal) && (moving() || status==CommandStatus.IDLE || mc.player.tickCount<failedCursorUntil))return;
+        }
+        lastCursorQuery=mc.player.tickCount;lastCursorGoal=requested.immutable();
+        if(!held){stopInternal();retryBudget.reset();}
+        if(swimming) {
+            // Surface click controls horizontal swimming; Shift/Space alone choose depth.
+            Vec3 goal=new Vec3(hit.getLocation().x,mc.player.getY(),hit.getLocation().z);
+            var reason=dev.stonebanner.navigation.HeroRouteSafety.swimmingSegment(mc.level,mc.player,goal);
+            if(reason!=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE) {
+                recordFailure(reason,requested,!held);failedCursorUntil=mc.player.tickCount+20;return;
+            }
+            stopInternal();movePace=pace;swimTarget=goal;status=CommandStatus.MOVING;clearFailure();return;
+        }
+        var reason=dev.stonebanner.navigation.HeroRouteSafety.terrain(mc.level,requested);
+        if(reason!=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE) {
+            recordFailure(reason,requested,!held);failedCursorUntil=mc.player.tickCount+20;return;
+        }
+        var result=safePath(mc.level,mc.player.blockPosition(),requested);
+        if(result.isEmpty()) {
+            recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.NO_PATH,requested,!held);
+            failedCursorUntil=mc.player.tickCount+20;return;
+        }
+        stopInternal();movePace=pace;destination=result.get().isEmpty()?requested:result.get().get(result.get().size()-1);
+        path.addAll(result.get());status=path.isEmpty()?CommandStatus.IDLE:CommandStatus.MOVING;
+        clearFailure();
+    }
+
+    private static BlockPos movementGoal(BlockHitResult hit) {
+        var level=Minecraft.getInstance().level;
+        if(level!=null && level.hasChunkAt(hit.getBlockPos())
+                && level.getFluidState(hit.getBlockPos()).is(net.minecraft.tags.FluidTags.WATER))return hit.getBlockPos();
+        return hit.getDirection()==Direction.UP?hit.getBlockPos().above():hit.getBlockPos().relative(hit.getDirection());
     }
 
     public static boolean moving() { return !path.isEmpty() || swimTarget != null; }
@@ -85,12 +134,11 @@ public final class PlayerCommandController {
         Minecraft mc = Minecraft.getInstance();
         ensureWorld(mc);
         if (mc.player == null || mc.level == null || !mc.player.isAlive()) return;
-        BlockPos target = hit.getDirection() == Direction.UP ? hit.getBlockPos().above()
-                : hit.getBlockPos().relative(hit.getDirection());
+        BlockPos target=movementGoal(hit);
         boolean accepted = false;
         // Direct free-swimming and interaction commands are not mixed with ground waypoints.
         if (pendingBlock == null && pendingAction == PendingAction.NONE && swimTarget == null
-                && mc.level.hasChunkAt(target) && !(mc.player.isInWater() && !mc.level.getFluidState(hit.getBlockPos()).isEmpty())) {
+                && dev.stonebanner.navigation.HeroRouteSafety.permitted(mc.level,target) && !(mc.player.isInWater() && !mc.level.getFluidState(hit.getBlockPos()).isEmpty())) {
             if (!moving() && queuedMoves.size() == 0) {
                 issue(new ActorCommand.MoveTo(target));
                 accepted = status != CommandStatus.UNREACHABLE;
@@ -100,7 +148,11 @@ public final class PlayerCommandController {
                 ? "message.stonebanner.hero_move_queued" : "message.stonebanner.hero_move_queue_rejected", queuedMoves.size()), true);
     }
     public static void approach(Vec3 point, BlockPos block, double reach) {
-        var mc = Minecraft.getInstance(); ensureWorld(mc); stopInternal(); createInteractionPath(point, block, reach);
+        var mc = Minecraft.getInstance(); ensureWorld(mc);
+        BlockPos requested=BlockPos.containing(point);
+        if(requested.equals(actionGoal) && (navigationFailed() || moving()))return;
+        if(actionGoal==null || !actionGoal.equals(requested)){stopInternal();retryBudget.reset();}
+        createInteractionPath(point, block, reach);
     }
 
     public static void contextAction(Entity entity) {
@@ -132,7 +184,7 @@ public final class PlayerCommandController {
     private static void interactBlock(BlockHitResult hit,boolean storage) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-        ensureWorld(mc); stopInternal();
+        ensureWorld(mc); stopInternal();retryBudget.reset();
         pendingBlock = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), false);
         pendingStorage=storage;
         if (!executePendingBlock(mc.player)) createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
@@ -151,14 +203,19 @@ public final class PlayerCommandController {
                 || block instanceof net.minecraft.world.level.block.BedBlock;
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) {
-        stopInternal(); commandPlayer = null; commandDimension = null;
+        stopInternal();clearFailure();retryBudget.reset();lastCursorGoal=null;lastCursorQuery=-100;
+        commandPlayer = null; commandDimension = null;
     }
     private static void ensureWorld(Minecraft mc) {
         if (mc.player == null || mc.level == null) {
-            stopInternal(); commandPlayer = null; commandDimension = null; return;
+            stopInternal();clearFailure();retryBudget.reset();lastCursorGoal=null;lastCursorQuery=-100;
+        commandPlayer = null; commandDimension = null; return;
         }
         var dimension = mc.level.dimension().location();
-        if (commandPlayer != mc.player || !dimension.equals(commandDimension)) stopInternal();
+        if (commandPlayer != mc.player || !dimension.equals(commandDimension)) {
+            stopInternal();clearFailure();retryBudget.reset();lastCursorGoal=null;lastCursorQuery=-100;
+            failedCursorUntil=markerUntil=0;lastFailureMessage=-100;
+        }
         commandPlayer = mc.player; commandDimension = dimension;
     }
 
@@ -172,7 +229,7 @@ public final class PlayerCommandController {
             return;
         }
         if (command instanceof ActorCommand.Stop) {
-            stopInternal();
+            stopInternal();clearFailure();retryBudget.reset();
             return;
         }
 
@@ -185,7 +242,7 @@ public final class PlayerCommandController {
         pendingBlock = null;
         pendingStorage = false;
         if (command instanceof ActorCommand.MoveTo moveTo) {
-            stopInternal();
+            stopInternal();retryBudget.reset();
             selectedEntityId = null;
             pendingAction = PendingAction.NONE;
             createPath(moveTo.target());
@@ -197,7 +254,7 @@ public final class PlayerCommandController {
             if (entity == null || !entity.isAlive() || entity == minecraft.player) {
                 return;
             }
-            stopInternal();
+            stopInternal();retryBudget.reset();
             issueEntityAction(minecraft.player, entity, entityAction.action());
         }
     }
@@ -234,6 +291,7 @@ public final class PlayerCommandController {
         pendingAction = PendingAction.NONE;
         attemptedControlledDoor = null;
         status = CommandStatus.IDLE;
+        movePace=dev.stonebanner.control.MovementPace.WALK;arrivalScale=1;waitingForPassage=false;
         resetProgressTracking();
     }
 
@@ -289,6 +347,9 @@ public final class PlayerCommandController {
         if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) {
             clearMovement(event.getInput()); return;
         }
+        if(org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(minecraft.getWindow().getWindow(),org.lwjgl.glfw.GLFW.GLFW_FOCUSED)!=1) {
+            clearMovement(event.getInput());return;
+        }
         if (HeroInputController.commandMode() || ConstructionPreviewController.active()) {
             clearMovement(event.getInput()); return;
         }
@@ -299,7 +360,11 @@ public final class PlayerCommandController {
 
         ensureWorld(minecraft);
         Input input = event.getInput();
-        clearMovement(input);
+        clearMovement(input);arrivalScale=1;waitingForPassage=false;
+        if(moving() && dev.stonebanner.navigation.HeroRouteSafety.lowAir(minecraft.player)) {
+            BlockPos marker=swimTarget!=null?BlockPos.containing(swimTarget):destination;
+            stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.NO_AIR,marker,true);return;
+        }
         if (minecraft.screen != null && !(minecraft.screen instanceof dev.stonebanner.client.screen.TacticalControlScreen)) return;
         Player player = minecraft.player;
         ClientLevel level = minecraft.level;
@@ -311,9 +376,9 @@ public final class PlayerCommandController {
         BlockPos queuedTarget = queuedMoves.takeWhenIdle(moving());
         if (queuedTarget != null) {
             if (!level.hasChunkAt(queuedTarget)) {
-                stopInternal(); status = CommandStatus.UNREACHABLE; return;
+                stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.UNLOADED,queuedTarget,true);return;
             }
-            selectedEntityId = null;
+            selectedEntityId = null;retryBudget.reset();
             createPath(queuedTarget);
         }
 
@@ -322,6 +387,7 @@ public final class PlayerCommandController {
             if (path.isEmpty() && status != CommandStatus.UNREACHABLE)
                 createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), player.getBlockReach());
         }
+        if(status==CommandStatus.UNREACHABLE)return;
         Entity actionTarget = selectedEntity().orElse(null);
         if (actionTarget != null && pendingAction != PendingAction.NONE) {
             facePlayerToward(player, actionTarget);
@@ -335,13 +401,20 @@ public final class PlayerCommandController {
                 createInteractionPath(actionTarget.getBoundingBox().getCenter(), null, player.getEntityReach());
         }
         if (swimTarget != null) {
+            swimTarget=new Vec3(swimTarget.x,player.getY(),swimTarget.z);
             if (!player.isInWater() || player.position().distanceToSqr(swimTarget) < .6) { swimTarget = null; status = CommandStatus.IDLE; return; }
+            Vec3 next=player.position().lerp(swimTarget,Math.min(1,.5/Math.max(.01,player.position().distanceTo(swimTarget))));
+            var swimReason=dev.stonebanner.navigation.HeroRouteSafety.swimmingSegment(level,player,next);
+            if(swimReason!=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE) {
+                var marker=BlockPos.containing(swimTarget);stopInternal();recordFailure(swimReason,marker,true);return;
+            }
             Vec3 delta = swimTarget.subtract(player.position());
             facePlayerTowardDirection(player, delta.x, delta.z);
             var movement = CameraSpace.worldToLocal(delta.x / Math.max(.01, delta.horizontalDistance()), delta.z / Math.max(.01, delta.horizontalDistance()), player.getYRot());
             input.leftImpulse = movement.left(); input.forwardImpulse = movement.forward();
-            input.jumping = HeroInputController.jump() || swimTarget.y > player.getY() + .25;
+            input.jumping = HeroInputController.jump();
             input.shiftKeyDown = HeroInputController.descend();
+            arrivalScale=dev.stonebanner.control.MovementResponse.arrivalScale(delta.horizontalDistance());
             updateProgressAndReplan(player, level); return;
         }
         if (path.isEmpty()) { return; }
@@ -353,14 +426,14 @@ public final class PlayerCommandController {
             finishMovement();
             return;
         }
-        openDoorAhead(player, level, nextNode);
-        if (!BlockPathfinder.isWalkable(level, nextNode)) {
-            replan(level, BlockPos.containing(player.position()));
-            nextNode = path.peekFirst();
-            if (nextNode == null) {
-                return;
-            }
+        var reason=dev.stonebanner.navigation.HeroRouteSafety.terrain(level,nextNode);
+        if(reason!=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE) {
+            var marker=nextNode;stopInternal();recordFailure(reason,marker,true);return;
         }
+        if(!BlockPathfinder.isWalkable(level,nextNode) || occupied(level,player,nextNode)) {
+            waitingForPassage=true;replan(level,BlockPos.containing(player.position()));return;
+        }
+        openDoorAhead(player, level, nextNode);
 
         Vec3 moveTarget = BlockPathfinder.waypoint(level, nextNode);
         double deltaX = moveTarget.x - player.getX();
@@ -373,7 +446,7 @@ public final class PlayerCommandController {
                 ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
                 : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         double waypointArrival = path.size() == 1 ? ARRIVAL_DISTANCE : 0.35D;
-        if (distance <= waypointArrival) {
+        if (distance <= waypointArrival && (climbing || Math.abs(deltaY)<=.65)) {
             path.removeFirst();
             attemptedControlledDoor = null;
             if (path.isEmpty()) {
@@ -392,6 +465,10 @@ public final class PlayerCommandController {
                     ? Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
                     : Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         }
+
+        if(!dev.stonebanner.navigation.HeroRouteSafety.permitted(level,nextNode)
+                || !BlockPathfinder.isWalkable(level,nextNode) || occupied(level,player,nextNode)){waitingForPassage=true;return;}
+        if(path.size()==1 && !climbing)arrivalScale=dev.stonebanner.control.MovementResponse.arrivalScale(distance);
 
         double horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         double worldX;
@@ -440,7 +517,7 @@ public final class PlayerCommandController {
         var candidates = new java.util.ArrayList<BlockPos>();
         for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 2; dy++) {
             var pos = center.offset(dx, dy, dz);
-            if (!mc.level.hasChunkAt(pos) || !BlockPathfinder.isWalkable(mc.level, pos)) continue;
+            if (!dev.stonebanner.navigation.HeroRouteSafety.permitted(mc.level,pos) || !BlockPathfinder.isWalkable(mc.level, pos)) continue;
             Vec3 eyes = BlockPathfinder.waypoint(mc.level, pos).add(0, mc.player.getEyeHeight(), 0);
             if (eyes.distanceToSqr(point) <= reach * reach
                     && TacticalInteractionRules.visibleFrom(mc.level, mc.player, eyes, point, permittedBlock)) candidates.add(pos);
@@ -449,15 +526,14 @@ public final class PlayerCommandController {
         path.clear(); destination = null;
         int attempts = 0;
         for (var pos : candidates) {
-            if (++attempts > 12) break;
-            var route = BlockPathfinder.findPath(mc.level, mc.player.blockPosition(), pos);
+            if (++attempts > 4) break;
+            var route = safePath(mc.level, mc.player.blockPosition(), pos);
             if (route.isPresent()) {
                 destination = pos; path.addAll(route.get()); status = path.isEmpty() ? CommandStatus.TARGET_SELECTED : CommandStatus.MOVING;
                 resetProgressTracking(); return;
             }
         }
-        status = CommandStatus.UNREACHABLE;
-        mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.stonebanner.interaction_unreachable"), true);
+        recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.NO_PATH,center,true);
     }
     private static boolean executePendingBlock(Player player) {
         var mc = Minecraft.getInstance(); if (pendingBlock == null || mc.level == null) return false;
@@ -488,23 +564,23 @@ public final class PlayerCommandController {
 
         destination = requestedTarget.immutable();
         BlockPos start = BlockPos.containing(minecraft.player.position());
-        Optional<List<BlockPos>> result = BlockPathfinder.findPath(minecraft.level, start, destination);
+        var reason=dev.stonebanner.navigation.HeroRouteSafety.terrain(minecraft.level,destination);
+        Optional<List<BlockPos>> result = reason==dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE
+                ? safePath(minecraft.level,start,destination) : Optional.empty();
         path.clear();
         result.ifPresent(path::addAll);
         attemptedControlledDoor = null;
         status = result.isPresent() ? (path.isEmpty() ? CommandStatus.IDLE : CommandStatus.MOVING)
                 : CommandStatus.UNREACHABLE;
         if (result.isEmpty()) {
-            queuedMoves.clear();
-            destination = null;
-        }
+            recordFailure(reason==dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE
+                    ?dev.stonebanner.navigation.HeroRouteSafety.Reason.NO_PATH:reason,destination,true);
+            queuedMoves.clear();destination=null;
+        } else clearFailure();
         resetProgressTracking();
     }
 
     private static void updateProgressAndReplan(Player player, ClientLevel level) {
-        if (replanCooldown > 0) {
-            replanCooldown--;
-        }
         Vec3 currentPosition = player.position();
         if (lastProgressPosition == null || currentPosition.distanceToSqr(lastProgressPosition) > 0.01D) {
             lastProgressPosition = currentPosition;
@@ -513,38 +589,63 @@ public final class PlayerCommandController {
         }
 
         stuckTicks++;
-        if (stuckTicks >= STUCK_REPLAN_TICKS && replanCooldown == 0) {
+        if (stuckTicks >= STUCK_REPLAN_TICKS) {
             replan(level, BlockPos.containing(currentPosition));
         }
     }
 
     private static void replan(ClientLevel level, BlockPos start) {
-        if(swimTarget!=null){stopInternal();status=CommandStatus.UNREACHABLE;return;}
-        if (pendingBlock != null) {
-            createInteractionPath(pendingBlock.getLocation(), pendingBlock.getBlockPos(), Minecraft.getInstance().player.getBlockReach()); return;
+        var player=Minecraft.getInstance().player;if(player==null)return;
+        var decision=retryBudget.request(player.tickCount);
+        if(decision==dev.stonebanner.control.RouteRetryBudget.Decision.WAIT)return;
+        BlockPos marker=destination!=null?destination:actionGoal;
+        if(decision==dev.stonebanner.control.RouteRetryBudget.Decision.EXHAUSTED) {
+            stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.RETRIES,marker,true);return;
         }
-        var entity = selectedEntity().orElse(null);
-        if (entity != null && pendingAction != PendingAction.NONE) {
-            createInteractionPath(entity.getBoundingBox().getCenter(), null, Minecraft.getInstance().player.getEntityReach()); return;
+        if(swimTarget!=null){var goal=BlockPos.containing(swimTarget);stopInternal();recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason.BLOCKED,goal,true);return;}
+        if(pendingBlock!=null){createInteractionPath(pendingBlock.getLocation(),pendingBlock.getBlockPos(),player.getBlockReach());return;}
+        var entity=selectedEntity().orElse(null);
+        if(entity!=null && pendingAction!=PendingAction.NONE){createInteractionPath(entity.getBoundingBox().getCenter(),null,player.getEntityReach());return;}
+        if(destination==null)return;
+        var result=safePath(level,start,destination);
+        if(result.isPresent()) {
+            path.clear();path.addAll(result.get());attemptedControlledDoor=null;stuckTicks=0;lastProgressPosition=player.position();
+            if(path.isEmpty())finishMovement();
+        } else {
+            // Wait for a moving obstruction to leave; never walk into it while backing off.
+            stuckTicks=STUCK_REPLAN_TICKS;
         }
-        if (destination == null) {
-            return;
+    }
+
+    private static Optional<List<BlockPos>> safePath(ClientLevel level,BlockPos start,BlockPos goal) {
+        var player=Minecraft.getInstance().player;
+        if(player==null || !dev.stonebanner.navigation.HeroRouteSafety.permitted(level,goal))return Optional.empty();
+        var bodies=level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                player.getBoundingBox().inflate(8),other->other!=player && other.isAlive() && !other.isSpectator()).stream()
+                .map(other->other.getBoundingBox().inflate(.1)).limit(64).toList();
+        return BlockPathfinder.findPermittedPath(level,start,goal,node->{
+            if(!dev.stonebanner.navigation.HeroRouteSafety.permitted(level,node))return false;
+            var point=BlockPathfinder.waypoint(level,node);
+            var body=player.getBoundingBox().move(point.subtract(player.position())).deflate(.05);
+            return bodies.stream().noneMatch(body::intersects);
+        });
+    }
+    private static boolean occupied(ClientLevel level,Player player,BlockPos node) {
+        var point=BlockPathfinder.waypoint(level,node);
+        var body=player.getBoundingBox().move(point.subtract(player.position())).deflate(.05);
+        return !level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,body,
+                other->other!=player && other.isAlive() && !other.isSpectator()).isEmpty();
+    }
+    private static void clearFailure(){failureReason=dev.stonebanner.navigation.HeroRouteSafety.Reason.NONE;rejectedGoal=null;}
+    private static void recordFailure(dev.stonebanner.navigation.HeroRouteSafety.Reason reason,BlockPos goal,boolean stop) {
+        var player=Minecraft.getInstance().player;if(player==null)return;
+        failureReason=reason;rejectedGoal=goal==null?player.blockPosition():goal.immutable();markerUntil=player.tickCount+100;
+        if(stop){path.clear();swimTarget=null;queuedMoves.clear();status=CommandStatus.UNREACHABLE;}
+        if(player.tickCount-lastFailureMessage>=40) {
+            lastFailureMessage=player.tickCount;
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("movement.stonebanner.refused",
+                    net.minecraft.network.chat.Component.translatable("movement.stonebanner.reason."+reason.name().toLowerCase(java.util.Locale.ROOT))),true);
         }
-        Optional<List<BlockPos>> result = BlockPathfinder.findPath(level, start, destination);
-        path.clear();
-        result.ifPresent(path::addAll);
-        attemptedControlledDoor = null;
-        status = result.isPresent() ? (path.isEmpty() ? CommandStatus.IDLE : CommandStatus.MOVING)
-                : CommandStatus.UNREACHABLE;
-        if (result.isPresent() && path.isEmpty()) {
-            destination = null;
-        }
-        if (result.isEmpty()) {
-            queuedMoves.clear();
-            destination = null;
-        }
-        stuckTicks = 0;
-        replanCooldown = REPLAN_COOLDOWN_TICKS;
     }
 
     private static void finishMovement() {
@@ -654,7 +755,6 @@ public final class PlayerCommandController {
     private static void resetProgressTracking() {
         lastProgressPosition = null;
         stuckTicks = 0;
-        replanCooldown = 0;
     }
 
     private static void clearMovement(Input input) {

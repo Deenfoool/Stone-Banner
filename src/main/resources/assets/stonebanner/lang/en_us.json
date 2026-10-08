@@ -616,5 +616,20 @@
   "hud.stonebanner.mouse.bindings": "Mouse · %s: move · %s: action · %s: orders · %s: profile · %s: up · %s: down · %s: sprint",
   "hud.stonebanner.commands.bindings": "Orders · %s: select/drag · %s: order · %s: hero · %s: profile · 1–9: hotbar · Alt+number: group",
   "key.stonebanner.camera_rotate": "Rotate camera (hold)",
-  "key.stonebanner.alternative_use": "Alternative interaction (hero)"
+  "key.stonebanner.alternative_use": "Alternative interaction (hero)",
+  "movement.stonebanner.reason.none": "Path available",
+  "movement.stonebanner.reason.unloaded": "World area is not loaded",
+  "movement.stonebanner.reason.border": "World or height limit",
+  "movement.stonebanner.reason.fire": "Lava, fire or dangerous block",
+  "movement.stonebanner.reason.water": "No safe passage through water",
+  "movement.stonebanner.reason.no_air": "Low air — move toward the surface manually",
+  "movement.stonebanner.reason.collision": "Passage obstructed",
+  "movement.stonebanner.reason.drop": "No support — fall risk",
+  "movement.stonebanner.reason.no_path": "No safe path found",
+  "movement.stonebanner.reason.blocked": "Hero is stuck",
+  "movement.stonebanner.reason.retries": "Detour attempts exhausted",
+  "movement.stonebanner.refused": "No path: %s",
+  "movement.stonebanner.pace.walk": "Walking",
+  "movement.stonebanner.pace.run": "Running",
+  "movement.stonebanner.pace.careful": "Careful movement"
 }

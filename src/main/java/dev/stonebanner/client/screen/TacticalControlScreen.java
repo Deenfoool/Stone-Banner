@@ -49,7 +49,7 @@ public final class TacticalControlScreen extends Screen {
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
     }
-    @Override public void removed() { dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
+    @Override public void removed() { HeroInputController.resetGroundClicks();dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public HitResult hoveredHit(){return hoveredTarget.orElse(null);}
@@ -85,6 +85,11 @@ public final class TacticalControlScreen extends Screen {
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
         graphics.drawString(font, font.plainSubstrByWidth(controlHint().getString(), width - 16), 8, 96, 0xFFD8D2C8);
+        if(!commands() && PlayerCommandController.moving())graphics.drawString(font,
+                Component.translatable("movement.stonebanner.pace."+PlayerCommandController.movePace().name().toLowerCase(java.util.Locale.ROOT)),8,110,0xFF69DDE7);
+        if(PlayerCommandController.rejectedGoal().isPresent())graphics.drawString(font,
+                Component.translatable("movement.stonebanner.refused",Component.translatable("movement.stonebanner.reason."+
+                        PlayerCommandController.failureReason().name().toLowerCase(java.util.Locale.ROOT))),8,122,0xFFFF6868);
         if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
             graphics.drawString(font,Component.translatable("construction.stonebanner.ui.preview"),8,110,0xFFE7C46A);
             graphics.drawString(font,Component.translatable("construction.stonebanner.status."+dev.stonebanner.client.control.ConstructionPreviewController.status()),8,122,0xFFD8D2C8);
@@ -95,7 +100,7 @@ public final class TacticalControlScreen extends Screen {
         dev.stonebanner.client.hud.DebugOverlay.render(graphics, minecraft, width, height);
         if(selecting && selectionMoved) graphics.renderOutline((int)Math.min(dragStartX,mouseX),(int)Math.min(dragStartY,mouseY),(int)Math.abs(mouseX-dragStartX)+1,(int)Math.abs(mouseY-dragStartY)+1,0xFF69DDE7);
         var selectedCitizens = CitizenSelectionController.selectedAll();
-        graphics.drawString(font,Component.translatable("hud.stonebanner.selection_count", selectedCitizens.size(),
+        if(commands() && !dev.stonebanner.client.control.ConstructionPreviewController.active())graphics.drawString(font,Component.translatable("hud.stonebanner.selection_count", selectedCitizens.size(),
                 selectedCitizens.stream().mapToInt(HumanNpcEntity::hudQueuedMoves).sum()),8,108,0xFF69DDE7);
         int color = cursorColor();
         graphics.renderOutline(mouseX - 5, mouseY - 5, 11, 11, color);
@@ -238,7 +243,7 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (overUi(mouseX,mouseY)) HeroInputController.cancel();
+        if (overUi(mouseX,mouseY)) {HeroInputController.resetGroundClicks();HeroInputController.cancel();}
         if(dev.stonebanner.client.control.ConstructionPreviewController.active() && !overUi(mouseX,mouseY)){
             if(minecraft.options.keyUse.matchesMouse(button))dev.stonebanner.client.control.ConstructionPreviewController.cancel();
             else if(minecraft.options.keyAttack.matchesMouse(button)){
@@ -651,13 +656,29 @@ public final class TacticalControlScreen extends Screen {
         var action=ActionResolver.resolve(context(overUi(cursorX,cursorY)),
                 primary?ActionResolver.Button.PRIMARY:ActionResolver.Button.SECONDARY,target,hasAltDown(),
                 item.getUseDuration()>0,item.getItem() instanceof net.minecraft.world.item.BlockItem);
+        if(action!=ActionResolver.Action.MOVE)HeroInputController.resetGroundClicks();
+        // Only empty-handed ground use cancels a Mouse route; tools/bows/blocks retain their actions.
+        if(!primary && !commands() && dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID
+                && item.isEmpty() && target==ActionResolver.Target.BLOCK && hit instanceof BlockHitResult groundHit
+                && groundHit.getDirection()==net.minecraft.core.Direction.UP
+                && !minecraft.level.getBlockState(groundHit.getBlockPos()).is(net.minecraft.tags.BlockTags.LOGS)
+                && !minecraft.level.getBlockState(groundHit.getBlockPos()).is(net.minecraftforge.common.Tags.Blocks.ORES)) {
+            HeroInputController.cancel();PlayerCommandController.stop();return true;
+        }
         switch(action) {
             case MOVE, QUEUE_MOVE -> {
+                if(action==ActionResolver.Action.MOVE && HeroInputController.moveHeld())return true;
                 var ground=WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null);
                 HeroInputController.cancel();
                 if(ground instanceof BlockHitResult b) {
                     if(action==ActionResolver.Action.QUEUE_MOVE)PlayerCommandController.queueMoveTo(b);
-                    else {PlayerCommandController.moveTo(b);HeroInputController.setMoveHeld(true);}
+                    else {
+                        boolean plainGround=hit instanceof BlockHitResult h && !PlayerCommandController.isInteractiveBlock(h.getBlockPos());
+                        var pace=HeroInputController.groundClickPace(plainGround,cursorX,cursorY);
+                        PlayerCommandController.moveTo(b,pace,false);
+                        if(PlayerCommandController.navigationFailed())HeroInputController.resetGroundClicks();
+                        HeroInputController.setMoveHeld(true);
+                    }
                 }
             }
             case INTERACT -> {

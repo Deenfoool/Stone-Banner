@@ -74,6 +74,7 @@ public final class ClientRuntime {
     }
 
     public static void cycleControlMode(Minecraft minecraft) {
+        dev.stonebanner.client.control.HeroInputController.resetGroundClicks();
         ControlMode nextMode = ClientConfig.controlMode().next();
         ClientConfig.setControlMode(nextMode);
         dev.stonebanner.client.control.HeroInputController.cancel();

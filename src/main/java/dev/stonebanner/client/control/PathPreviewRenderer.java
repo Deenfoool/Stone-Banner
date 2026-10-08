@@ -35,6 +35,7 @@ public final class PathPreviewRenderer {
 
         List<BlockPos> path = PlayerCommandController.pathSnapshot();
         BlockPos destination = PlayerCommandController.destination().orElse(null);
+        BlockPos rejected=PlayerCommandController.rejectedGoal().orElse(null);
         Entity hoveredEntity = WorldCursor.hoveredEntity().orElse(null);
         Vec3 hoveredLocation = WorldCursor.hoveredLocation().orElse(null);
         Entity selectedEntity = PlayerCommandController.selectedEntity().orElse(null);
@@ -42,7 +43,7 @@ public final class PathPreviewRenderer {
         boolean hasDesignationPreview = DesignationController.selectionStart().isPresent()
                 && DesignationController.selectionEnd().isPresent();
         boolean hasExcavationOverlay = ExcavationOverlayState.hasPlans();
-        if (path.isEmpty() && destination == null && hoveredEntity == null
+        if (rejected==null && path.isEmpty() && destination == null && hoveredEntity == null
                 && selectedEntity == null && selectedCitizen == null && hoveredLocation == null
                 && !hasDesignationPreview && !hasExcavationOverlay) {
             return;
@@ -76,6 +77,7 @@ public final class PathPreviewRenderer {
             );
             LevelRenderer.renderLineBox(poses, lines, marker, 0.98F, 0.82F, 0.32F, 1.0F);
         }
+        if(rejected!=null)LevelRenderer.renderLineBox(poses,lines,new AABB(rejected).inflate(.03),1f,.15f,.15f,1f);
         if (hoveredEntity != null) {
             LevelRenderer.renderLineBox(
                     poses,
