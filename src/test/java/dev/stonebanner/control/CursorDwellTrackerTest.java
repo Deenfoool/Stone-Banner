@@ -24,6 +24,13 @@ class CursorDwellTrackerTest {
         assertFalse(t.ready(2500, 400));
     }
 
+    @Test void slowContinuousDriftNeverTriggersStationaryHint() {
+        var t = new CursorDwellTracker();
+        for (int i = 0; i <= 12; i++)
+            t.observe("block:1", i * 2.0, 20, 1000 + 50L * i, 6);
+        assertFalse(t.ready(1610, 400));
+    }
+
     @Test void durationCanBeConfiguredAndClockRollbackResets() {
         var t = new CursorDwellTracker();
         t.observe("b", 0, 0, 1000, 7);

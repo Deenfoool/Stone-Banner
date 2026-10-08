@@ -13,9 +13,10 @@ public final class CursorDwellTracker {
                 || deltaX * deltaX + deltaY * deltaY > tolerancePx * tolerancePx) {
             target = targetKey;
             sinceMillis = nowMillis;
+            x = px;
+            y = py;
         }
-        x = px;
-        y = py;
+        // Keep the initial anchor: slow cursor drift must not count as a stationary hover.
     }
 
     public boolean ready(long nowMillis, int delayMillis) {

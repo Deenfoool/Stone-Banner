@@ -373,7 +373,8 @@ public final class TacticalControlScreen extends Screen {
     }
 
     private void renderCursorAction(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (overUi(mouseX, mouseY) || minecraft.player == null || selecting || hoveredTarget.isEmpty()) return;
+        if (!dev.stonebanner.config.ClientConfig.SHOW_ORDER_MARKERS.get()
+                || overUi(mouseX, mouseY) || minecraft.player == null || selecting || hoveredTarget.isEmpty()) return;
         var intent = cursorIntent(hoveredTarget.orElseThrow());
         if (intent == null) return;
         var item = switch (intent) {
@@ -398,8 +399,10 @@ public final class TacticalControlScreen extends Screen {
             int y = Math.max(54, Math.min(height - 18, note.y() - 23));
             int alpha = Math.max(0, Math.min(255, (int)(220 * note.opacity())));
             graphics.fill(x, y, x + w, y + 15, alpha << 24 | 0x00181C20);
+            int textColor = (Math.max(0, Math.min(255, (int)(255 * note.opacity()))) << 24)
+                    | (note.color() & 0x00FFFFFF);
             graphics.drawString(font, font.plainSubstrByWidth(note.label().getString(), w - 8),
-                    x + 4, y + 3, note.color(), false);
+                    x + 4, y + 3, textColor, false);
         });
     }
 

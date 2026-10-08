@@ -79,7 +79,8 @@ public final class PathPreviewRenderer {
         poses.pushPose();
         poses.translate(-camera.x, -camera.y, -camera.z);
         if (routeVisible) {
-            List<BlockPos> displayed = path.isEmpty() ? (fading ? priorRoute : List.of()) : path;
+            List<BlockPos> displayed = path.isEmpty() ? (fading ? priorRoute : List.of())
+                    : (path.size() > 96 ? path.subList(0, 96) : path);
             float alpha = path.isEmpty() ? Math.max(0, 1f - (now - fadedAt) / 700f) : 0.64f;
             Vec3 previous = path.isEmpty() ? null : minecraft.player == null ? null
                     : minecraft.player.position().add(0, 0.08D, 0);
