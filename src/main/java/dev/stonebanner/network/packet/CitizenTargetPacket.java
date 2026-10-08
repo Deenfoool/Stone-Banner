@@ -32,7 +32,7 @@ public record CitizenTargetPacket(int npcId, int targetId, boolean append) {
             if (p.append) {
                 boolean ok = npc.orderSequence().enqueue(CitizenOrderQueue.Entry.target(
                         hostile ? CitizenOrderQueue.Kind.ATTACK : CitizenOrderQueue.Kind.FOLLOW,
-                        target.getUUID()));
+                        target.getUUID()), sender.getUUID());
                 sender.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                         ok ? "message.stonebanner.order_queued" : "message.stonebanner.order_rejected",
                         npc.getDisplayName(), npc.orderSequence().pendingCount()), true);
