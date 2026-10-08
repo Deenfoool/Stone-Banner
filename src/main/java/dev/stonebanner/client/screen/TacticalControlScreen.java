@@ -492,7 +492,15 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (overUi(mouseX,mouseY)) {HeroInputController.resetGroundClicks();HeroInputController.cancel();toolBack.reset();}
+        boolean pointerOnUi = overUi(mouseX, mouseY);
+        if (pointerOnUi) {
+            HeroInputController.resetGroundClicks();
+            HeroInputController.cancel();
+            toolBack.reset();
+            // Only primary clicks may operate HUD widgets. Secondary/remapped world inputs
+            // must not alter the hero, change mode or trigger a command through the HUD.
+            if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return true;
+        }
         if(dev.stonebanner.client.control.ConstructionPreviewController.active() && !overUi(mouseX,mouseY)){
             if(minecraft.options.keyUse.matchesMouse(button))dev.stonebanner.client.control.ConstructionPreviewController.cancel();
             else if(minecraft.options.keyAttack.matchesMouse(button)){
@@ -649,6 +657,9 @@ public final class TacticalControlScreen extends Screen {
             }
         }
 
+        // Covers HUD regions owned by other overlays and unhandled HUD regions,
+        // including attack/use/group/Orders actions remapped to mouse buttons.
+        if (pointerOnUi) return true;
         cursorX=mouseX; cursorY=mouseY;
         if (keyPressed(10000+button,0,0)) return true;
         if (minecraft.options.keyAttack.matchesMouse(button)) return worldAction(true);

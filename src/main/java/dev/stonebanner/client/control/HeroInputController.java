@@ -50,7 +50,9 @@ public final class HeroInputController {
     public static boolean manualMovement() { var o=Minecraft.getInstance().options; return InputBindings.held(o.keyUp)||InputBindings.held(o.keyLeft)||InputBindings.held(o.keyDown)||InputBindings.held(o.keyRight); }
     public static void toggleCommands() {
         resetGroundClicks();cancel(); PlayerCommandController.cancelPendingActions();commands=!commands;
-        CitizenSelectionController.clear(); DesignationController.deactivate(); TunnelExtensionController.deactivate();
+        // Keep the selected NPCs on Hero/Orders transitions. Only transient tool previews
+        // reset; the server continues authoritative queued movement/work orders.
+        DesignationController.deactivate(); TunnelExtensionController.deactivate();
         RpgCameraController.commandsChanged(commands);
     }
     public static boolean moveHeld(){return moveHeld;}
