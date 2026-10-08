@@ -2,6 +2,7 @@ package dev.stonebanner.network;
 
 import dev.stonebanner.network.packet.CitizenTargetPacket;
 import dev.stonebanner.network.packet.CitizenWorkTargetPacket;
+import dev.stonebanner.network.packet.CitizenInteractPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import io.netty.buffer.Unpooled;
@@ -23,7 +24,18 @@ class CitizenSequencePacketCodecTest {
             assertEquals(sent,CitizenWorkTargetPacket.decode(bytes));
         } finally { bytes.release(); }
     }
-    @Test void directCommandsRemainCompatibleWithinProtocol24() {
+    @Test void interactPacketPreservesTargetAndRejectsTrailingBytes() {
+        var sent = new CitizenInteractPacket(15, new BlockPos(-12, 72, 313));
+        var bytes = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            CitizenInteractPacket.encode(sent, bytes);
+            var received = CitizenInteractPacket.decode(bytes);
+            assertEquals(sent, received);
+            assertEquals(0, bytes.readableBytes());
+        } finally { bytes.release(); }
+    }
+
+    @Test void directCommandsRemainCompatibleWithinProtocol25() {
         var target=new CitizenTargetPacket(5,7,false);
         var work=new CitizenWorkTargetPacket(5,BlockPos.ZERO,false);
         var buf1=new FriendlyByteBuf(Unpooled.buffer());

@@ -78,13 +78,16 @@ public final class CitizenOrderSequence {
     }
 
     private boolean approachInteraction(ServerLevel level, BlockPos pos) {
+        int searched = 0;
         for (Direction side : new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}) {
             for (int dy = 0; dy <= 1; dy++) {
                 BlockPos stand = pos.relative(side).below(dy);
                 if (!level.hasChunkAt(stand) || !owner.citizenData().canTravelTo(stand)
-                        || !BlockPathfinder.isWalkable(level, stand)
-                        || BlockPathfinder.findPermittedPath(level, owner.blockPosition(), stand,
-                            p -> level.hasChunkAt(p) && owner.citizenData().canTravelTo(p)).isEmpty()) continue;
+                        || !BlockPathfinder.isWalkable(level, stand)) continue;
+                // At most four bounded A* searches per order, even for 64 selected citizens.
+                if (++searched > 4) return false;
+                if (BlockPathfinder.findPermittedPath(level, owner.blockPosition(), stand,
+                        p -> level.hasChunkAt(p) && owner.citizenData().canTravelTo(p)).isEmpty()) continue;
                 if (owner.issueCommand(new ActorCommand.MoveTo(stand))) return true;
             }
         }
@@ -102,7 +105,9 @@ public final class CitizenOrderSequence {
                 || owner.citizenData().health().needsRecovery()
                 || !owner.citizenData().health().canMoveIndependently()
                 || owner.citizenData().returningToVillage()
-                || owner.commandController().queuedMoveCount() > 0) return false;
+                || owner.commandController().queuedMoveCount() > 0
+                // Prevent another commander from silently taking over a running FIFO.
+                || hasOrders() && !java.util.Objects.equals(commander, issuedBy)) return false;
         if (entry.block() != null && (!level.hasChunkAt(entry.block())
                 || !owner.citizenData().canTravelTo(entry.block()))) return false;
         if (entry.target() != null) {
