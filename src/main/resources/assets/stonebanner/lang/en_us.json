@@ -675,5 +675,8 @@
   "hud.stonebanner.context.attack": "%s — attack",
   "hud.stonebanner.context.mine": "%s — mine (hold)",
   "hud.stonebanner.context.denied": "Blocked: see reason",
-  "hud.stonebanner.context.sent": "Command sent"
+  "hud.stonebanner.context.sent": "Command sent",
+  "hud.stonebanner.alert.waiting_storage": "Waiting for storage: %s",
+  "hud.stonebanner.alert.blocked_route": "No accessible route: %s",
+  "hud.stonebanner.alert.lacking_materials": "Missing materials: %s"
 }

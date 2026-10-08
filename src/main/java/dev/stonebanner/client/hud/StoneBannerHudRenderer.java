@@ -131,7 +131,7 @@ public final class StoneBannerHudRenderer {
         }
 
         renderStrategicBar(graphics, minecraft, screenWidth);
-        renderAlerts(graphics, minecraft.font, selected, screenWidth);
+        renderAlerts(graphics, minecraft.font, selectedMembers, screenWidth);
         renderRightRail(graphics, minecraft, screenWidth, screenHeight);
         renderBottomDock(graphics, minecraft, screenWidth, screenHeight, selected);
         if (selected != null) {
@@ -374,34 +374,45 @@ public final class StoneBannerHudRenderer {
         smallTopAction(graphics, actionX + 48, bar.y() + 7, MAP_ICON, false);
     }
 
-    private static void renderAlerts(GuiGraphics graphics, Font font, HumanNpcEntity npc, int screenWidth) {
+    private static void renderAlerts(GuiGraphics graphics, Font font, List<HumanNpcEntity> selected, int screenWidth) {
         List<Alert> alerts = new ArrayList<>();
+        // The following values are synced by the server; do not infer a job state from local geometry.
         long hazardPlans = ExcavationOverlayState.plans().stream().filter(plan -> plan.hazardPaused()).count();
-        if (hazardPlans > 0) {
+        if (hazardPlans > 0)
             alerts.add(new Alert(HAZARD_ICON,
                     Component.translatable("hud.stonebanner.alert.excavation_hazard", hazardPlans), DANGER));
-        }
-        if (npc != null) {
+        long waitingStorage = selected.stream().filter(n -> n.hudDeliveryStatus()
+                == dev.stonebanner.storage.DeliveryStatus.WAITING_STORAGE).count();
+        long blockedRoute = selected.stream().filter(n -> n.hudDeliveryStatus()
+                == dev.stonebanner.storage.DeliveryStatus.BLOCKED_ROUTE
+                || n.hudWorkBlockReason() == dev.stonebanner.citizen.WorkBlockReason.NO_PATH).count();
+        long lackingMaterials = selected.stream().filter(n -> n.hudWorkBlockReason()
+                == dev.stonebanner.citizen.WorkBlockReason.MATERIALS).count();
+        if (waitingStorage > 0)
+            alerts.add(new Alert(INVENTORY_ICON,
+                    Component.translatable("hud.stonebanner.alert.waiting_storage", waitingStorage), WARNING));
+        if (blockedRoute > 0)
+            alerts.add(new Alert(HAZARD_ICON,
+                    Component.translatable("hud.stonebanner.alert.blocked_route", blockedRoute), WARNING));
+        if (lackingMaterials > 0)
+            alerts.add(new Alert(CONSTRUCTION_ICON,
+                    Component.translatable("hud.stonebanner.alert.lacking_materials", lackingMaterials), WARNING));
+        if (selected.size() == 1) {
+            HumanNpcEntity npc = selected.get(0);
             int health = percentage(npc.getHealth(), npc.getMaxHealth());
-            if (npc.hudDanger() >= CitizenNeeds.CRITICAL_DANGER_THRESHOLD) {
+            if (npc.hudDanger() >= CitizenNeeds.CRITICAL_DANGER_THRESHOLD)
                 alerts.add(new Alert(DANGER_ICON, Component.translatable("hud.stonebanner.alert.danger"), DANGER));
-            }
-            if (health <= 30) {
+            if (health <= 30)
                 alerts.add(new Alert(LOW_HEALTH_ICON,
                         Component.translatable("hud.stonebanner.alert.low_health", npc.getDisplayName()), DANGER));
-            }
-            if (npc.hudHunger() >= CitizenNeeds.CRITICAL_HUNGER_THRESHOLD) {
+            if (npc.hudHunger() >= CitizenNeeds.CRITICAL_HUNGER_THRESHOLD)
                 alerts.add(new Alert(HUNGER_ICON,
                         Component.translatable("hud.stonebanner.alert.hunger", npc.getDisplayName()), WARNING));
-            }
-            if (npc.hudFatigue() >= CitizenNeeds.CRITICAL_FATIGUE_THRESHOLD) {
+            if (npc.hudFatigue() >= CitizenNeeds.CRITICAL_FATIGUE_THRESHOLD)
                 alerts.add(new Alert(FATIGUE_ICON,
                         Component.translatable("hud.stonebanner.alert.fatigue", npc.getDisplayName()), WARNING));
-            }
         }
-        if (alerts.isEmpty()) {
-            return;
-        }
+        if (alerts.isEmpty()) return;
 
         int count = Math.min(3, alerts.size());
         StoneBannerHudLayout.Rect bounds = StoneBannerHudLayout.alerts(screenWidth, count);

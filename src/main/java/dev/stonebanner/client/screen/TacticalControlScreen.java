@@ -139,8 +139,12 @@ public final class TacticalControlScreen extends Screen {
             graphics.drawString(font,Component.translatable("construction.stonebanner.status."+dev.stonebanner.client.control.ConstructionPreviewController.status()),8,122,0xFFD8D2C8);
         }
         float progress=HeroInputController.miningProgress();
-        if(progress>0){graphics.fill(width/2-40,height/2+18,width/2+40,height/2+23,0xAA222222);
-            graphics.fill(width/2-40,height/2+18,width/2-40+(int)(80*Math.min(1,progress)),height/2+23,0xDDCDA96E);}
+        if(progress>0) {
+            int w = 70, cx = (int)Math.max(38, Math.min(width - 38, mouseX)), y = (int)Math.max(59, Math.min(height - 16, mouseY + 20));
+            graphics.fill(cx - w / 2, y, cx + w / 2, y + 5, 0xB01A1D20);
+            graphics.fill(cx - w / 2, y, cx - w / 2 + (int)(w * Math.min(1, progress)), y + 5, 0xFFE7C46A);
+            graphics.renderOutline(cx - w / 2, y, w, 5, 0xFF4E3D2C);
+        }
         if(minecraft.player!=null && minecraft.player.isUsingItem() && minecraft.player.getUseItem().getItem() instanceof net.minecraft.world.item.BowItem){
             float charge=net.minecraft.world.item.BowItem.getPowerForTime(minecraft.player.getTicksUsingItem());
             graphics.drawString(font,Component.translatable("hud.stonebanner.bow_charge",(int)(charge*100)),width/2-35,height/2+28,0xFFD8D2C8);

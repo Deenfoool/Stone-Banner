@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.stonebanner.StoneAndBanner;
 import dev.stonebanner.config.ClientConfig;
+import net.minecraft.client.multiplayer.ClientLevel;
 import dev.stonebanner.designation.DesignationType;
 import dev.stonebanner.navigation.BlockPathfinder;
 import net.minecraft.client.Minecraft;
@@ -23,15 +24,17 @@ import java.util.List;
 
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, value = Dist.CLIENT)
 public final class PathPreviewRenderer {
+    private static ClientLevel priorWorld;
+    private static List<BlockPos> priorRoute = List.of();
+    private static boolean hadActiveRoute;
+    private static long fadedAt;
+
     private PathPreviewRenderer() {
     }
 
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS
-                || !ClientConfig.SHOW_PATH_PREVIEW.get()) {
-            return;
-        }
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
 
         List<BlockPos> path = PlayerCommandController.pathSnapshot();
         BlockPos destination = PlayerCommandController.destination().orElse(null);
@@ -43,13 +46,34 @@ public final class PathPreviewRenderer {
         boolean hasDesignationPreview = DesignationController.selectionStart().isPresent()
                 && DesignationController.selectionEnd().isPresent();
         boolean hasExcavationOverlay = ExcavationOverlayState.hasPlans();
-        if (rejected==null && path.isEmpty() && destination == null && hoveredEntity == null
-                && selectedEntity == null && selectedCitizen == null && hoveredLocation == null
-                && !hasDesignationPreview && !hasExcavationOverlay) {
-            return;
-        }
-
         Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
+        long now = net.minecraft.Util.getMillis();
+        if (priorWorld != minecraft.level) {
+            priorWorld = minecraft.level;
+            priorRoute = List.of();
+            hadActiveRoute = false;
+            fadedAt = 0;
+        }
+        boolean routeVisible = ClientConfig.SHOW_PATH_PREVIEW.get();
+        boolean markersVisible = ClientConfig.SHOW_ORDER_MARKERS.get();
+        if (routeVisible && !path.isEmpty()) {
+            priorRoute = path.size() > 96 ? List.copyOf(path.subList(0, 96)) : List.copyOf(path);
+            hadActiveRoute = true;
+        } else if (hadActiveRoute && path.isEmpty()) {
+            hadActiveRoute = false;
+            fadedAt = now;
+        }
+        boolean fading = routeVisible && !hadActiveRoute && !priorRoute.isEmpty()
+                && now >= fadedAt && now - fadedAt < 700;
+        boolean confirmation = dev.stonebanner.client.control.ContextFeedbackController.pulse(now).isPresent();
+        if (!routeVisible && !markersVisible && !hasDesignationPreview && !confirmation) return;
+        if (!fading && (!routeVisible || path.isEmpty()) && !markersVisible
+                && !hasDesignationPreview && !confirmation) return;
+        if (!fading && (!routeVisible || (path.isEmpty() && destination == null && rejected == null))
+                && (!markersVisible || (hoveredEntity == null && selectedEntity == null
+                && selectedCitizen == null && hoveredLocation == null && !hasExcavationOverlay))
+                && !hasDesignationPreview && !confirmation) return;
         PoseStack poses = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
@@ -57,17 +81,18 @@ public final class PathPreviewRenderer {
 
         poses.pushPose();
         poses.translate(-camera.x, -camera.y, -camera.z);
-        for (BlockPos point : path) {
-            Vec3 waypoint = minecraft.level == null
-                    ? Vec3.atBottomCenterOf(point)
-                    : BlockPathfinder.waypoint(minecraft.level, point);
-            AABB marker = new AABB(
-                    waypoint.x - 0.20D, waypoint.y + 0.04D, waypoint.z - 0.20D,
-                    waypoint.x + 0.20D, waypoint.y + 0.10D, waypoint.z + 0.20D
-            );
-            LevelRenderer.renderLineBox(poses, lines, marker, 0.90F, 0.68F, 0.22F, 0.85F);
+        if (routeVisible) {
+            List<BlockPos> displayed = path.isEmpty() ? (fading ? priorRoute : List.of()) : path;
+            float alpha = path.isEmpty() ? Math.max(0, 1f - (now - fadedAt) / 700f) : 0.64f;
+            Vec3 previous = path.isEmpty() ? null : minecraft.player == null ? null
+                    : minecraft.player.position().add(0, 0.08D, 0);
+            for (BlockPos point : displayed) {
+                Vec3 waypoint = BlockPathfinder.waypoint(minecraft.level, point).add(0, 0.10D, 0);
+                if (previous != null) drawRouteSegment(poses, lines, previous, waypoint, alpha);
+                previous = waypoint;
+            }
         }
-        if (destination != null) {
+        if (routeVisible && destination != null) {
             Vec3 destinationPoint = minecraft.level == null
                     ? Vec3.atBottomCenterOf(destination)
                     : BlockPathfinder.waypoint(minecraft.level, destination);
@@ -77,8 +102,18 @@ public final class PathPreviewRenderer {
             );
             LevelRenderer.renderLineBox(poses, lines, marker, 0.98F, 0.82F, 0.32F, 1.0F);
         }
-        if(rejected!=null)LevelRenderer.renderLineBox(poses,lines,new AABB(rejected).inflate(.03),1f,.15f,.15f,1f);
-        if (hoveredEntity != null) {
+        if (routeVisible && rejected != null)
+            LevelRenderer.renderLineBox(poses, lines, new AABB(rejected).inflate(.03), 1f, .15f, .15f, 1f);
+        dev.stonebanner.client.control.ContextFeedbackController.pulse(now).ifPresent(pulse -> {
+            double size = 0.22D + (1.0f - pulse.opacity()) * 0.43D;
+            Vec3 point = pulse.location();
+            var ring = new AABB(point.x - size, point.y - 0.03D, point.z - size,
+                    point.x + size, point.y + 0.10D, point.z + size);
+            float r = pulse.kind() == dev.stonebanner.client.control.ContextFeedbackController.Kind.DENIED ? 1.0f : 0.98f;
+            float g = pulse.kind() == dev.stonebanner.client.control.ContextFeedbackController.Kind.DENIED ? 0.21f : 0.82f;
+            LevelRenderer.renderLineBox(poses, lines, ring, r, g, 0.30f, pulse.opacity());
+        });
+        if (markersVisible && hoveredEntity != null) {
             LevelRenderer.renderLineBox(
                     poses,
                     lines,
@@ -89,7 +124,7 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
-        if (hoveredLocation != null && hoveredEntity == null) {
+        if (markersVisible && hoveredLocation != null && hoveredEntity == null) {
             LevelRenderer.renderLineBox(
                     poses,
                     lines,
@@ -100,7 +135,7 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
-        if (selectedEntity != null && selectedEntity != hoveredEntity) {
+        if (markersVisible && selectedEntity != null && selectedEntity != hoveredEntity) {
             LevelRenderer.renderLineBox(
                     poses,
                     lines,
@@ -111,7 +146,8 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
-        // Build the target lookup only once per frame, not once per selected NPC and waypoint.
+        // Build the target lookup only when marker rendering is enabled.
+        if (markersVisible) {
         var selectedMembers = CitizenSelectionController.selectedAll();
         java.util.Map<java.util.UUID, Entity> loadedTargets = new java.util.HashMap<>();
         if (!selectedMembers.isEmpty() && minecraft.level != null) {
@@ -130,10 +166,23 @@ public final class PathPreviewRenderer {
             );
             renderCitizenOrders(minecraft, poses, lines, selectedMember, loadedTargets);
         }
-        renderExcavationPlans(poses, lines);
+            renderExcavationPlans(poses, lines);
+        }
         renderDesignationPreview(poses, lines);
         poses.popPose();
         buffers.endBatch(RenderType.lines());
+    }
+
+    private static void drawRouteSegment(PoseStack poses, VertexConsumer lines,
+                                         Vec3 start, Vec3 end, float opacity) {
+        if (start.distanceToSqr(end) < 0.0001D) return;
+        var pose = poses.last();
+        lines.vertex(pose.pose(), (float) start.x, (float) start.y, (float) start.z)
+                .color(0.96F, 0.77F, 0.34F, opacity)
+                .normal(pose.normal(), 0, 1, 0).endVertex();
+        lines.vertex(pose.pose(), (float) end.x, (float) end.y, (float) end.z)
+                .color(0.96F, 0.77F, 0.34F, opacity)
+                .normal(pose.normal(), 0, 1, 0).endVertex();
     }
 
     /** All markers are visual-only server snapshots and never drive a new command. */
