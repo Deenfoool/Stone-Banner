@@ -35,7 +35,7 @@ public record CitizenWorkTargetPacket(int npcId, BlockPos target, boolean append
             if (type == null || !WorkTargetRules.isValid(type, level, p.target)) return;
 
             if (p.append) {
-                boolean ok = npc.orderSequence().enqueue(CitizenOrderQueue.Entry.work(p.target));
+                boolean ok = npc.orderSequence().enqueue(CitizenOrderQueue.Entry.work(p.target), sender.getUUID());
                 sender.displayClientMessage(net.minecraft.network.chat.Component.translatable(
                         ok ? "message.stonebanner.order_queued" : "message.stonebanner.order_rejected",
                         npc.getDisplayName(), npc.orderSequence().pendingCount()), true);
