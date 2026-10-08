@@ -1,0 +1,14 @@
+/* Consistent native-size HUD icon sprites; zero CDN dependencies. */
+.sb-ico{display:inline-block;vertical-align:-.2em;width:1.22em;height:1.22em;stroke:currentColor;fill:none;overflow:visible;flex:none}
+.metric .sb-ico{width:17px;height:17px;color:#e9d29b}
+.square .sb-ico,.personTabs .sb-ico{width:18px;height:18px}
+.tab .sb-ico,.tool .sb-ico{width:18px;height:18px;vertical-align:middle}
+.slot .sb-ico{width:23px;height:23px;color:#e4c98d}
+#speeds .sb-ico,#layers .sb-ico{width:17px;height:17px}
+#alerts .sb-ico{color:#f6c777}
+#flag .sb-ico{width:24px;height:24px;color:#f3d47b}
+.face{overflow:hidden;display:grid;place-items:center}
+.sb-portrait{display:block;background-image:url("./terrain-atlas.svg");width:48px;height:48px;background-size:288px 240px;background-repeat:no-repeat;image-rendering:pixelated}
+.no-selection .sb-ico,.group .sb-ico{width:16px;height:16px;color:#e9cb8a}
+#info .skillrow .sb-ico{width:13px;height:13px;color:#ebd195}
+#clock .sb-ico{width:13px;height:13px}
