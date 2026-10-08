@@ -40,7 +40,8 @@ import java.util.function.Predicate;
 public final class BlockPathfinder {
     private static final int MAX_VISITED_NODES = 4096;
     private static final int MAX_HORIZONTAL_RANGE = 64;
-    private static final int MAX_VERTICAL_RANGE = 16;
+    // Tall construction ladders still use the same 4096-node and 64-block horizontal budgets.
+    private static final int MAX_VERTICAL_RANGE = 96;
     private static final int DOOR_CONTROL_SCAN_RADIUS = 2;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
@@ -279,6 +280,7 @@ public final class BlockPathfinder {
     private static void addLadderTopEntry(Level level, BlockPos current, BlockPos start, List<BlockPos> result) {
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
             BlockPos ladder = current.below().relative(direction);
+            if (!level.hasChunkAt(ladder)) continue;
             BlockState state = level.getBlockState(ladder);
             if (!state.hasProperty(LadderBlock.FACING)
                     || !ladderTopExit(ladder, state.getValue(LadderBlock.FACING)).equals(current)

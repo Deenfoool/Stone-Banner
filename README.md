@@ -21,7 +21,7 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.38`.
+Version: `0.1.0-alpha.39`.
 
 Cottage construction is implemented in source: **B** / the Build tab opens a fixed 5×7 blueprint with rotation and a world outline preview. One NPC fetches real supplies from registered storage, builds in stages, and places a door/two beds with one item per furniture piece. Plans, ownership and pause persist; removing a plan keeps blocks and carried items. Existing sleep/camp provision detects the ordinary beds. See [CONSTRUCTION.md](CONSTRUCTION.md). Build and gameplay verification remain deferred.
 
@@ -195,3 +195,7 @@ system and settlement simulation are later roadmap stages.
 ### Каталог домов (alpha.38)
 
 Читатель MineColonies/Structurize `.blueprint` v1, серверный каталог, предпросмотр выбранного дома и явные ванильные замены служебных/декоративных блоков. [Установка и ограничения](BLUEPRINTS.md). [Отдельный стартовый пакет: два дома Medieval Oak](blueprint-packs/stonebanner-minecolonies-medievaloak.zip). Сборка и игровые проверки этой версии отложены.
+
+### Временные строительные леса (alpha.39)
+
+При недоступности рабочего места NPC строит под собой столб во время прыжков, добавляет боковую лестницу и прокладывает мосток. После использования разбирает свои временные блоки с возвратом материалов и контролируемым спуском. Требуются булыжник и лестницы на складе. [Правила и ограничения](CONSTRUCTION.md). Реализация добавлена; сборка и игровые проверки отложены.

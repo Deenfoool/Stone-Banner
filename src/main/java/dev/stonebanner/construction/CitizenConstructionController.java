@@ -18,15 +18,18 @@ import java.util.*;
 public final class CitizenConstructionController {
     public enum Result { RUNNING, COMPLETE, DEFER }
     private final HumanNpcEntity npc;
+    private final ConstructionScaffoldController scaffold;
     private BlockPos source,target;
     private double progress;
     private boolean working;
     private WorkBlockReason reason=WorkBlockReason.NONE;
-    public CitizenConstructionController(HumanNpcEntity npc){this.npc=npc;}
-    public void clear(){source=target=null;progress=0;working=false;reason=WorkBlockReason.NONE;}
-    public boolean working(){return working;}
+    public CitizenConstructionController(HumanNpcEntity npc){this.npc=npc;this.scaffold=new ConstructionScaffoldController(npc);}
+    public void clear(){scaffold.clear();source=target=null;progress=0;working=false;reason=WorkBlockReason.NONE;}
+    public boolean working(){return working||scaffold.working();}
     public WorkBlockReason reason(){return reason;}
     private boolean visible(ServerLevel level,BlockPos pos,Vec3 eyes){
+        for(var p:BlockPos.betweenClosed(BlockPos.containing(Math.min(eyes.x,pos.getX()),Math.min(eyes.y,pos.getY()),Math.min(eyes.z,pos.getZ())),
+                BlockPos.containing(Math.max(eyes.x,pos.getX()),Math.max(eyes.y,pos.getY()),Math.max(eyes.z,pos.getZ()))))if(!level.hasChunkAt(p))return false;
         var hit=level.clip(new net.minecraft.world.level.ClipContext(eyes,Vec3.atCenterOf(pos),net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,npc));
         return hit.getType()==HitResult.Type.MISS||hit.getBlockPos().equals(pos);
     }
@@ -47,10 +50,24 @@ public final class CitizenConstructionController {
                     &&(placement==null||(placement.cells().stream().allMatch(c->eyes.distanceToSqr(Vec3.atCenterOf(c.at(plan.origin,plan.rotation)))<=3.5*3.5&&visible(level,c.at(plan.origin,plan.rotation),eyes))&&!overlaps(level,plan,placement,body))))candidates.add(p);
         }
         candidates.sort(Comparator.comparingDouble(p->npc.distanceToSqr(Vec3.atCenterOf(p))));
-        for(var p:candidates.stream().limit(8).toList())if(npc.commandController().issueSystemMove(p,CitizenBrainState.WORK))return true;
+        for(var p:candidates.stream().limit(8).toList()){
+            var feet=BlockPathfinder.waypoint(level,p);
+            if(npc.distanceToSqr(feet)<.55*.55&&npc.distanceToSqr(feet)>.1*.1){
+                npc.commandController().stop();npc.getMoveControl().setWantedPosition(feet.x,feet.y,feet.z,.5);return true;
+            }
+            if(npc.commandController().issueSystemMove(p,CitizenBrainState.WORK))return true;
+        }
         return false;
     }
     private Result fetch(ServerLevel level,net.minecraft.world.item.Item item,ConstructionData.Plan plan){
+        var blueprint=BlueprintCatalog.forPlan(level,plan);if(blueprint==null)return Result.DEFER;
+        int needed=blueprint.placements().stream().filter(p->p.item()==item&&!p.matches(level,plan.origin,plan.rotation)).mapToInt(CottageBlueprint.Placement::count).sum();
+        return fetch(level,item,plan,needed);
+    }
+    private Result fetch(ServerLevel level,net.minecraft.world.item.Item item,ConstructionData.Plan plan,int required){
+        if(plan.route!=null&&!scaffold.onGroundLevel(plan)){
+            var result=scaffold.descend(plan);reason=scaffold.reason();return result==Result.COMPLETE?Result.RUNNING:result;
+        }
         var stores=StorageData.forLevel(level);
         if(source!=null){
             if(!level.hasChunkAt(source)||!npc.citizenData().canTravelTo(source)){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
@@ -58,8 +75,7 @@ public final class CitizenConstructionController {
                 if(!npc.commandController().hasActiveCommand()){reason=WorkBlockReason.NO_PATH;return Result.DEFER;}return Result.RUNNING;
             }
             npc.commandController().stop();
-            var blueprint=BlueprintCatalog.forPlan(level,plan);if(blueprint==null)return Result.DEFER;
-            int needed=blueprint.placements().stream().filter(p->p.item()==item&&!p.matches(level,plan.origin,plan.rotation)).mapToInt(CottageBlueprint.Placement::count).sum();
+            int needed=Math.max(1,required-npc.citizenData().inventory().countPersonalItem(item));
             var removed=stores.extractAt(level,source,s->s.is(item),Math.min(16,needed));
             if(removed.isEmpty()){reason=WorkBlockReason.MATERIALS;return Result.DEFER;}
             boolean full=false;
@@ -77,11 +93,29 @@ public final class CitizenConstructionController {
             if(npc.citizenData().canTravelTo(p)&&(near(level,p)||walk(level,p,null,null))){source=p;return Result.RUNNING;}
         reason=WorkBlockReason.MATERIALS;return Result.DEFER;
     }
+    private Result scaffolds(ServerLevel level,ConstructionData.Plan plan,BuildingBlueprint blueprint,CottageBlueprint.Placement placement,boolean cleanup){
+        var result=cleanup?scaffold.cleanup(plan):scaffold.access(plan,blueprint,placement);reason=scaffold.reason();
+        var supply=scaffold.supply();if(supply!=null)return fetch(level,supply.item(),plan,supply.count());
+        return result;
+    }
     public Result tick(CitizenJob job){
-        var level=(ServerLevel)npc.level();working=false;reason=WorkBlockReason.NONE;
+        var level=(ServerLevel)npc.level();working=false;reason=WorkBlockReason.NONE;scaffold.beginTick();
         var plan=ConstructionData.forLevel(level).at(job.target());
         if(!ConstructionService.allowed(npc,job))return Result.DEFER;
-        var pending=ConstructionService.next(level,plan);if(pending.isEmpty())return plan.completed?Result.COMPLETE:Result.DEFER;
+        var blueprint=BlueprintCatalog.forPlan(level,plan);
+        if(plan.cancelled||plan.cleanup||blueprint==null&&!plan.temporary.isEmpty()){
+            var result=scaffolds(level,plan,blueprint,null,true);
+            if(result==Result.COMPLETE){
+                if(plan.cancelled){ConstructionData.forLevel(level).finishCancel(plan);return Result.COMPLETE;}
+                // A missing/changed blueprint may reclaim its own scaffolds, but never resume a different building.
+                if(blueprint==null)return Result.DEFER;
+            }else return result;
+        }
+        var pending=ConstructionService.next(level,plan);
+        if(pending.isEmpty()){
+            if(!plan.temporary.isEmpty()){var result=scaffolds(level,plan,blueprint,null,true);return result==Result.COMPLETE?Result.RUNNING:result;}
+            return plan.completed?Result.COMPLETE:Result.DEFER;
+        }
         var placement=pending.get();var pos=placement.cells().get(0).at(plan.origin,plan.rotation);
         if(!pos.equals(target)){target=pos;progress=0;source=null;}
         for(var cell:placement.cells()){
@@ -97,10 +131,11 @@ public final class CitizenConstructionController {
                 plan.status="blocked";reason=WorkBlockReason.OCCUPIED;return Result.DEFER;
             }
         }
+        if(plan.route!=null&&scaffold.building(plan))return scaffolds(level,plan,blueprint,placement,false);
         if(npc.citizenData().inventory().countPersonalItem(placement.item())<placement.count()){plan.status="materials";return fetch(level,placement.item(),plan);}
         if(!placement.cells().stream().allMatch(c->near(level,c.at(plan.origin,plan.rotation)))||overlaps(level,plan,placement,npc.getBoundingBox())){
             plan.status="travelling";
-            if(!npc.commandController().hasActiveCommand()&&!walk(level,pos,plan,placement)){plan.status="no_path";reason=WorkBlockReason.NO_PATH;return Result.DEFER;}
+            if(!npc.commandController().hasActiveCommand()&&!walk(level,pos,plan,placement))return scaffolds(level,plan,blueprint,placement,false);
             return Result.RUNNING;
         }
         for(var cell:placement.cells())if(!level.getEntitiesOfClass(LivingEntity.class,new AABB(cell.at(plan.origin,plan.rotation)),e->e.isAlive()&&!e.isSpectator()).isEmpty()){
@@ -128,6 +163,6 @@ public final class CitizenConstructionController {
         npc.citizenData().inventory().removePersonalItem(placement.item(),placement.count());
         for(var cell:placement.cells()){var at=cell.at(plan.origin,plan.rotation);level.updateNeighborsAt(at,cell.state().getBlock());}
         npc.citizenData().practice(CitizenSkill.CONSTRUCTION,5);progress=0;target=null;plan.status="ready";
-        return ConstructionService.next(level,plan).isEmpty()?Result.COMPLETE:Result.RUNNING;
+        ConstructionService.next(level,plan);return plan.completed?Result.COMPLETE:Result.RUNNING;
     }
 }

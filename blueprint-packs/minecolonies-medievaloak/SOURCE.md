@@ -18,5 +18,5 @@ Extract this pack into the Minecraft instance/server folder, merging `config/`.
 Restart the server/world. In Stone & Banner press **B**, then use the catalog arrows.
 The two houses use the reader's explicit vanilla adaptation for supported decorative
 blocks. Hut markers are empty space, inventories and entities are not imported.
-The catalog reports unavailable blocks; large/tall builds may require player-built
-stairs or working platforms. Installation does not require MineColonies or DO.
+The catalog reports unavailable blocks; automatic columns/footbridges need cobblestone and ladders in registered
+storage. Unavailable space, support or protection may still block access. Installation does not require MineColonies or DO.

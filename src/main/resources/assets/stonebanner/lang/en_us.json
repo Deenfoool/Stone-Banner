@@ -570,5 +570,18 @@
   "construction.stonebanner.status.unsupported": "Blueprint contains unsupported blocks",
   "construction.stonebanner.result.unsupported": "Blueprint contains unsupported blocks",
   "construction.stonebanner.status.no_path": "No access: provide stairs or a work platform",
-  "construction.stonebanner.result.no_path": "No access: provide stairs or a work platform"
+  "construction.stonebanner.result.no_path": "No access: provide stairs or a work platform",
+  "construction.stonebanner.ui.scaffold_hint": "Scaffolds need cobblestone and ladders; reclaimed on dismantling",
+  "construction.stonebanner.status.scaffold_climb": "Building column / climbing scaffolds",
+  "construction.stonebanner.result.scaffold_climb": "Building column / climbing scaffolds",
+  "construction.stonebanner.status.scaffold_bridge": "Extending temporary footbridge",
+  "construction.stonebanner.result.scaffold_bridge": "Extending temporary footbridge",
+  "construction.stonebanner.status.scaffold_cleanup": "Dismantling scaffolds and descending",
+  "construction.stonebanner.result.scaffold_cleanup": "Dismantling scaffolds and descending",
+  "construction.stonebanner.status.scaffold_materials": "Scaffolds need cobblestone and ladders",
+  "construction.stonebanner.result.scaffold_materials": "Scaffolds need cobblestone and ladders",
+  "construction.stonebanner.status.scaffold_blocked": "Scaffolds: access or support is unsafe",
+  "construction.stonebanner.result.scaffold_blocked": "Scaffolds: access or support is unsafe",
+  "construction.stonebanner.status.scaffold_protected": "Scaffold modification denied",
+  "construction.stonebanner.result.scaffold_protected": "Scaffold modification denied"
 }

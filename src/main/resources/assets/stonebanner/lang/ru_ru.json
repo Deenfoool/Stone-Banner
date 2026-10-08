@@ -570,5 +570,18 @@
   "construction.stonebanner.status.unsupported": "Схема содержит неподдерживаемые блоки",
   "construction.stonebanner.result.unsupported": "Схема содержит неподдерживаемые блоки",
   "construction.stonebanner.status.no_path": "Нет доступа: нужны лестницы или площадка для рабочего",
-  "construction.stonebanner.result.no_path": "Нет доступа: нужны лестницы или площадка для рабочего"
+  "construction.stonebanner.result.no_path": "Нет доступа: нужны лестницы или площадка для рабочего",
+  "construction.stonebanner.ui.scaffold_hint": "Для лесов: булыжник и лестницы; возвращаются при разборке",
+  "construction.stonebanner.status.scaffold_climb": "Возведение столба / подъём по лесам",
+  "construction.stonebanner.result.scaffold_climb": "Возведение столба / подъём по лесам",
+  "construction.stonebanner.status.scaffold_bridge": "Прокладка временного мостка",
+  "construction.stonebanner.result.scaffold_bridge": "Прокладка временного мостка",
+  "construction.stonebanner.status.scaffold_cleanup": "Разборка лесов и спуск",
+  "construction.stonebanner.result.scaffold_cleanup": "Разборка лесов и спуск",
+  "construction.stonebanner.status.scaffold_materials": "Нужны булыжник и лестницы для лесов",
+  "construction.stonebanner.result.scaffold_materials": "Нужны булыжник и лестницы для лесов",
+  "construction.stonebanner.status.scaffold_blocked": "Леса: нет безопасного доступа или опоры",
+  "construction.stonebanner.result.scaffold_blocked": "Леса: нет безопасного доступа или опоры",
+  "construction.stonebanner.status.scaffold_protected": "Изменение лесов запрещено",
+  "construction.stonebanner.result.scaffold_protected": "Изменение лесов запрещено"
 }

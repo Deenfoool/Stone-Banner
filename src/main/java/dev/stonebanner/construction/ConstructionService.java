@@ -41,17 +41,17 @@ public final class ConstructionService {
         return "ready";
     }
     public static Optional<CottageBlueprint.Placement> next(ServerLevel level,ConstructionData.Plan plan){
-        if(plan==null||plan.paused||plan.completed)return Optional.empty();
+        if(plan==null||plan.paused||plan.completed||plan.cancelled)return Optional.empty();
         var blueprint=BlueprintCatalog.forPlan(level,plan);if(blueprint==null)return Optional.empty();
         for(var placement:blueprint.placements())if(!placement.matches(level,plan.origin,plan.rotation))return Optional.of(placement);
-        ConstructionData.forLevel(level).complete(plan);return Optional.empty();
+        if(plan.temporary.isEmpty())ConstructionData.forLevel(level).complete(plan);else{plan.cleanup=true;plan.status="scaffold_cleanup";ConstructionData.forLevel(level).setDirty();}return Optional.empty();
     }
     public static boolean valid(ServerLevel level,CitizenJob job){
-        var p=ConstructionData.forLevel(level).at(job.target());return p!=null&&!p.paused&&!p.completed&&BlueprintCatalog.forPlan(level,p)!=null;
+        var p=ConstructionData.forLevel(level).at(job.target());return p!=null&&!p.paused&&!p.completed&&(p.cancelled||!p.temporary.isEmpty()||BlueprintCatalog.forPlan(level,p)!=null);
     }
     public static boolean allowed(HumanNpcEntity npc,CitizenJob job){
         var p=ConstructionData.forLevel((ServerLevel)npc.level()).at(job.target());
-        return p!=null&&!p.paused&&!p.completed&&BlueprintCatalog.forPlan((ServerLevel)npc.level(),p)!=null&&npc.citizenData().recruitedBy().map(p.owner::equals).orElse(true);
+        return p!=null&&!p.paused&&!p.completed&&(p.cancelled||!p.temporary.isEmpty()||BlueprintCatalog.forPlan((ServerLevel)npc.level(),p)!=null)&&npc.citizenData().recruitedBy().map(p.owner::equals).orElse(true);
     }
     public static void execute(ServerPlayer player,Action action,BlockPos origin,int rotation,long id){execute(player,action,origin,rotation,id,"stonebanner:cottage","cottage-v1");}
     public static void execute(ServerPlayer player,Action action,BlockPos origin,int rotation,long id,String blueprintId,String fingerprint){
@@ -86,7 +86,7 @@ public final class ConstructionService {
         for(var job:board.snapshot())if(job.workType()==WorkType.BUILDING
                 &&dev.stonebanner.designation.ExcavationLadderTaskData.forLevel(level).task(job.target()).isEmpty()&&!valid(level,job))board.remove(job.id());
         for(var plan:data.plans())if(!plan.paused&&!plan.completed){
-            if(next(level,plan).isPresent())board.publish(WorkType.BUILDING,plan.origin,CitizenSkill.CONSTRUCTION,0,level.getGameTime());
+            if(next(level,plan).isPresent()||!plan.temporary.isEmpty()||plan.cancelled)board.publish(WorkType.BUILDING,plan.origin,CitizenSkill.CONSTRUCTION,0,level.getGameTime());
         }
     }
 }

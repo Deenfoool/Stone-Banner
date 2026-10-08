@@ -74,7 +74,7 @@ public final class ConstructionScreen extends Screen {
                 var text=Component.translatable("construction.stonebanner.ui.material",material.getKey().getDescription(),material.getValue());
                 g.drawString(font,font.plainSubstrByWidth(text.getString(),w/2-16),x+8+(row%2)*(w/2),y+49+(row/2)*12,0xD8D2C8,false);
             }
-            String note=state.selected().note();g.drawString(font,font.plainSubstrByWidth(note,w-16),x+8,y+116,0xE7C46A,false);
+            String note=label("scaffold_hint").getString()+(state.selected().note().isEmpty()?"":"; "+state.selected().note());g.drawString(font,font.plainSubstrByWidth(note,w-16),x+8,y+116,0xE7C46A,false);
             if(my>=y+112&&my<=y+130&&!note.isEmpty())g.renderTooltip(font,font.split(Component.literal(note),Math.min(360,w-16)),mx,my);
         }else if(entry!=null)g.drawWordWrap(font,Component.literal(entry.problem()),x+8,y+49,w-16,0xFF8888);
         for(int i=0;i<rows&&page*rows+i<state.plans().size();i++){
