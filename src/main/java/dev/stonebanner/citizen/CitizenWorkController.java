@@ -87,6 +87,9 @@ public final class CitizenWorkController {
         }
 
         if (currentJob == null && serverLevel.getGameTime() >= blockReasonUntil) clearBlockReason();
+        // Player's queued orders take precedence even between two sequential waypoints.
+        // A queued WORK item owns currentJob and is allowed to progress normally.
+        if (currentJob == null && owner.orderSequence().hasOrders()) return;
         if(owner.brainState()==CitizenBrainState.SLEEP){if(hasActiveJob())interrupt(true);owner.setBrainState(CitizenBrainState.SLEEP);return;}
         if (currentJob == null && owner.citizenData().inventory().hasHaulCargo()) {
             tickCargoDelivery(serverLevel);
