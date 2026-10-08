@@ -463,9 +463,11 @@ public final class TacticalControlScreen extends Screen {
             return heroAction(primary);
         }
         if(primary) { selecting=true;selectionMoved=false;dragStartX=cursorX;dragStartY=cursorY;return true; }
-        if(hoveredTarget.orElse(null) instanceof EntityHitResult e)CitizenSelectionController.commandTarget(e.getEntity());
+        if(hoveredTarget.orElse(null) instanceof EntityHitResult e)
+            CitizenSelectionController.commandTarget(e.getEntity(), hasAltDown());
         else if(hoveredTarget.orElse(null) instanceof BlockHitResult b) {
-            if(hasAltDown())CitizenSelectionController.moveSelected(b,true);
+            if(hasAltDown() && hasShiftDown() && CitizenSelectionController.workSelected(b,true)) { }
+            else if(hasAltDown())CitizenSelectionController.moveSelected(b,true);
             else if(hasShiftDown() && dev.stonebanner.client.control.MapLayerState.enabled(dev.stonebanner.client.control.MapLayerState.Layer.RESOURCES)) {
                 dev.stonebanner.network.StoneBannerNetwork.sendGeologyAction(b.getBlockPos().relative(b.getDirection()),
                         dev.stonebanner.geology.GeologyService.Action.SURVEY,CitizenSelectionController.selected().map(n->n.getId()).orElse(-1));
