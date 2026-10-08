@@ -499,5 +499,10 @@
   "production.stonebanner.ui.crop.beetroots": "Свёкла",
   "menu.stonebanner.language": "Язык",
   "screen.stonebanner.language.title": "Выбор языка",
-  "screen.stonebanner.language.current": "Текущий: %s"
+  "screen.stonebanner.language.current": "Текущий: %s",
+  "production.stonebanner.ui.edit": "Изменить",
+  "production.stonebanner.ui.apply": "Применить",
+  "production.stonebanner.ui.up": "Выше в очереди",
+  "production.stonebanner.ui.down": "Ниже в очереди",
+  "production.stonebanner.ui.edit_hint": "Уже изготовленное учитывается. Рецепт и пауза сохраняются."
 }

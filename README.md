@@ -21,7 +21,9 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.34`.
+Version: `0.1.0-alpha.35`.
+
+Production orders can now change quantity/mode without losing completed output, and move up/down within their workstation queue. The order and settings persist across saves; an already started operation finishes before the next order is selected. New alpha.35 changes await build and gameplay verification.
 
 Fields and production are available with **K** or `/sbproduction menu`: four crops with physical hoe/seed fetching, tilling, optional bone meal, mature harvest, cargo delivery and replanting; persistent MAKE/MAINTAIN bills with actual shaped/shapeless 3×3 recipes, ingredients and recipe remainders. New carpenter/forge workbenches also support manual crafting. Orders wait for materials/output storage and honor NPC priorities/ownership. See [PRODUCTION.md](PRODUCTION.md) for setup and limitations. This does not yet include furnace/stonecutter/brewing/loom automation or animal farming. Current client/server protocol: **20**.
 

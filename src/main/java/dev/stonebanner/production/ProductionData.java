@@ -17,8 +17,8 @@ public final class ProductionData extends SavedData {
         public boolean contains(BlockPos p){return p.getY()==min.getY()&&p.getX()>=min.getX()&&p.getX()<=max.getX()&&p.getZ()>=min.getZ()&&p.getZ()<=max.getZ();}
     }
     public static final class Bill {
-        public final long id; public final UUID owner; public final BlockPos station; public final ResourceLocation recipe; public final Mode mode;
-        public final int amount; public int made; public boolean paused; public String status="ready";
+        public final long id; public final UUID owner; public final BlockPos station; public final ResourceLocation recipe;
+        public Mode mode; public int amount; public int made; public boolean paused; public String status="ready";
         Bill(long id,UUID owner,BlockPos station,ResourceLocation recipe,Mode mode,int amount){this.id=id;this.owner=owner;this.station=station.immutable();this.recipe=recipe;this.mode=mode;this.amount=amount;}
         public boolean finished(){return mode==Mode.MAKE&&made>=amount;}
     }
@@ -49,6 +49,30 @@ public final class ProductionData extends SavedData {
         var f=fields.get(id);var b=bills.get(id);if(f==null&&b==null||!owner.equals(f!=null?f.owner:b.owner))return false;
         switch(action){case "remove"->{fields.remove(id);bills.remove(id);}case "pause"->{if(f!=null)f.paused=true;else b.paused=true;}case "resume"->{if(f!=null)f.paused=false;else b.paused=false;}case "fertilize"->{if(f==null)return false;f.fertilize=!f.fertilize;}default->{return false;}}
         setDirty();return true;
+    }
+    /** Keep identity, recipe, completed output and pause state when changing the target. */
+    public boolean updateBill(UUID owner,long id,Mode mode,int amount){
+        var bill=bills.get(id);
+        if(bill==null||!bill.owner.equals(owner)||mode==null||amount<1||amount>4096)return false;
+        bill.mode=mode;bill.amount=amount;bill.status=bill.finished()?"complete":"ready";
+        setDirty();return true;
+    }
+    /** Swap adjacent orders at this station only; map/NBT order is the scheduling order. */
+    public boolean moveBill(UUID owner,long id,int direction){
+        var bill=bills.get(id);
+        if(bill==null||!bill.owner.equals(owner)||(direction!=-1&&direction!=1))return false;
+        var queue=bills.values().stream().filter(b->b.owner.equals(owner)&&b.station.equals(bill.station)).toList();
+        int index=queue.indexOf(bill),target=index+direction;
+        if(target<0||target>=queue.size())return false;
+        long other=queue.get(target).id;
+        var reordered=new LinkedHashMap<Long,Bill>();
+        for(var entry:bills.entrySet()){
+            long key=entry.getKey();
+            if(key==id)reordered.put(other,bills.get(other));
+            else if(key==other)reordered.put(id,bill);
+            else reordered.put(key,entry.getValue());
+        }
+        bills.clear();bills.putAll(reordered);setDirty();return true;
     }
     @Override public CompoundTag save(CompoundTag root){
         root.putLong("Next",nextId);var fs=new ListTag();var bs=new ListTag();

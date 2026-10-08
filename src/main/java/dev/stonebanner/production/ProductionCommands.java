@@ -49,7 +49,23 @@ public final class ProductionCommands {
             var p=c.getSource().getPlayerOrException();if(!p.isAlive()||p.isSpectator()||!ProductionData.forLevel(p.serverLevel()).edit(p.getUUID(),LongArgumentType.getLong(c,"id"),action))return reject(c.getSource());
             ProductionService.reconcile(p.serverLevel());c.getSource().sendSuccess(()->Component.translatable("production.stonebanner.updated"),false);return 1;
         })));
+        root.then(Commands.literal("update").then(Commands.argument("id",LongArgumentType.longArg(1))
+                .then(Commands.argument("mode",StringArgumentType.word()).suggests((c,b)->SharedSuggestionProvider.suggest(new String[]{"make","maintain"},b))
+                .then(Commands.argument("amount",IntegerArgumentType.integer(1,4096)).executes(c->{
+                    var p=c.getSource().getPlayerOrException();
+                    ProductionData.Mode mode;try{mode=ProductionData.Mode.valueOf(StringArgumentType.getString(c,"mode").toUpperCase(Locale.ROOT));}catch(IllegalArgumentException ex){return reject(c.getSource());}
+                    if(!p.isAlive()||p.isSpectator()||!ProductionData.forLevel(p.serverLevel()).updateBill(p.getUUID(),LongArgumentType.getLong(c,"id"),mode,IntegerArgumentType.getInteger(c,"amount")))return reject(c.getSource());
+                    return updated(c.getSource(),p);
+                })))));
+        for(String action:new String[]{"up","down"})root.then(Commands.literal(action).then(Commands.argument("id",LongArgumentType.longArg(1)).executes(c->{
+            var p=c.getSource().getPlayerOrException();
+            if(!p.isAlive()||p.isSpectator()||!ProductionData.forLevel(p.serverLevel()).moveBill(p.getUUID(),LongArgumentType.getLong(c,"id"),action.equals("up")?-1:1))return reject(c.getSource());
+            return updated(c.getSource(),p);
+        })));
         e.getDispatcher().register(root);
+    }
+    private static int updated(CommandSourceStack source,ServerPlayer player){
+        ProductionService.reconcile(player.serverLevel());source.sendSuccess(()->Component.translatable("production.stonebanner.updated"),false);return 1;
     }
     public static boolean canConfigure(ServerPlayer p,BlockPos pos,int range){return p.isAlive()&&!p.isSpectator()&&p.serverLevel().hasChunkAt(pos)&&p.serverLevel().getWorldBorder().isWithinBounds(pos)&&pos.getY()>=p.level().getMinBuildHeight()&&pos.getY()<p.level().getMaxBuildHeight()&&p.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(pos))<=range*range;}
     private static int reject(CommandSourceStack source){source.sendFailure(Component.translatable("production.stonebanner.rejected"));return 0;}
