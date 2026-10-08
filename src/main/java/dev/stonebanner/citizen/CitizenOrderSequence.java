@@ -98,7 +98,7 @@ public final class CitizenOrderSequence {
         if (active.kind() == CitizenOrderQueue.Kind.WORK) {
             if (CitizenJobBoard.forLevel(level).job(activeJobId).isEmpty()) {
                 // Job cancellation by a designation change is not a successful mining order.
-                if (level.hasChunkAt(active.block()) && !level.getBlockState(active.block()).isAir()) {
+                if (!level.hasChunkAt(active.block()) || !level.getBlockState(active.block()).isAir()) {
                     abort("work_blocked");
                     return;
                 }
