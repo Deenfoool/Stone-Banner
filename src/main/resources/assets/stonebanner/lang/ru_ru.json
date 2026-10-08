@@ -680,5 +680,6 @@
   "hud.stonebanner.alert.blocked_route": "Нет доступного пути: %s",
   "hud.stonebanner.alert.lacking_materials": "Не хватает материалов: %s",
   "hud.stonebanner.context.place": "%s — установить блок",
-  "hud.stonebanner.context.no_control": "Нет прав на выбранных жителей"
+  "hud.stonebanner.context.no_control": "Нет прав на выбранных жителей",
+  "hud.stonebanner.context.move_walk": "%s — идти"
 }

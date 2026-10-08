@@ -135,10 +135,11 @@ public final class PlayerCommandController {
     public static boolean moving() { return !path.isEmpty() || swimTarget != null; }
     public static int queuedMoveCount() { return queuedMoves.size(); }
 
-    public static void queueMoveTo(BlockHitResult hit) {
+    /** Returns whether the local queue/path request was accepted, not whether the server completed it. */
+    public static boolean queueMoveTo(BlockHitResult hit) {
         Minecraft mc = Minecraft.getInstance();
         ensureWorld(mc);
-        if (mc.player == null || mc.level == null || !mc.player.isAlive()) return;
+        if (mc.player == null || mc.level == null || !mc.player.isAlive()) return false;
         BlockPos target=movementGoal(hit);
         boolean accepted = false;
         // Direct free-swimming and interaction commands are not mixed with ground waypoints.
@@ -151,6 +152,7 @@ public final class PlayerCommandController {
         }
         mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable(accepted
                 ? "message.stonebanner.hero_move_queued" : "message.stonebanner.hero_move_queue_rejected", queuedMoves.size()), true);
+        return accepted;
     }
     public static void approach(Vec3 point, BlockPos block, double reach) {
         var mc = Minecraft.getInstance(); ensureWorld(mc);

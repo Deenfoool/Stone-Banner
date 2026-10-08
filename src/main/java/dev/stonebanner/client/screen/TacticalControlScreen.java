@@ -70,15 +70,22 @@ public final class TacticalControlScreen extends Screen {
         for (int i = 0; i < groupGestures.length; i++)
             if (!InputBindings.held(ClientKeyMappings.RECALL_GROUP[i])) groupGestures[i].release();
         if(context(false)==InputContext.CONSTRUCTION || context(false)==InputContext.DESIGNATION){HeroInputController.cancel();return;}
-        dev.stonebanner.client.control.HeroInputController.tick(
-                WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
-                WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
+        boolean pointerOnUi = overUi(cursorX, cursorY);
+        if (pointerOnUi) {
+            WorldCursor.clearHover();
+            HeroInputController.tick(null, true, null);
+        } else {
+            HeroInputController.tick(
+                    WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), false,
+                    WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
+        }
     }
     @Override public void removed() {
         applyOrdersGesture(ordersGesture.interrupt(commands()));
         homeGesture.reset();
         toolBack.reset();
         ContextFeedbackController.reset();
+        WorldCursor.clearHover();
         for (var gesture : groupGestures) gesture.reset();
         PlayerCommandController.cancelPendingActions();
         dev.stonebanner.client.control.BlockPlacementPreview.reset();
@@ -112,6 +119,7 @@ public final class TacticalControlScreen extends Screen {
         cursorX=mouseX; cursorY=mouseY;
         boolean pointerOnUi = overUi(mouseX, mouseY);
         hoveredTarget = pointerOnUi ? Optional.empty() : WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+        if (pointerOnUi) WorldCursor.clearHover();
         long feedbackNow = net.minecraft.Util.getMillis();
         ContextFeedbackController.observe(hoveredTarget.orElse(null), mouseX, mouseY,
                 pointerOnUi || selecting || dev.stonebanner.client.camera.RpgCameraController.viewObstructed(), feedbackNow);
@@ -333,7 +341,8 @@ public final class TacticalControlScreen extends Screen {
                                 ? secondary : primary);
         }
         if (dev.stonebanner.config.ClientConfig.controlMode()==dev.stonebanner.control.ControlMode.HYBRID)
-            return Component.translatable("hud.stonebanner.context.move", primary);
+            return Component.translatable(dev.stonebanner.config.ClientConfig.DOUBLE_CLICK_RUN.get()
+                    ? "hud.stonebanner.context.move" : "hud.stonebanner.context.move_walk", primary);
         var stack = minecraft.player.getMainHandItem();
         if (stack.getItem() instanceof net.minecraft.world.item.BlockItem)
             return Component.translatable("hud.stonebanner.context.place", secondary);
@@ -1017,8 +1026,8 @@ public final class TacticalControlScreen extends Screen {
                 HeroInputController.cancel();
                 if(ground instanceof BlockHitResult b) {
                     if(action==ActionResolver.Action.QUEUE_MOVE) {
-                        PlayerCommandController.queueMoveTo(b);
-                        feedback(b, ContextFeedbackController.Kind.ORDER);
+                        boolean queued = PlayerCommandController.queueMoveTo(b);
+                        feedback(b, queued ? ContextFeedbackController.Kind.ORDER : ContextFeedbackController.Kind.DENIED);
                     }
                     else {
                         boolean plainGround=hit instanceof BlockHitResult h && !PlayerCommandController.isInteractiveBlock(h.getBlockPos());

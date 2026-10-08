@@ -101,6 +101,12 @@ public final class WorldCursor {
         return Optional.ofNullable(hoveredLocation);
     }
 
+    /** The pointer has entered UI or a modal screen; do not keep an old world highlight. */
+    public static void clearHover() {
+        hoveredEntityId = null;
+        hoveredLocation = null;
+    }
+
     private static boolean isSelectable(Entity entity, Entity player) {
         return entity != player && !entity.isSpectator() && entity.isAlive() && entity.isPickable();
     }
