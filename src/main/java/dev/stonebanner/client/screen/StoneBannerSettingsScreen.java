@@ -3,6 +3,8 @@ package dev.stonebanner.client.screen;
 import dev.stonebanner.client.ClientRuntime;
 import dev.stonebanner.config.ClientConfig;
 import dev.stonebanner.control.ControlMode;
+import dev.stonebanner.control.SettingPresets;
+import dev.stonebanner.client.camera.RpgCameraController;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -144,25 +146,17 @@ public final class StoneBannerSettingsScreen extends Screen {
     private void cycleInt(int x, int y, int w, int step, int index, String key,
                           ForgeConfigSpec.IntValue config, int[] values) {
         option(x, y, w, step, index, key, () -> Component.literal(Integer.toString(config.get())),
-                () -> config.set(values[nextIndex(values, config.get())]));
+                () -> config.set(values[SettingPresets.nextIndex(values, config.get())]));
     }
 
     private void cycleDouble(int x, int y, int w, int step, int index, String key,
                              ForgeConfigSpec.DoubleValue config, double[] values) {
         option(x, y, w, step, index, key,
                 () -> Component.literal(String.format(java.util.Locale.ROOT, "%.2f", config.get())),
-                () -> config.set(values[nextIndex(values, config.get())]));
-    }
-
-    /** Advance to next preset without replacing legacy custom TOML values until clicked. */
-    static int nextIndex(int[] values, int current) {
-        for (int i = 0; i < values.length; i++) if (values[i] > current) return i;
-        return 0;
-    }
-
-    static int nextIndex(double[] values, double current) {
-        for (int i = 0; i < values.length; i++) if (values[i] > current + 0.00001) return i;
-        return 0;
+                () -> {
+                    config.set(values[SettingPresets.nextIndex(values, config.get())]);
+                    if (config == ClientConfig.CAMERA_DISTANCE) RpgCameraController.applyPreferredDistance();
+                });
     }
 
     @Override

@@ -421,6 +421,13 @@ public final class RpgCameraController {
                 && minecraft.options.getCameraType() == CameraType.THIRD_PERSON_BACK;
     }
 
+    /** Apply a preferred distance immediately; no world reload or camera reset required. */
+    public static void applyPreferredDistance() {
+        targetDistance = ClientConfig.CAMERA_DISTANCE.get();
+        if (Double.isNaN(currentDistance)) currentDistance = targetDistance;
+        saveCountdown = 0;
+    }
+
     private static void ensureInitialized() {
         if (Double.isNaN(targetDistance)) {
             targetDistance = ClientConfig.CAMERA_DISTANCE.get();
