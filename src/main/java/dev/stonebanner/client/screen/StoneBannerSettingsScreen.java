@@ -36,8 +36,10 @@ public final class StoneBannerSettingsScreen extends Screen {
         int tabStart = Math.max(6, (width - (tabWidth * 3 + gap * 2)) / 2);
         for (Page choice : Page.values()) {
             int x = tabStart + choice.ordinal() * (tabWidth + gap);
-            addRenderableWidget(Button.builder(Component.translatable(
-                    "settings.stonebanner.tab." + choice.name().toLowerCase(java.util.Locale.ROOT)),
+            Component tabName = Component.translatable(
+                    "settings.stonebanner.tab." + choice.name().toLowerCase(java.util.Locale.ROOT));
+            addRenderableWidget(Button.builder(page == choice
+                    ? Component.literal("▶ ").append(tabName) : tabName,
                     button -> { page = choice; rebuildWidgets(); })
                     .bounds(x, 29, tabWidth, 20).build());
         }

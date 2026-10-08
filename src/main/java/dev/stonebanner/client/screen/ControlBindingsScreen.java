@@ -24,8 +24,7 @@ public final class ControlBindingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("controls.stonebanner.edit"),b->minecraft.setScreen(
                 new net.minecraft.client.gui.screens.controls.KeyBindsScreen(this,minecraft.options)))
                 .bounds(width/2-154,height-28,150,20).build());
-        addRenderableWidget(Button.builder(Component.translatable("settings.stonebanner.title"),
-                b -> minecraft.setScreen(new StoneBannerSettingsScreen(this)))
+        addRenderableWidget(Button.builder(Component.translatable("gui.back"),b -> onClose())
                 .bounds(width/2+4,height-28,150,20).build());
     }
     @Override public void onClose(){minecraft.setScreen(parent);}
