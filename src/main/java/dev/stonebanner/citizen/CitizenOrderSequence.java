@@ -26,6 +26,7 @@ public final class CitizenOrderSequence {
     public CitizenOrderSequence(HumanNpcEntity owner) { this.owner = owner; }
     public boolean starting() { return starting; }
     public int pendingCount() { return pending.size(); }
+    public boolean hasOrders() { return active != null || !pending.isEmpty(); }
     public String failure() { return failure; }
 
     public void clear() {
