@@ -40,11 +40,12 @@ public final class TacticalControlScreen extends Screen {
     }
     @Override protected void init() { cursorX=width*.5;cursorY=height*.5; }
     @Override public void tick() {
+        if(dev.stonebanner.client.control.ConstructionPreviewController.active())return;
         dev.stonebanner.client.control.HeroInputController.tick(
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height).orElse(null), overUi(cursorX,cursorY),
                 WorldCursor.pick(minecraft,cursorX,cursorY,width,height,true).orElse(null));
     }
-    @Override public void removed() { dev.stonebanner.client.control.HeroInputController.cancel(); }
+    @Override public void removed() { dev.stonebanner.client.control.HeroInputController.cancel();dev.stonebanner.client.control.ConstructionPreviewController.cancel(); }
     private Optional<HitResult> hoveredTarget = Optional.empty();
 
     public HitResult hoveredHit(){return hoveredTarget.orElse(null);}
@@ -66,6 +67,7 @@ public final class TacticalControlScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         cursorX=mouseX; cursorY=mouseY;
         hoveredTarget = overUi(mouseX,mouseY)?Optional.empty():WorldCursor.pick(minecraft, mouseX, mouseY, width, height);
+        dev.stonebanner.client.control.ConstructionPreviewController.update(hoveredTarget.orElse(null));
         if (DesignationController.isActive() && DesignationController.hasSelectionInProgress()) {
             hoveredTarget.filter(BlockHitResult.class::isInstance)
                     .map(BlockHitResult.class::cast)
@@ -79,6 +81,10 @@ public final class TacticalControlScreen extends Screen {
 
         StoneBannerHudRenderer.render(graphics, minecraft, width, height);
         graphics.drawString(font, font.plainSubstrByWidth(Component.translatable(commands()?"hud.stonebanner.commands.controls":"hud.stonebanner.hero.controls").getString(), width - 16), 8, 96, 0xFFD8D2C8);
+        if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
+            graphics.drawString(font,Component.translatable("construction.stonebanner.ui.preview"),8,110,0xFFE7C46A);
+            graphics.drawString(font,Component.translatable("construction.stonebanner.status."+dev.stonebanner.client.control.ConstructionPreviewController.status()),8,122,0xFFD8D2C8);
+        }
         ExcavationLadderStatusHud.render(graphics, minecraft, width);
 
         OreDiscoveryHud.render(graphics, minecraft, width, height);
@@ -228,6 +234,14 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
+            if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT)dev.stonebanner.client.control.ConstructionPreviewController.cancel();
+            else if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&!overUi(mouseX,mouseY)){
+                dev.stonebanner.client.control.ConstructionPreviewController.update(WorldCursor.pick(minecraft,mouseX,mouseY,width,height).orElse(null));
+                dev.stonebanner.client.control.ConstructionPreviewController.confirm();
+            }
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && RpgCameraController.hasFocus()) {
             RpgCameraController.clearFocus();
         }
@@ -246,7 +260,7 @@ public final class TacticalControlScreen extends Screen {
                     return true;
                 }
                 case TAB_BUILD -> {
-                    selectManagementTab(0);
+                    selectManagementTab(0);ConstructionScreen.requestOpen();
                     return true;
                 }
                 case TAB_ORDERS -> {
@@ -506,6 +520,12 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if(dev.stonebanner.client.control.ConstructionPreviewController.active()){
+            if(keyCode==GLFW.GLFW_KEY_R)dev.stonebanner.client.control.ConstructionPreviewController.rotate();
+            else if(keyCode==GLFW.GLFW_KEY_ESCAPE)dev.stonebanner.client.control.ConstructionPreviewController.cancel();
+            return true;
+        }
+        if(ClientKeyMappings.BUILDING.matches(keyCode,scanCode)){ConstructionScreen.requestOpen();return true;}
         // Numbers remain hotbar keys for the hero, but address control groups in orders mode.
         if (commands() && keyCode >= GLFW.GLFW_KEY_1 && keyCode <= GLFW.GLFW_KEY_9) {
             selecting = false;

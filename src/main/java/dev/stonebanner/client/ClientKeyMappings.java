@@ -13,6 +13,7 @@ import org.lwjgl.glfw.GLFW;
 @Mod.EventBusSubscriber(modid = StoneAndBanner.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientKeyMappings {
     public static final String CATEGORY = "key.categories.stonebanner";
+    public static final KeyMapping BUILDING=new KeyMapping("key.stonebanner.building",KeyConflictContext.IN_GAME,InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_B,CATEGORY);
     public static final KeyMapping PRODUCTION=new KeyMapping("key.stonebanner.production",KeyConflictContext.IN_GAME,InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_K,CATEGORY);
 
     public static final KeyMapping CYCLE_CONTROL_MODE = new KeyMapping(
@@ -54,7 +55,7 @@ public final class ClientKeyMappings {
 
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        event.register(PRODUCTION);
+        event.register(PRODUCTION);event.register(BUILDING);
         event.register(ORE_JOURNAL);
         event.register(DEBUG_OVERLAY);
         event.register(FOCUS_SELECTED);

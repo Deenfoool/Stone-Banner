@@ -50,6 +50,7 @@ public final class CitizenWorkController {
 
     private final HumanNpcEntity owner;
     private final dev.stonebanner.production.CitizenProductionController production;
+    private final dev.stonebanner.construction.CitizenConstructionController construction;
     private CitizenJob currentJob;
     private WorkPhase phase = WorkPhase.IDLE;
     private int acquireCooldown;
@@ -77,6 +78,7 @@ public final class CitizenWorkController {
     public CitizenWorkController(HumanNpcEntity owner) {
         this.owner = owner;
         production = new dev.stonebanner.production.CitizenProductionController(owner);
+        construction = new dev.stonebanner.construction.CitizenConstructionController(owner);
     }
 
     public void tick() {
@@ -126,6 +128,18 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (isConstructionJob(serverLevel,currentJob)) {
+            var result=construction.tick(currentJob);
+            phase=construction.working()?WorkPhase.WORKING:WorkPhase.TRAVELLING;
+            if(result!=dev.stonebanner.construction.CitizenConstructionController.Result.RUNNING){
+                var why=construction.reason();
+                if(result==dev.stonebanner.construction.CitizenConstructionController.Result.COMPLETE)board.complete(currentJob.id(),owner.getUUID());
+                else board.release(currentJob.id(),owner.getUUID());
+                owner.commandController().stop();clearLocalState();acquireCooldown=40;
+                if(why!=WorkBlockReason.NONE)blocked(why);
+            }
+            return;
+        }
         if (isProductionJob(currentJob)) {
             var result=production.tick(currentJob);
             phase=production.working()?WorkPhase.WORKING:WorkPhase.TRAVELLING;
@@ -188,7 +202,7 @@ public final class CitizenWorkController {
             if (!isJobActionable(level, job)) {
                 continue;
             }
-            if (!isLadderBuildJob(level, job) && findJobApproachPosition(level, job).isEmpty()) {
+            if (!isConstructionJob(level,job) && !isLadderBuildJob(level, job) && findJobApproachPosition(level, job).isEmpty()) {
                 blocked(WorkBlockReason.NO_PATH);
                 continue;
             }
@@ -205,6 +219,9 @@ public final class CitizenWorkController {
             return;
         }
 
+        if (isConstructionJob(level,job)) {
+            clearBlockReason();currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return;
+        }
         if (isLadderBuildJob(level, job)) {
             if (!beginLadderBuild(level, job)) {
                 board.release(job.id(), owner.getUUID());
@@ -236,6 +253,12 @@ public final class CitizenWorkController {
             if (CitizenJobBoard.forLevel(level).touch(job.id(), owner.getUUID(), level.getGameTime())) return true;
             interrupt(true);
             return false;
+        }
+        if(isConstructionJob(level,job)){
+            var board=CitizenJobBoard.forLevel(level);
+            if(!board.reserve(job.id(),owner.getUUID(),level.getGameTime()))return false;
+            owner.sleepController().cancel(true);owner.foodController().cancel(true);interrupt(false);
+            owner.commandController().stop();clearBlockReason();currentJob=job;phase=WorkPhase.TRAVELLING;workProgress=0;return true;
         }
         var approach=findJobApproachPosition(level,job).orElse(null);
         if(approach==null){blocked(WorkBlockReason.NO_PATH);return false;}
@@ -801,6 +824,7 @@ public final class CitizenWorkController {
     }
 
     private boolean isJobActionable(ServerLevel level, CitizenJob job) {
+        if(isConstructionJob(level,job))return dev.stonebanner.construction.ConstructionService.allowed(owner,job);
         if (isProductionJob(job)) return dev.stonebanner.production.ProductionService.allowed(owner,job);
         if (job.workType() == WorkType.HAULING) {
             var drops = DroppedItemHauling.stacksAt(level, job.target());
@@ -834,6 +858,7 @@ public final class CitizenWorkController {
     }
 
     private boolean isJobStillValid(ServerLevel level, CitizenJob job) {
+        if(isConstructionJob(level,job))return dev.stonebanner.construction.ConstructionService.valid(level,job);
         if (isProductionJob(job)) return dev.stonebanner.production.ProductionService.valid(level,job);
         if (job.workType() == WorkType.HAULING) {
             return DroppedItemHauling.hasDroppedItems(level, job.target());
@@ -852,6 +877,9 @@ public final class CitizenWorkController {
         return WorkTargetRules.isValid(job.workType(), level, job.target());
     }
 
+    private boolean isConstructionJob(ServerLevel level,CitizenJob job){
+        return job!=null&&job.workType()==WorkType.BUILDING&&dev.stonebanner.construction.ConstructionData.forLevel(level).at(job.target())!=null;
+    }
     private boolean isLadderBuildJob(ServerLevel level, CitizenJob job) {
         return job != null
                 && job.workType() == WorkType.BUILDING
@@ -882,7 +910,7 @@ public final class CitizenWorkController {
     }
 
     private void clearLocalState() {
-        production.clear();
+        production.clear();construction.clear();
         currentJob = null;
         phase = WorkPhase.IDLE;
         workProgress = 0.0D;

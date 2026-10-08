@@ -13,6 +13,7 @@ import net.minecraft.client.Minecraft;
 /** Called only inside DistExecutor's client branch; common packet bytecode never constructs screens. */
 public final class ClientScreenPacketHandlers {
     private ClientScreenPacketHandlers() {}
+    public static void construction(dev.stonebanner.network.packet.ConstructionSnapshotPacket packet){dev.stonebanner.client.screen.ConstructionScreen.open(packet);}
     public static void storage(dev.stonebanner.network.packet.StorageManagementSnapshotPacket packet){dev.stonebanner.client.screen.StorageManagementScreen.open(packet);}
     public static void production(dev.stonebanner.network.packet.ProductionSnapshotPacket packet){dev.stonebanner.client.screen.ProductionScreen.open(packet);}
 

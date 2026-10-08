@@ -33,7 +33,8 @@ public final class ClientRuntime {
             return;
         }
 
-        OreDiscoveryState.checkWorld();
+        OreDiscoveryState.checkWorld();dev.stonebanner.client.control.ConstructionPreviewController.checkWorld();
+        while(ClientKeyMappings.BUILDING.consumeClick())if(minecraft.screen==null)dev.stonebanner.client.screen.ConstructionScreen.requestOpen();
         while(ClientKeyMappings.PRODUCTION.consumeClick())if(minecraft.getConnection()!=null)minecraft.getConnection().sendCommand("sbproduction menu");
         if (!minecraft.player.isAlive()) PlayerCommandController.stop();
         while (ClientKeyMappings.DEBUG_OVERLAY.consumeClick()) dev.stonebanner.client.hud.DebugOverlay.toggle();
@@ -79,7 +80,7 @@ public final class ClientRuntime {
     }
 
     private static void synchronizeTacticalScreen(Minecraft minecraft) {
-        boolean tactical = ClientConfig.ENFORCE_THIRD_PERSON.get();
+        boolean tactical = ClientConfig.ENFORCE_THIRD_PERSON.get()||dev.stonebanner.client.control.ConstructionPreviewController.active();
         if (tactical && minecraft.screen == null) {
             minecraft.setScreen(new TacticalControlScreen());
         } else if (!tactical && minecraft.screen instanceof TacticalControlScreen) {

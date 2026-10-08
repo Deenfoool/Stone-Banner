@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Catches client classes in packet constant pools before dedicated-server verification resolves them. */
 class ScreenPacketIsolationTest {
     @Test void commonScreenPacketsDoNotReferenceMinecraftClientClasses() throws Exception {
-        for (String packet : new String[]{"OpenTacticalNpcPacket", "GeologySnapshotPacket", "BannerCommunitySnapshotPacket", "VillageJournalPacket", "VillageRecruitmentPacket", "CitizenInventorySnapshotPacket", "StorageManagementSnapshotPacket"}) {
+        for (String packet : new String[]{"OpenTacticalNpcPacket", "GeologySnapshotPacket", "BannerCommunitySnapshotPacket", "VillageJournalPacket", "VillageRecruitmentPacket", "CitizenInventorySnapshotPacket", "StorageManagementSnapshotPacket", "ConstructionSnapshotPacket"}) {
             String resource = "dev/stonebanner/network/packet/" + packet + ".class";
             try (var stream = getClass().getClassLoader().getResourceAsStream(resource)) {
                 assertNotNull(stream, resource);
