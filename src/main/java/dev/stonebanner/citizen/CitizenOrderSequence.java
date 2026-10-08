@@ -67,6 +67,9 @@ public final class CitizenOrderSequence {
 
     public void tick() {
         if (!(owner.level() instanceof ServerLevel level) || !owner.isAlive()) { clear(); return; }
+        // This sequencer is optional. Never stop autonomous work/food/sleep for an NPC
+        // without an explicitly queued player order.
+        if (!hasOrders()) return;
         if (owner.citizenData().health().needsRecovery()
                 || !owner.citizenData().health().canMoveIndependently()
                 || owner.citizenData().returningToVillage()) { abort("preempted"); return; }
