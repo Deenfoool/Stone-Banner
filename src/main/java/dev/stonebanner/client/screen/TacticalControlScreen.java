@@ -82,6 +82,10 @@ public final class TacticalControlScreen extends Screen {
         dev.stonebanner.client.control.BlockPlacementPreview.reset();
         HeroInputController.resetGroundClicks();
         HeroInputController.cancel();
+        // Inventory, pause and other full-screen GUIs must not leave invisible area tools armed.
+        DesignationController.deactivate();
+        TunnelExtensionController.deactivate();
+        StoneBannerHudRenderer.selectOrdersCategory(StoneBannerHudRenderer.OrdersCategory.ROOT);
         dev.stonebanner.client.control.ConstructionPreviewController.cancel();
     }
     private Optional<HitResult> hoveredTarget = Optional.empty();
