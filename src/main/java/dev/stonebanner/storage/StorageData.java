@@ -2,6 +2,8 @@ package dev.stonebanner.storage;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
@@ -16,12 +18,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collection;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 /**
  * Persistent registry of real Minecraft containers used as Stone & Banner storage.
  *
- * <p>The registry stores positions only. Item counts always come from the live container slots, so storage
+ * <p>The registry stores positions and management authority. Item counts come from live container slots, so storage
  * never becomes a second virtual inventory or a global resource number.</p>
  */
 public final class StorageData extends SavedData {
@@ -30,6 +36,8 @@ public final class StorageData extends SavedData {
     private static final int MAX_REGISTERED_CONTAINERS = 4096;
 
     private final LinkedHashSet<Long> containerPositions = new LinkedHashSet<>();
+    // Management authority only. Existing storage remains a shared physical NPC supply network.
+    private final Map<Long, UUID> managers = new HashMap<>();
 
     public static StorageData forLevel(ServerLevel level) {
         Objects.requireNonNull(level, "level");
@@ -55,7 +63,37 @@ public final class StorageData extends SavedData {
         if (pos == null || !containerPositions.remove(pos.asLong())) {
             return false;
         }
+        managers.remove(pos.asLong());
         setDirty();
+        return true;
+    }
+
+    public boolean isRegistered(BlockPos pos) { return pos != null && containerPositions.contains(pos.asLong()); }
+    public Optional<UUID> manager(BlockPos pos) { return pos == null ? Optional.empty() : Optional.ofNullable(managers.get(pos.asLong())); }
+
+    /** Old administrative registrations have no manager and require operator authority to change. */
+    public boolean canManage(Collection<BlockPos> positions, UUID player, boolean operator) {
+        return player != null && positions != null && positions.stream().allMatch(pos -> pos != null
+                && (!isRegistered(pos) || operator || player.equals(managers.get(pos.asLong()))));
+    }
+
+    /** Validate the whole physical container group before adding either half of a double chest. */
+    public RegisterResult registerManaged(ServerLevel level, Collection<BlockPos> positions, UUID player, boolean operator) {
+        if (level == null || positions == null || positions.isEmpty() || positions.size() > 2 || player == null
+                || positions.stream().anyMatch(pos -> pos == null || !level.hasChunkAt(pos) || liveContainer(level,pos).isEmpty()))
+            return RegisterResult.NOT_A_CONTAINER;
+        var distinct = positions.stream().distinct().toList();
+        if (!canManage(distinct, player, operator)) return RegisterResult.FORBIDDEN;
+        long additions = distinct.stream().filter(pos -> !isRegistered(pos)).count();
+        if (containerPositions.size() + additions > MAX_REGISTERED_CONTAINERS) return RegisterResult.LIMIT_REACHED;
+        if (additions == 0) return RegisterResult.ALREADY_REGISTERED;
+        for (var pos : distinct) if (containerPositions.add(pos.asLong())) managers.put(pos.asLong(), player);
+        setDirty();return RegisterResult.ADDED;
+    }
+
+    public boolean unregisterManaged(Collection<BlockPos> positions, UUID player, boolean operator) {
+        if (positions == null || positions.isEmpty() || positions.size() > 2 || !canManage(positions,player,operator)) return false;
+        for (var pos : positions) unregister(pos);
         return true;
     }
 
@@ -164,6 +202,7 @@ public final class StorageData extends SavedData {
         Container container = liveContainer(level, pos).orElse(null);
         if (container == null) {
             containerPositions.remove(pos.asLong());
+            managers.remove(pos.asLong());
             setDirty();
             return Extraction.EMPTY;
         }
@@ -250,6 +289,7 @@ public final class StorageData extends SavedData {
         Container container = liveContainer(level, pos).orElse(null);
         if (container == null) {
             containerPositions.remove(pos.asLong());
+            managers.remove(pos.asLong());
             setDirty();
             return offered.copy();
         }
@@ -300,6 +340,7 @@ public final class StorageData extends SavedData {
         }
         if (!stale.isEmpty()) {
             containerPositions.removeAll(stale);
+            stale.forEach(managers::remove);
             setDirty();
         }
         if (origin != null) {
@@ -378,6 +419,11 @@ public final class StorageData extends SavedData {
     @Override
     public CompoundTag save(CompoundTag root) {
         root.putLongArray(TAG_CONTAINERS, containerPositions.stream().mapToLong(Long::longValue).toArray());
+        var entries = new ListTag();
+        managers.forEach((pos, owner) -> { if (containerPositions.contains(pos)) {
+            var tag = new CompoundTag();tag.putLong("Pos",pos);tag.putUUID("Player",owner);entries.add(tag);
+        }});
+        root.put("Managers",entries);
         return root;
     }
 
@@ -389,6 +435,12 @@ public final class StorageData extends SavedData {
                 break;
             }
         }
+        var entries = root.getList("Managers",Tag.TAG_COMPOUND);
+        for (int i=0;i<entries.size() && i<MAX_REGISTERED_CONTAINERS;i++) {
+            var tag=entries.getCompound(i);long pos=tag.getLong("Pos");
+            if (tag.contains("Pos",Tag.TAG_LONG) && tag.hasUUID("Player") && data.containerPositions.contains(pos))
+                data.managers.putIfAbsent(pos,tag.getUUID("Player"));
+        }
         return data;
     }
 
@@ -396,7 +448,8 @@ public final class StorageData extends SavedData {
         ADDED,
         ALREADY_REGISTERED,
         NOT_A_CONTAINER,
-        LIMIT_REACHED
+        LIMIT_REACHED,
+        FORBIDDEN
     }
 
     public record Extraction(List<ItemStack> stacks, List<BlockPos> sourcePositions) {

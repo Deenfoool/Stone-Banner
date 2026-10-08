@@ -28,6 +28,14 @@ public final class ClientScreenEvents {
     }
 
     @SubscribeEvent
+    public static void storageHint(net.minecraftforge.event.entity.player.ItemTooltipEvent event) {
+        if(event.getItemStack().getItem() instanceof net.minecraft.world.item.BlockItem item
+                && (item.getBlock() instanceof net.minecraft.world.level.block.ChestBlock
+                    || item.getBlock() instanceof net.minecraft.world.level.block.BarrelBlock))
+            event.getToolTip().add(Component.translatable("storage.stonebanner.ui.open_hint").withStyle(net.minecraft.ChatFormatting.GRAY));
+    }
+
+    @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         if (!(event.getScreen() instanceof TitleScreen titleScreen)) {
             return;

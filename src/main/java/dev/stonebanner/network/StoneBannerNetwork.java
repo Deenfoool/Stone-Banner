@@ -34,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "20";
+    private static final String PROTOCOL_VERSION = "21";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -54,6 +54,12 @@ public final class StoneBannerNetwork {
             return;
         }
         registered = true;
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.StorageManagementActionPacket.class,
+                dev.stonebanner.network.packet.StorageManagementActionPacket::encode,dev.stonebanner.network.packet.StorageManagementActionPacket::decode,
+                dev.stonebanner.network.packet.StorageManagementActionPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.StorageManagementSnapshotPacket.class,
+                dev.stonebanner.network.packet.StorageManagementSnapshotPacket::encode,dev.stonebanner.network.packet.StorageManagementSnapshotPacket::decode,
+                dev.stonebanner.network.packet.StorageManagementSnapshotPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(nextPacketId++,dev.stonebanner.network.packet.ProductionSnapshotPacket.class,
             dev.stonebanner.network.packet.ProductionSnapshotPacket::encode,dev.stonebanner.network.packet.ProductionSnapshotPacket::decode,
             dev.stonebanner.network.packet.ProductionSnapshotPacket::handle,java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
@@ -169,6 +175,12 @@ public final class StoneBannerNetwork {
     }
 
     public static void sendTacticalAction(TacticalActionPacket packet) { CHANNEL.sendToServer(packet); }
+    public static void sendStorageManagementAction(ResourceLocation dimension,BlockPos target,dev.stonebanner.storage.StorageManagementService.Action action) {
+        CHANNEL.sendToServer(new dev.stonebanner.network.packet.StorageManagementActionPacket(dimension,target,action));
+    }
+    public static void sendStorageManagement(ServerPlayer player,dev.stonebanner.network.packet.StorageManagementSnapshotPacket snapshot) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(()->player),snapshot);
+    }
     public static void sendProduction(ServerPlayer player,boolean opening){CHANNEL.send(PacketDistributor.PLAYER.with(()->player),dev.stonebanner.network.packet.ProductionSnapshotPacket.forPlayer(player,opening));}
     public static void sendVillageJournal(ServerPlayer player,dev.stonebanner.network.packet.VillageJournalPacket packet) {
         CHANNEL.send(PacketDistributor.PLAYER.with(()->player),packet);

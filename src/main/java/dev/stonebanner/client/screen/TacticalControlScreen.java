@@ -386,6 +386,12 @@ public final class TacticalControlScreen extends Screen {
 
         cursorX=mouseX; cursorY=mouseY;
         hoveredTarget=WorldCursor.pick(minecraft,mouseX,mouseY,width,height);
+        if(button==GLFW.GLFW_MOUSE_BUTTON_RIGHT && hasShiftDown() && minecraft.player!=null
+                && minecraft.player.getMainHandItem().isEmpty() && hoveredTarget.orElse(null) instanceof BlockHitResult storageHit
+                && dev.stonebanner.storage.StorageManagementService.supported(minecraft.level,storageHit.getBlockPos())) {
+            dev.stonebanner.client.control.HeroInputController.cancel();
+            PlayerCommandController.manageStorage(storageHit);return true;
+        }
         if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if(commands()) { selecting=true; selectionMoved=false; dragStartX=mouseX;dragStartY=mouseY; return true; }
             if (hasAltDown() && dev.stonebanner.config.ClientConfig.controlMode() == dev.stonebanner.control.ControlMode.HYBRID) {

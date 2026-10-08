@@ -56,6 +56,7 @@ public final class PlayerCommandController {
     private static PendingAction pendingAction = PendingAction.NONE;
     private static BlockPos attemptedControlledDoor;
     private static BlockHitResult pendingBlock;
+    private static boolean pendingStorage;
     private static BlockPos actionGoal;
     private static Vec3 swimTarget;
     private static LocalPlayer commandPlayer;
@@ -123,10 +124,17 @@ public final class PlayerCommandController {
         issue(new ActorCommand.EntityAction(entity.getId(), ActorCommand.EntityActionType.ATTACK));
     }
     public static void interactBlock(BlockHitResult hit) {
+        interactBlock(hit,false);
+    }
+    public static void manageStorage(BlockHitResult hit) {
+        interactBlock(hit,true);
+    }
+    private static void interactBlock(BlockHitResult hit,boolean storage) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
         ensureWorld(mc); stopInternal();
         pendingBlock = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), false);
+        pendingStorage=storage;
         if (!executePendingBlock(mc.player)) createInteractionPath(hit.getLocation(), hit.getBlockPos(), mc.player.getBlockReach());
     }
     public static boolean isInteractiveBlock(BlockPos pos) {
@@ -175,6 +183,7 @@ public final class PlayerCommandController {
 
         ensureWorld(minecraft);
         pendingBlock = null;
+        pendingStorage = false;
         if (command instanceof ActorCommand.MoveTo moveTo) {
             stopInternal();
             selectedEntityId = null;
@@ -217,6 +226,7 @@ public final class PlayerCommandController {
     private static void stopInternal() {
         queuedMoves.clear();
         pendingBlock = null;
+        pendingStorage = false;
         actionGoal = null; swimTarget = null;
         path.clear();
         destination = null;
@@ -451,8 +461,12 @@ public final class PlayerCommandController {
                 || player.getEyePosition().distanceToSqr(pendingBlock.getLocation()) > blockReach * blockReach
                 || !TacticalInteractionRules.visible(mc.level, player, pendingBlock.getLocation(), pendingBlock.getBlockPos())) return false;
         facePlayerTowardDirection(player, pendingBlock.getLocation().x-player.getX(), pendingBlock.getLocation().z-player.getZ());
-        sendAction(new TacticalActionPacket(TacticalActionPacket.Action.USE_BLOCK, -1, pendingBlock.getBlockPos(), pendingBlock.getDirection(), pendingBlock.getLocation()));
-        pendingBlock = null; clearPath(); status = CommandStatus.IDLE; resetProgressTracking(); return true;
+        if(pendingStorage) {
+            if(player instanceof LocalPlayer local) local.connection.send(new ServerboundSetCarriedItemPacket(local.getInventory().selected));
+            StoneBannerNetwork.sendStorageManagementAction(mc.level.dimension().location(),pendingBlock.getBlockPos(),dev.stonebanner.storage.StorageManagementService.Action.OPEN);
+        }
+        else sendAction(new TacticalActionPacket(TacticalActionPacket.Action.USE_BLOCK, -1, pendingBlock.getBlockPos(), pendingBlock.getDirection(), pendingBlock.getLocation()));
+        pendingBlock = null; pendingStorage=false; clearPath(); status = CommandStatus.IDLE; resetProgressTracking(); return true;
     }
     private static void sendAction(TacticalActionPacket packet) {
         var mc = Minecraft.getInstance(); if (mc.player == null) return;

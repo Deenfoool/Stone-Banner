@@ -21,11 +21,13 @@ The product direction and development stages are documented in [ROADMAP.md](ROAD
 
 ## Current prototype
 
-Version: `0.1.0-alpha.35`.
+Version: `0.1.0-alpha.36`.
 
-Production orders can now change quantity/mode without losing completed output, and move up/down within their workstation queue. The order and settings persist across saves; an already started operation finishes before the next order is selected. New alpha.35 changes await build and gameplay verification.
+NPC storage now works without operator commands: Shift + right-click a chest/barrel with an empty main hand, then choose Use as storage. Double chests connect both halves; disconnecting preserves all contents. Registration managers persist, foreign/legacy registrations remain protected, and existing NPC supply/delivery and camp readiness use the same registry. Normal container interaction is preserved. See [STORAGE.md](STORAGE.md).
 
-Fields and production are available with **K** or `/sbproduction menu`: four crops with physical hoe/seed fetching, tilling, optional bone meal, mature harvest, cargo delivery and replanting; persistent MAKE/MAINTAIN bills with actual shaped/shapeless 3×3 recipes, ingredients and recipe remainders. New carpenter/forge workbenches also support manual crafting. Orders wait for materials/output storage and honor NPC priorities/ownership. See [PRODUCTION.md](PRODUCTION.md) for setup and limitations. This does not yet include furnace/stonecutter/brewing/loom automation or animal farming. Current client/server protocol: **20**.
+Production orders can now change quantity/mode without losing completed output, and move up/down within their workstation queue. The order and settings persist across saves; an already started operation finishes before the next order is selected. Changes since alpha.34 await build and gameplay verification.
+
+Fields and production are available with **K** or `/sbproduction menu`: four crops with physical hoe/seed fetching, tilling, optional bone meal, mature harvest, cargo delivery and replanting; persistent MAKE/MAINTAIN bills with actual shaped/shapeless 3×3 recipes, ingredients and recipe remainders. New carpenter/forge workbenches also support manual crafting. Orders wait for materials/output storage and honor NPC priorities/ownership. See [PRODUCTION.md](PRODUCTION.md) for setup and limitations. This does not yet include furnace/stonecutter/brewing/loom automation or animal farming. Current client/server protocol: **21**.
 
 NPCs search for reachable free beds in loaded chunks within 32 blocks, reserve a bed while walking, and use Minecraft's actual sleeping pose/occupied state on arrival. Walking restores neither fatigue nor treatment progress. Wake-up, hunger, danger, manual orders, damage, removal and destroyed beds release the place; NBT reload revalidates it instead of keeping a phantom reservation. Without a reachable bed, ground rest remains available. Overview distinguishes approach, bed sleep and ground rest. See [SLEEP.md](SLEEP.md).
 
