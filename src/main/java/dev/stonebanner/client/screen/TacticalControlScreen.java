@@ -517,7 +517,8 @@ public final class TacticalControlScreen extends Screen {
                 != StoneBannerHudRenderer.HudAction.NONE) return true;
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (OreDiscoveryHud.click(mouseX, mouseY, width)) return true;
-            if (RpgCameraController.hasFocus()) { RpgCameraController.clearFocus(); return true; }
+            // HUD buttons must remain clickable even while the camera follows a target.
+            if (!pointerOnUi && RpgCameraController.hasFocus()) { RpgCameraController.clearFocus(); return true; }
             HumanNpcEntity selected = CitizenSelectionController.selected().orElse(null);
             StoneBannerHudRenderer.HudAction hudAction = StoneBannerHudRenderer.actionAt(
                     mouseX, mouseY, width, height, selected != null
