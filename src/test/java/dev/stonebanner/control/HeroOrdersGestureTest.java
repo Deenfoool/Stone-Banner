@@ -21,6 +21,13 @@ class HeroOrdersGestureTest {
         assertEquals(RETURN_HERO,g.release(350,220,true));
         assertEquals(NONE,g.release(351,220,false));
     }
+    @Test void disablingHoldTabRetainsOrdersOnRelease() {
+        var g = new HeroOrdersGesture();
+        assertEquals(ENTER_ORDERS, g.press(100, false));
+        assertEquals(NONE, g.release(2500, Integer.MAX_VALUE, true));
+        assertEquals(RETURN_HERO, g.press(2600, true));
+    }
+
     @Test void holdStartedInOrdersOnlyLeavesOnce() {
         var g = new HeroOrdersGesture();
         assertEquals(RETURN_HERO,g.press(100,true));
