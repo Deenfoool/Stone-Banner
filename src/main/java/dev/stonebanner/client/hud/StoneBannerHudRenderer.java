@@ -293,6 +293,12 @@ public final class StoneBannerHudRenderer {
         ordersCategory = category == null ? OrdersCategory.ROOT : category;
     }
 
+    /** A hotkey must never leave an active area tool behind a collapsed HUD. */
+    public static void revealOrders() {
+        bottomDockExpanded = true;
+        activeBottomTab = BottomTab.ORDERS;
+    }
+
     public static void showDesignationCategory(DesignationType type) {
         if (type == null) return;
         ordersCategory = switch (type) {
@@ -416,9 +422,10 @@ public final class StoneBannerHudRenderer {
         int busy = (int) group.stream().filter(npc -> npc.hudOrderPreview() != null
                 && !npc.hudOrderPreview().isEmpty()).count();
         int waiting = group.stream().mapToInt(HumanNpcEntity::hudQueuedMoves).sum();
-        int able = (int) group.stream().filter(npc -> npc.hudCanDirect(
-                Minecraft.getInstance().player == null ? java.util.UUID.randomUUID()
-                        : Minecraft.getInstance().player.getUUID())).count();
+        var player = Minecraft.getInstance().player;
+        var viewer = player == null ? null : player.getUUID();
+        int able = viewer == null ? 0
+                : (int) group.stream().filter(npc -> npc.hudCanDirect(viewer)).count();
         graphics.drawString(font, Component.translatable("hud.stonebanner.group.title", group.size()),
                 card.x() + 9, card.y() + 9, ACCENT);
         graphics.drawString(font, Component.translatable("hud.stonebanner.group.status", busy, waiting),

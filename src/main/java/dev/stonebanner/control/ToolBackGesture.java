@@ -8,14 +8,20 @@ public final class ToolBackGesture {
     public enum Result { NONE, REWIND, CLEAR, EXIT, CONSUME }
     private final DoublePressGesture doublePress = new DoublePressGesture();
     private long lastExit = -1;
+    private boolean held;
 
     public Result press(long now, int interval, boolean toolActive, boolean hasProgress) {
+        // Key autorepeat and duplicate mouse dispatches are not distinct physical clicks.
+        if (held) return Result.CONSUME;
+        held = true;
         if (!toolActive) {
             if (lastExit >= 0 && now >= lastExit && now - lastExit <= interval) {
-                reset();
+                lastExit = -1;
+                doublePress.reset();
                 return Result.CONSUME;
             }
-            reset();
+            lastExit = -1;
+            doublePress.reset();
             return Result.NONE;
         }
         lastExit = -1;
@@ -25,6 +31,6 @@ public final class ToolBackGesture {
         return Result.EXIT;
     }
 
-    public void release() { doublePress.release(); }
-    public void reset() { doublePress.reset(); lastExit = -1; }
+    public void release() { held = false; doublePress.release(); }
+    public void reset() { held = false; doublePress.reset(); lastExit = -1; }
 }

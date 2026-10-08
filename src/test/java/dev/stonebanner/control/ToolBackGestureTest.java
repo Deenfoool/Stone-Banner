@@ -25,7 +25,7 @@ class ToolBackGestureTest {
     @Test void physicalReleaseIsNecessaryAndTooLateClicksStaySingle() {
         var gesture = new ToolBackGesture();
         assertEquals(ToolBackGesture.Result.REWIND, gesture.press(1000, 300, true, true));
-        assertEquals(ToolBackGesture.Result.REWIND, gesture.press(1050, 300, true, true));
+        assertEquals(ToolBackGesture.Result.CONSUME, gesture.press(1050, 300, true, true));
         gesture.release();
         assertEquals(ToolBackGesture.Result.REWIND, gesture.press(1400, 300, true, true));
         gesture.reset();

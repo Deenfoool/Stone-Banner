@@ -554,7 +554,7 @@ public final class TacticalControlScreen extends Screen {
     private void activateDesignation(DesignationType type) {
         if (!commands()) dev.stonebanner.client.control.HeroInputController.toggleCommands();
         toolBack.reset();
-        StoneBannerHudRenderer.selectBottomTab(1);
+        StoneBannerHudRenderer.revealOrders();
         StoneBannerHudRenderer.showDesignationCategory(type);
         TunnelExtensionController.deactivate();
         DesignationController.activate(type);
@@ -565,7 +565,7 @@ public final class TacticalControlScreen extends Screen {
     private void activateTunnelExtension() {
         if (!commands()) dev.stonebanner.client.control.HeroInputController.toggleCommands();
         toolBack.reset();
-        StoneBannerHudRenderer.selectBottomTab(1);
+        StoneBannerHudRenderer.revealOrders();
         StoneBannerHudRenderer.selectOrdersCategory(StoneBannerHudRenderer.OrdersCategory.EARTH);
         DesignationController.deactivate();
         TunnelExtensionController.activate();
@@ -721,7 +721,7 @@ public final class TacticalControlScreen extends Screen {
         }
         if (InputBindings.matches(ClientKeyMappings.CYCLE_DESIGNATION_MODE,keyCode,scanCode)) {
             toolBack.reset();
-            StoneBannerHudRenderer.selectBottomTab(1);
+            StoneBannerHudRenderer.revealOrders();
             TunnelExtensionController.deactivate();
             if (!commands()) dev.stonebanner.client.control.HeroInputController.toggleCommands();
             DesignationController.cycleMode();
