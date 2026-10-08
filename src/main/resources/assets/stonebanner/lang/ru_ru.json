@@ -426,7 +426,7 @@
   "message.stonebanner.interaction_unreachable": "Нет доступного пути к цели взаимодействия.",
   "hud.stonebanner.hero.controls": "V: WASD / мышь · ПКМ: использовать · Space: вверх · Shift: вниз · Ctrl: бег · Tab: приказы",
   "hud.stonebanner.commands.controls": "Приказы · Ctrl+1–9: сохранить · Alt+1–9: группа · ЛКМ: выбор / рамка · Shift: добавить · ПКМ: приказ · Tab: герой",
-  "hud.stonebanner.selection_count": "Выбрано жителей: %s · точек в очереди: %s",
+  "hud.stonebanner.selection_count": "Выбрано жителей: %s · приказов в очереди: %s",
   "delivery.stonebanner.idle": "Ожидает доставки",
   "delivery.stonebanner.travelling": "Несёт на склад",
   "delivery.stonebanner.depositing": "Выгружает груз",
@@ -614,7 +614,7 @@
   "controls.stonebanner.conflict": "Конфликт: %s",
   "hud.stonebanner.wasd.bindings": "WASD · %s: удар/добыча · %s: использовать · %s: приказы (удержать — временно) · %s: профиль · %s: вверх · %s: вниз · %s: бег",
   "hud.stonebanner.mouse.bindings": "Mouse · %s: идти · %s: действие · %s: приказы (удержать — временно) · %s: профиль · %s: вверх · %s: вниз · %s: бег",
-  "hud.stonebanner.commands.bindings": "Приказы · %s: выбор/рамка · %s: приказ · %s: герой · Home: фокус · %s: профиль · 1–9: хотбар · Alt+номер: группа",
+  "hud.stonebanner.commands.bindings": "Приказы · %s: выделить · %s: приказ · %s: герой · %s: профиль · Alt+ПКМ: очередь · Alt+Shift+ПКМ: работа",
   "key.stonebanner.camera_rotate": "Вращать камеру (удерживать)",
   "key.stonebanner.alternative_use": "Меню альтернативных действий",
   "movement.stonebanner.reason.none": "Путь доступен",
@@ -640,5 +640,14 @@
   "screen.stonebanner.actions.attack_hint": "Только живая доступная для атаки цель. Граждане, жители, игроки и приручённые питомцы защищены.",
   "screen.stonebanner.actions.work_hint": "Сначала выберите граждан в Orders; работа доступна по брёвнам или руде. Назначьте клавишу меню альтернатив для вызова в Orders.",
   "key.stonebanner.rotate_placement_modifier": "Модификатор поворота размещения (с колесом)",
-  "hud.stonebanner.bow_charge": "Лук: %s%%"
+  "hud.stonebanner.bow_charge": "Лук: %s%%",
+  "message.stonebanner.group_focus_unavailable": "Нет доступных членов группы поблизости для фокуса камеры.",
+  "message.stonebanner.order_queued": "%s: приказ принят, ожидают %s.",
+  "message.stonebanner.order_rejected": "%s: нельзя добавить приказ (цель недоступна, нет обозначенной работы или очередь заполнена). Ожидают: %s.",
+  "message.stonebanner.order_interrupted": "%s: очередь остановлена — %s.",
+  "message.stonebanner.order_reason.preempted": "критические потребности или житель уходит",
+  "message.stonebanner.order_reason.no_path": "нет пути",
+  "message.stonebanner.order_reason.work_blocked": "работа заблокирована или не завершена вовремя",
+  "message.stonebanner.order_reason.target_unreachable": "цель потеряна, недоступна или истекло время",
+  "message.stonebanner.order_reason.invalid_target": "цель или работа уже недоступна"
 }
