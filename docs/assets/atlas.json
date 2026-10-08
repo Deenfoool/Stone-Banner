@@ -1,0 +1,115 @@
+{
+  "tileSize": 32,
+  "columns": 6,
+  "rows": 5,
+  "sprites": {
+    "grass": {
+      "col": 0,
+      "row": 0
+    },
+    "meadow": {
+      "col": 1,
+      "row": 0
+    },
+    "darkgrass": {
+      "col": 2,
+      "row": 0
+    },
+    "path": {
+      "col": 3,
+      "row": 0
+    },
+    "dirt": {
+      "col": 4,
+      "row": 0
+    },
+    "water": {
+      "col": 5,
+      "row": 0
+    },
+    "sand": {
+      "col": 0,
+      "row": 1
+    },
+    "stone": {
+      "col": 1,
+      "row": 1
+    },
+    "flowers": {
+      "col": 2,
+      "row": 1
+    },
+    "forest": {
+      "col": 3,
+      "row": 1
+    },
+    "farmland": {
+      "col": 4,
+      "row": 1
+    },
+    "snow": {
+      "col": 5,
+      "row": 1
+    },
+    "tree": {
+      "col": 0,
+      "row": 2
+    },
+    "pine": {
+      "col": 1,
+      "row": 2
+    },
+    "hall": {
+      "col": 2,
+      "row": 2
+    },
+    "storage": {
+      "col": 3,
+      "row": 2
+    },
+    "farm": {
+      "col": 4,
+      "row": 2
+    },
+    "cottage": {
+      "col": 5,
+      "row": 2
+    },
+    "rubble": {
+      "col": 0,
+      "row": 3
+    },
+    "boulder": {
+      "col": 1,
+      "row": 3
+    },
+    "builder": {
+      "col": 2,
+      "row": 3
+    },
+    "farmer": {
+      "col": 3,
+      "row": 3
+    },
+    "miner": {
+      "col": 4,
+      "row": 3
+    },
+    "logger": {
+      "col": 5,
+      "row": 3
+    },
+    "guard": {
+      "col": 0,
+      "row": 4
+    },
+    "geologist": {
+      "col": 1,
+      "row": 4
+    },
+    "hero": {
+      "col": 2,
+      "row": 4
+    }
+  }
+}
