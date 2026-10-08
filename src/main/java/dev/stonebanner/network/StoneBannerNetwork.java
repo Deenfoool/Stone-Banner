@@ -34,7 +34,7 @@ import java.util.List;
 
 /** Shared packet channel for Stone & Banner gameplay commands and compact/on-demand state snapshots. */
 public final class StoneBannerNetwork {
-    private static final String PROTOCOL_VERSION = "23";
+    private static final String PROTOCOL_VERSION = "24";
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(StoneAndBanner.MOD_ID, "main"),
@@ -223,11 +223,13 @@ public final class StoneBannerNetwork {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OreDiscoverySnapshotPacket(findings));
     }
 
-    public static void sendCitizenWorkTarget(int npcId,BlockPos target) {
-        CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenWorkTargetPacket(npcId,target));
+    public static void sendCitizenWorkTarget(int npcId,BlockPos target) { sendCitizenWorkTarget(npcId,target,false); }
+    public static void sendCitizenWorkTarget(int npcId,BlockPos target,boolean append) {
+        CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenWorkTargetPacket(npcId,target,append));
     }
-    public static void sendCitizenTarget(int npcId,int targetId) {
-        CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenTargetPacket(npcId,targetId));
+    public static void sendCitizenTarget(int npcId,int targetId) { sendCitizenTarget(npcId,targetId,false); }
+    public static void sendCitizenTarget(int npcId,int targetId,boolean append) {
+        CHANNEL.sendToServer(new dev.stonebanner.network.packet.CitizenTargetPacket(npcId,targetId,append));
     }
     public static void sendMoveCitizen(int entityId, BlockPos target) {
         CHANNEL.sendToServer(new MoveCitizenPacket(entityId, target));
