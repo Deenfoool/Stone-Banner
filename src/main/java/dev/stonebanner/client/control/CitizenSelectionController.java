@@ -90,11 +90,12 @@ public final class CitizenSelectionController {
                 "message.stonebanner.group_recalled", slot + 1, available.size(), groups.members(slot).size()), true);
         return available;
     }
-    public static boolean workSelected(BlockHitResult hit) {
+    public static boolean workSelected(BlockHitResult hit) { return workSelected(hit,false); }
+    public static boolean workSelected(BlockHitResult hit, boolean append) {
         var all=selectedAll();var mc=Minecraft.getInstance();if(all.isEmpty()||mc.level==null)return false;
         var state=mc.level.getBlockState(hit.getBlockPos());
         if(!state.is(net.minecraft.tags.BlockTags.LOGS)&&!state.is(net.minecraftforge.common.Tags.Blocks.ORES))return false;
-        for(var npc:all)StoneBannerNetwork.sendCitizenWorkTarget(npc.getId(),hit.getBlockPos());return true;
+        for(var npc:all)StoneBannerNetwork.sendCitizenWorkTarget(npc.getId(),hit.getBlockPos(),append);return true;
     }
     public static boolean moveSelected(BlockHitResult hit) {
         return moveSelected(hit, false);
@@ -108,8 +109,9 @@ public final class CitizenSelectionController {
         }
         return true;
     }
-    public static void commandTarget(Entity entity) {
-        for(var npc:selectedAll()) StoneBannerNetwork.sendCitizenTarget(npc.getId(),entity.getId());
+    public static void commandTarget(Entity entity) { commandTarget(entity,false); }
+    public static void commandTarget(Entity entity, boolean append) {
+        for(var npc:selectedAll()) StoneBannerNetwork.sendCitizenTarget(npc.getId(),entity.getId(),append);
     }
     public static boolean stopAndClear(){var all=selectedAll();for(var npc:all)StoneBannerNetwork.sendStopCitizen(npc.getId());clear();return !all.isEmpty();}
     public static void clear(){ids.clear();}
