@@ -52,10 +52,11 @@ public record MoveCitizenPacket(int entityId, BlockPos target, boolean append) {
         }
 
         if (packet.append) {
-            boolean accepted = npc.commandController().queueMove(packet.target);
+            boolean accepted = npc.orderSequence().enqueue(
+                    dev.stonebanner.command.CitizenOrderQueue.Entry.move(packet.target));
             sender.displayClientMessage(net.minecraft.network.chat.Component.translatable(accepted
                     ? "message.stonebanner.move_queued" : "message.stonebanner.move_queue_rejected",
-                    npc.getDisplayName(), npc.commandController().queuedMoveCount()), true);
+                    npc.getDisplayName(), npc.orderSequence().pendingCount()), true);
         } else npc.issueCommand(new ActorCommand.MoveTo(packet.target));
     }
 }
