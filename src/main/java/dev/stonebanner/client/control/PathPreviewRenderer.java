@@ -111,7 +111,14 @@ public final class PathPreviewRenderer {
                     1.0F
             );
         }
-        for (var selectedMember : CitizenSelectionController.selectedAll()) {
+        // Build the target lookup only once per frame, not once per selected NPC and waypoint.
+        var selectedMembers = CitizenSelectionController.selectedAll();
+        java.util.Map<java.util.UUID, Entity> loadedTargets = new java.util.HashMap<>();
+        if (!selectedMembers.isEmpty() && minecraft.level != null) {
+            for (var entity : minecraft.level.entitiesForRendering())
+                if (entity.isAlive()) loadedTargets.put(entity.getUUID(), entity);
+        }
+        for (var selectedMember : selectedMembers) {
             LevelRenderer.renderLineBox(
                     poses,
                     lines,
@@ -121,7 +128,7 @@ public final class PathPreviewRenderer {
                     0.35F,
                     1.0F
             );
-            renderCitizenOrders(minecraft, poses, lines, selectedMember);
+            renderCitizenOrders(minecraft, poses, lines, selectedMember, loadedTargets);
         }
         renderExcavationPlans(poses, lines);
         renderDesignationPreview(poses, lines);
@@ -131,7 +138,8 @@ public final class PathPreviewRenderer {
 
     /** All markers are visual-only server snapshots and never drive a new command. */
     private static void renderCitizenOrders(Minecraft mc, PoseStack poses, VertexConsumer lines,
-                                            dev.stonebanner.entity.HumanNpcEntity citizen) {
+                                            dev.stonebanner.entity.HumanNpcEntity citizen,
+                                            java.util.Map<java.util.UUID, Entity> loadedTargets) {
         if (mc.level == null) return;
         for (var preview : dev.stonebanner.command.CitizenOrderQueue.decodePreview(citizen.hudOrderPreview())) {
             var entry = preview.entry();
@@ -140,12 +148,8 @@ public final class PathPreviewRenderer {
                 if (!mc.level.hasChunkAt(entry.block())) continue;
                 point = Vec3.atCenterOf(entry.block());
             } else {
-                for (var entity : mc.level.entitiesForRendering()) {
-                    if (entity.isAlive() && entity.getUUID().equals(entry.target())) {
-                        point = entity.getBoundingBox().getCenter();
-                        break;
-                    }
-                }
+                Entity target = loadedTargets.get(entry.target());
+                if (target != null) point = target.getBoundingBox().getCenter();
             }
             if (point == null) continue;
             float r = preview.active() ? 1.0F : 0.32F;
