@@ -22,6 +22,7 @@ public final class CitizenOrderSequence {
     private long activeJobId;
     private boolean starting;
     private String failure = "";
+    private java.util.UUID commander;
 
     public CitizenOrderSequence(HumanNpcEntity owner) { this.owner = owner; }
     public boolean starting() { return starting; }
@@ -35,7 +36,7 @@ public final class CitizenOrderSequence {
         activeJobId = 0;
     }
 
-    public boolean enqueue(CitizenOrderQueue.Entry entry) {
+    public boolean enqueue(CitizenOrderQueue.Entry entry, java.util.UUID issuedBy) {
         if (!(owner.level() instanceof ServerLevel level) || !owner.isAlive()
                 || owner.citizenData().health().needsRecovery()
                 || !owner.citizenData().health().canMoveIndependently()
@@ -58,6 +59,7 @@ public final class CitizenOrderSequence {
                 && owner.commandController().hasActiveCommand() || owner.workController().hasActiveJob()))
             return false;
         if (!pending.offer(entry)) return false;
+        commander = issuedBy;
         failure = "";
         if (active == null && !owner.commandController().hasActiveCommand()) advance(level);
         return true;
@@ -175,6 +177,13 @@ public final class CitizenOrderSequence {
 
     private void abort(String reason) {
         failure = reason;
+        if (owner.level() instanceof ServerLevel level && commander != null) {
+            var commanderPlayer = level.getServer().getPlayerList().getPlayer(commander);
+            if (commanderPlayer != null && commanderPlayer.serverLevel() == level)
+                commanderPlayer.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                        "message.stonebanner.order_interrupted", owner.getDisplayName(),
+                        net.minecraft.network.chat.Component.translatable("message.stonebanner.order_reason." + reason)), true);
+        }
         clear();
         owner.commandController().stop();
         if (owner.workController().currentJob().isPresent()) owner.workController().interrupt(true);
