@@ -264,6 +264,11 @@ public final class TacticalControlScreen extends Screen {
         if (type != null) {
             return DesignationController.previewAllowed() ? designationColor(type) : 0xFFFF6868;
         }
+        // In Orders a hostile hover is visually distinct from a friendly selection.
+        if (commands() && hoveredTarget.orElse(null) instanceof EntityHitResult e) {
+            return e.getEntity() instanceof net.minecraft.world.entity.monster.Monster
+                    ? 0xFFFF6868 : 0xFF69DDE7;
+        }
         return hoveredTarget.map(hit -> hit instanceof EntityHitResult ? 0xFF69DDE7 : 0xFFE7C46A)
                 .orElse(0xFFBA4A4A);
     }
