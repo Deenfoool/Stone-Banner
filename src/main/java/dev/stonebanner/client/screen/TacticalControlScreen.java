@@ -680,6 +680,16 @@ public final class TacticalControlScreen extends Screen {
     }
 
     @Override public boolean keyReleased(int keyCode,int scanCode,int modifiers) {
+        // Release immediately on the actual event; two quick Alt+number presses may fit within
+        // one client tick, so polling alone must not leave the gesture stuck as held.
+        for (int i = 0; i < groupGestures.length; i++) {
+            var bound = ClientKeyMappings.RECALL_GROUP[i].getKey();
+            if (bound.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM
+                    && bound.getValue() == keyCode
+                    || bound.getType() == com.mojang.blaze3d.platform.InputConstants.Type.SCANCODE
+                    && bound.getValue() == scanCode)
+                groupGestures[i].release();
+        }
         if (InputBindings.matches(ClientKeyMappings.ORDERS,keyCode,scanCode)) {
             applyOrdersGesture(ordersGesture.release(net.minecraft.Util.getMillis(),
                     dev.stonebanner.config.ClientConfig.ORDERS_HOLD_MS.get(), commands()));
