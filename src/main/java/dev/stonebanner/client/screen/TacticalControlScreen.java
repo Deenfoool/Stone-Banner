@@ -522,6 +522,11 @@ public final class TacticalControlScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        for (int i = 0; i < groupGestures.length; i++)
+            if (ClientKeyMappings.RECALL_GROUP[i].getKey().getType()
+                    == com.mojang.blaze3d.platform.InputConstants.Type.MOUSE
+                    && ClientKeyMappings.RECALL_GROUP[i].getKey().getValue() == button)
+                groupGestures[i].release();
         if (InputBindings.matches(ClientKeyMappings.ORDERS, 10000 + button, 0)
                 || InputBindings.matches(ClientKeyMappings.RECENTER_CAMERA, 10000 + button, 0))
             return keyReleased(10000 + button, 0, 0);
