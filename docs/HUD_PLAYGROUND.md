@@ -35,3 +35,7 @@ The 2026-10-08 visual update adds the self-hosted SVG icon library at `docs/asse
 `docs/assets/hud-layout.js` mirrors the compact `StoneBannerHudLayout.java` geometry, including its narrow-screen corner placement and short-rail minimap. The browser applies it on each HUD refresh and viewport resize. Styles reside in `docs/assets/hud-compact.css`, loaded after legacy site styles. The inspector auto-collapses when it cannot fit.
 
 Run `node docs/tests/hud-layout.test.cjs` to catch layout constant drift and geometry regressions. Browser data, NPC actions, resources, world simulation remain illustrative and are not Minecraft/Forge runtime; Java HUD and saved worlds remain untouched.
+
+## Browser regression checks
+
+Run `node docs/tests/hud-layout.test.cjs` for Java↔browser geometry parity, and `node docs/tests/hud-playground.test.cjs` for deterministic browser-controller smoke tests at 1280×720, 900×600, 689×500 and 320×240. These tests do not require an npm install or GitHub Actions. They are **mock DOM tests**, not visual Playwright/Forge acceptance.

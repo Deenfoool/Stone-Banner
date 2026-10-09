@@ -147,7 +147,7 @@
     if(toggle) {
       toggle.style.width=C.BOTTOM_TOGGLE_WIDTH+"px";
       toggle.style.height=C.BOTTOM_TOGGLE_HEIGHT+"px";
-      toggle.style.margin="0 auto 0";
+      toggle.style.margin="0 auto -2px"; // Java toggle overlaps the dock frame by 2 px
     }
     const panel=doc.getElementById("dock");
     if(panel){panel.style.height=d.dock.height+"px";}
