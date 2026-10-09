@@ -11,6 +11,83 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenJobBoardTest {
+
+    @Test
+    void duplicateSavedIdRetainsBothDistinctJobsWithoutAliasing() {
+        CitizenJobBoard original = new CitizenJobBoard();
+        long forestry = original.publish(WorkType.FORESTRY, new BlockPos(10, 68, 10), 1);
+        long mining = original.publish(WorkType.MINING, new BlockPos(15, 30, 15), 2);
+        CompoundTag saved = original.save(new CompoundTag());
+        var jobs = saved.getList("Jobs", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        jobs.getCompound(1).putLong("Id", forestry);
+        saved.putLong("NextId", 1L); // Legacy/stale counter should not reuse either identity.
+
+        CitizenJobBoard restored = CitizenJobBoard.load(saved);
+        assertEquals(2, restored.size(), "Duplicate ID silently replaced an unrelated job");
+        assertEquals(WorkType.FORESTRY, restored.job(forestry).orElseThrow().workType());
+        long recoveredMining = restored.snapshot().stream()
+                .filter(job -> job.workType() == WorkType.MINING).findFirst().orElseThrow().id();
+        assertTrue(recoveredMining > mining);
+        assertTrue(recoveredMining != forestry);
+        assertTrue(restored.reserve(forestry, UUID.randomUUID(), 3));
+        assertTrue(restored.reserve(recoveredMining, UUID.randomUUID(), 3));
+
+        CitizenJobBoard next = CitizenJobBoard.load(restored.save(new CompoundTag()));
+        assertEquals(2, next.size(), "Repaired jobs were lost in another save/load");
+        assertTrue(next.job(recoveredMining).isPresent());
+        assertTrue(next.publish(WorkType.MINING, new BlockPos(18, 29, 17), 4) > recoveredMining);
+    }
+
+    @Test
+    void unknownRequiredSkillCannotBecomeUnrestrictedWork() {
+        CitizenJobBoard original = new CitizenJobBoard();
+        long restricted = original.publish(WorkType.MINING, new BlockPos(4, 70, 1),
+                CitizenSkill.MINING, 7, 4);
+        CompoundTag saved = original.save(new CompoundTag());
+        saved.getList("Jobs", net.minecraft.nbt.Tag.TAG_COMPOUND)
+                .getCompound(0).putString("RequiredSkill", "future_unknown_skill");
+        CitizenJobBoard restored = CitizenJobBoard.load(saved);
+
+        assertEquals(0, restored.size(), "Unknown skill inadvertently allowed unskilled work");
+        assertFalse(restored.job(restricted).isPresent());
+        assertTrue(restored.publish(WorkType.FORESTRY, BlockPos.ZERO, 5) > restricted,
+                "Unknown skill repair reused an existing identity");
+    }
+
+    @Test
+    void missingTargetDoesNotCreatePhantomWorkAtOrigin() {
+        CitizenJobBoard original = new CitizenJobBoard();
+        long bad = original.publish(WorkType.MINING, new BlockPos(8, 33, 9), 1);
+        long good = original.publish(WorkType.FORESTRY, new BlockPos(6, 70, 2), 2);
+        CompoundTag saved = original.save(new CompoundTag());
+        saved.getList("Jobs", net.minecraft.nbt.Tag.TAG_COMPOUND)
+                .getCompound(0).remove("Target");
+        CitizenJobBoard restored = CitizenJobBoard.load(saved);
+
+        assertEquals(1, restored.size());
+        assertTrue(restored.job(good).isPresent());
+        assertFalse(restored.job(bad).isPresent());
+        assertEquals(0, restored.removeAt(BlockPos.ZERO),
+                "Malformed NBT spawned a hidden job at (0,0,0)");
+    }
+
+    @Test
+    void duplicateJobLocationIsNotExecutedTwiceAfterReload() {
+        CitizenJobBoard original = new CitizenJobBoard();
+        long first = original.publish(WorkType.MINING, new BlockPos(9, 44, 1), 1);
+        long unrelated = original.publish(WorkType.FORESTRY, new BlockPos(8, 73, 2), 2);
+        CompoundTag saved = original.save(new CompoundTag());
+        var jobs = saved.getList("Jobs", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        jobs.getCompound(1).putString("WorkType", "mining");
+        jobs.getCompound(1).putLong("Target", new BlockPos(9, 44, 1).asLong());
+        CitizenJobBoard restored = CitizenJobBoard.load(saved);
+
+        assertEquals(1, restored.size(), "Duplicated physical task survived load");
+        assertTrue(restored.job(first).isPresent());
+        assertFalse(restored.job(unrelated).isPresent());
+        assertEquals(1, restored.availableJobs(UUID.randomUUID(), 3).size());
+    }
+
     @Test
     void legacySaveWithoutNextIdDoesNotReuseExistingJobIdentity() throws java.io.IOException {
         CitizenJobBoard board = new CitizenJobBoard();

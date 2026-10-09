@@ -10,11 +10,13 @@ import net.minecraft.world.level.saveddata.SavedData;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -63,6 +65,10 @@ public final class CitizenJobBoard extends SavedData {
             }
         }
 
+        if (nextId <= 0L || nextId == Long.MAX_VALUE) {
+            // Never wrap the unique job identity back to a negative number.
+            throw new IllegalStateException("Citizen job identity space exhausted");
+        }
         long id = nextId++;
         CitizenJob job = requiredSkill == null
                 ? CitizenJob.simple(id, workType, target, createdTick)
@@ -182,33 +188,70 @@ public final class CitizenJobBoard extends SavedData {
 
     public static CitizenJobBoard load(CompoundTag root) {
         CitizenJobBoard board = new CitizenJobBoard();
-        long highestId = 0L;
         ListTag jobs = root.getList(TAG_JOBS, Tag.TAG_COMPOUND);
+
+        // Reserve all valid original IDs before allocating replacements. A broken duplicate or
+        // missing ID must not steal the identity of a later, legitimate saved job.
+        long highestId = 0L;
+        for (int i = 0; i < jobs.size(); i++) {
+            CompoundTag tag = jobs.getCompound(i);
+            if (tag.contains(TAG_ID, Tag.TAG_LONG)) {
+                long id = tag.getLong(TAG_ID);
+                if (id > 0L && id < Long.MAX_VALUE) highestId = Math.max(highestId, id);
+            }
+        }
+        long savedNextId = root.contains(TAG_NEXT_ID, Tag.TAG_LONG) ? root.getLong(TAG_NEXT_ID) : 1L;
+        board.nextId = Math.max(Math.max(1L, savedNextId), highestId + 1L);
+        boolean repaired = false;
+        Set<JobLocation> locations = new HashSet<>();
+
         for (int index = 0; index < jobs.size(); index++) {
             CompoundTag tag = jobs.getCompound(index);
             WorkType workType = parseWorkType(tag.getString(TAG_WORK_TYPE));
-            if (workType == null) {
+            if (workType == null || !tag.contains(TAG_TARGET, Tag.TAG_LONG)) {
+                // A missing target would otherwise create a phantom job at world origin.
+                repaired = true;
+                continue;
+            }
+            boolean hasSkill = tag.contains(TAG_REQUIRED_SKILL);
+            CitizenSkill requiredSkill = hasSkill
+                    && tag.contains(TAG_REQUIRED_SKILL, Tag.TAG_STRING)
+                    ? parseSkill(tag.getString(TAG_REQUIRED_SKILL)) : null;
+            if (hasSkill && requiredSkill == null) {
+                // Never turn an unknown/modded skill requirement into an unrestricted job.
+                repaired = true;
+                continue;
+            }
+            BlockPos target = BlockPos.of(tag.getLong(TAG_TARGET));
+            if (!locations.add(new JobLocation(workType, target))) {
+                // Same work at the same block is a single physical task, not two pickups.
+                repaired = true;
                 continue;
             }
 
-            long id = tag.getLong(TAG_ID);
-            BlockPos target = BlockPos.of(tag.getLong(TAG_TARGET));
-            CitizenSkill requiredSkill = tag.contains(TAG_REQUIRED_SKILL, Tag.TAG_STRING)
-                    ? parseSkill(tag.getString(TAG_REQUIRED_SKILL))
-                    : null;
+            long id = tag.contains(TAG_ID, Tag.TAG_LONG) ? tag.getLong(TAG_ID) : 0L;
+            if (id <= 0L || id == Long.MAX_VALUE || board.entries.containsKey(id)) {
+                // Salvage a distinct task from legacy/corrupt duplicate IDs without replacing
+                // the earlier entry, while preserving legitimate original IDs after this row.
+                if (board.nextId == Long.MAX_VALUE) {
+                    repaired = true;
+                    continue;
+                }
+                id = board.nextId++;
+                repaired = true;
+            }
             int minimumSkill = tag.getInt(TAG_MINIMUM_SKILL);
             long createdTick = tag.getLong(TAG_CREATED_TICK);
             CitizenJob job = requiredSkill == null
                     ? CitizenJob.simple(id, workType, target, createdTick)
                     : CitizenJob.requiring(id, workType, target, requiredSkill, minimumSkill, createdTick);
             board.entries.put(id, new Entry(job));
-            highestId = Math.max(highestId, id);
         }
-
-        long savedNextId = root.contains(TAG_NEXT_ID, Tag.TAG_LONG) ? root.getLong(TAG_NEXT_ID) : 1L;
-        board.nextId = Math.max(Math.max(1L, savedNextId), highestId + 1L);
+        if (repaired) board.setDirty();
         return board;
     }
+
+    private record JobLocation(WorkType workType, BlockPos target) {}
 
     @Nullable
     private static WorkType parseWorkType(String value) {
