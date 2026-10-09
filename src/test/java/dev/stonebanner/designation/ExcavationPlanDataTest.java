@@ -295,6 +295,42 @@ class ExcavationPlanDataTest {
                 BlockPos.ZERO, new BlockPos(63, 0, 63)), "Exactly 4096 blocks must be allowed");
     }
 
+
+    @Test
+    void rejectedFutureExcavationModeIsQuarantinedWithoutLosingItsOriginalNbt() {
+        var unknown = planTag(21L, 1, 22, 1, 4, 26, 4);
+        unknown.putString("Mode", "mineshaft_diagonal_v3");
+        unknown.putString("ExtraFutureData", "preserve-this-field");
+        var root = planRoot(unknown);
+        var loaded = ExcavationPlanData.load(root);
+        assertEquals(0, loaded.activePlanCount());
+        var saved = loaded.save(new CompoundTag());
+        assertEquals(0, saved.getList("Plans", Tag.TAG_COMPOUND).size());
+        var quarantine = saved.getList("QuarantinedPlans", Tag.TAG_COMPOUND);
+        assertEquals(1, quarantine.size());
+        assertEquals(unknown, quarantine.getCompound(0), "Rejected plan NBT was modified or discarded");
+        var loadedAgain = ExcavationPlanData.load(saved);
+        var secondSave = loadedAgain.save(new CompoundTag());
+        assertEquals(1, secondSave.getList("QuarantinedPlans", Tag.TAG_COMPOUND).size(),
+                "Repeated server restarts must not duplicate or discard rejected records");
+        assertTrue(secondSave.getLong("NextId") > 21L, "Quarantined IDs must remain reserved");
+    }
+
+    @Test
+    void quarantinedIdentityIsNotReusedByNewPlans() {
+        var quarantine = new ListTag();
+        var future = planTag(99L, 1, 25, 1, 3, 30, 3);
+        future.putString("Mode", "future_dig_type");
+        quarantine.add(future);
+        var root = planRoot(planTag(1L, 20, 25, 20, 23, 30, 23));
+        root.put("QuarantinedPlans", quarantine);
+        root.putLong("NextId", 2L);
+        var saved = ExcavationPlanData.load(root).save(new CompoundTag());
+        assertTrue(saved.getLong("NextId") > 99L);
+        assertEquals(1, saved.getList("Plans", Tag.TAG_COMPOUND).size());
+        assertEquals(1, saved.getList("QuarantinedPlans", Tag.TAG_COMPOUND).size());
+    }
+
     private static CompoundTag planRoot(CompoundTag... planTags) {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", planTags.length + 1L);

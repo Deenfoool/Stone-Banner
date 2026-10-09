@@ -36,6 +36,8 @@ public final class ExcavationPlanData extends SavedData {
     private static final String DATA_NAME = "stonebanner_excavation_plans";
     private static final String TAG_NEXT_ID = "NextId";
     private static final String TAG_PLANS = "Plans";
+    private static final String TAG_QUARANTINED_PLANS = "QuarantinedPlans";
+    private static final int MAX_QUARANTINED_PLANS = 256;
     private static final String TAG_ID = "Id";
     private static final String TAG_MIN_X = "MinX";
     private static final String TAG_MIN_Y = "MinY";
@@ -53,6 +55,8 @@ public final class ExcavationPlanData extends SavedData {
     private static final int MAX_SYNC_PLANS = 256;
 
     private final Map<Long, Plan> plans = new LinkedHashMap<>();
+    // Unrecognized/corrupt plans are inert, but their raw NBT survives future saves.
+    private final ListTag quarantinedPlans = new ListTag();
     private final LinkedHashSet<Long> dirtyPlanIds = new LinkedHashSet<>();
     private long nextId = 1L;
     private long lastReconcileTick = Long.MIN_VALUE;
@@ -566,18 +570,30 @@ public final class ExcavationPlanData extends SavedData {
             list.add(tag);
         }
         root.put(TAG_PLANS, list);
+        root.put(TAG_QUARANTINED_PLANS, quarantinedPlans.copy());
         return root;
     }
 
     public static ExcavationPlanData load(CompoundTag root) {
         ExcavationPlanData data = new ExcavationPlanData();
         ListTag list = root.getList(TAG_PLANS, Tag.TAG_COMPOUND);
+        ListTag oldQuarantine = root.getList(TAG_QUARANTINED_PLANS, Tag.TAG_COMPOUND);
+        for (int index = 0; index < oldQuarantine.size(); index++) {
+            data.quarantine(oldQuarantine.getCompound(index));
+        }
 
         // Hold every original positive ID before repairing duplicates: a repaired early entry
         // must not steal an original identity belonging to a later plan.
         long highestId = 0L;
         for (int index = 0; index < list.size(); index++) {
             CompoundTag tag = list.getCompound(index);
+            if (tag.contains(TAG_ID, Tag.TAG_LONG)) {
+                long id = tag.getLong(TAG_ID);
+                if (id > 0L && id < Long.MAX_VALUE) highestId = Math.max(highestId, id);
+            }
+        }
+        for (int index = 0; index < data.quarantinedPlans.size(); index++) {
+            var tag = data.quarantinedPlans.getCompound(index);
             if (tag.contains(TAG_ID, Tag.TAG_LONG)) {
                 long id = tag.getLong(TAG_ID);
                 if (id > 0L && id < Long.MAX_VALUE) highestId = Math.max(highestId, id);
@@ -592,6 +608,7 @@ public final class ExcavationPlanData extends SavedData {
             // Never accept malformed bounds: defaulting a missing coordinate to zero can
             // silently create a huge phantom quarry, or block server ticks with world scans.
             if (!validSavedBounds(tag)) {
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
@@ -606,6 +623,7 @@ public final class ExcavationPlanData extends SavedData {
             if (tag.contains(TAG_MODE) && !tag.contains(TAG_MODE, Tag.TAG_STRING)
                     || tag.contains(TAG_ACCESS_MODE) && !tag.contains(TAG_ACCESS_MODE, Tag.TAG_STRING)
                     || tag.contains(TAG_STEP) && !tag.contains(TAG_STEP, Tag.TAG_INT)) {
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
@@ -616,11 +634,13 @@ public final class ExcavationPlanData extends SavedData {
                     ? parseSavedAccessMode(tag.getString(TAG_ACCESS_MODE))
                     : ExcavationAccessMode.AUTO;
             if (mode == null || accessMode == null) {
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
             boolean currentTagged = tag.contains(TAG_CURRENT_SLICE, Tag.TAG_INT);
             if (!currentTagged && !tag.contains(TAG_CURRENT_Y_LEGACY, Tag.TAG_INT)) {
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
@@ -631,6 +651,7 @@ public final class ExcavationPlanData extends SavedData {
             // Vertical shafts must always descend, regardless of corruption in the tag.
             int step = tag.contains(TAG_STEP, Tag.TAG_INT) ? tag.getInt(TAG_STEP) : -1;
             if ((step != -1 && step != 1) || mode == Mode.VERTICAL && step != -1) {
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
@@ -647,6 +668,7 @@ public final class ExcavationPlanData extends SavedData {
                     mode, accessMode, currentSlice, step);
             if (!plan.currentSliceInsideBounds()) {
                 // A corrupt frontier must not be interpreted as already completed work.
+                data.quarantine(tag);
                 repaired = true;
                 continue;
             }
@@ -654,6 +676,11 @@ public final class ExcavationPlanData extends SavedData {
         }
         if (repaired) data.setDirty();
         return data;
+    }
+
+    private void quarantine(CompoundTag tag) {
+        if (quarantinedPlans.size() < MAX_QUARANTINED_PLANS)
+            quarantinedPlans.add(tag.copy());
     }
 
     private static boolean validSavedBounds(CompoundTag tag) {
