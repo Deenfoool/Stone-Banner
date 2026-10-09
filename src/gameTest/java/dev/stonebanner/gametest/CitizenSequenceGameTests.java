@@ -13,8 +13,9 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("stonebanner")
 @PrefixGameTestTemplate(false)
 public final class CitizenSequenceGameTests {
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void permittedRouteCannotDetourOutsideBoundary(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         prepare(h);
         for(int z=1;z<=5;z++)for(int y=1;y<=4;y++)h.setBlock(new BlockPos(4,y,z),Blocks.STONE);
         var start=h.absolutePos(new BlockPos(2,1,2));
@@ -25,10 +26,13 @@ public final class CitizenSequenceGameTests {
         h.assertTrue(dev.stonebanner.navigation.BlockPathfinder.findPath(h.getLevel(),start,goal,
                 pos->pos.getZ()<=boundary).isEmpty(), "Route crossed the forbidden boundary");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void changedHomeCancelsPlayerRouteButAllowsSystemReturn(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         var pos = h.absolutePos(new BlockPos(7, 1, 2));
         npc.citizenData().setParticipation(dev.stonebanner.citizen.CitizenParticipation.LOCAL_HELPER);
@@ -41,6 +45,8 @@ public final class CitizenSequenceGameTests {
         h.assertTrue(npc.commandController().issueSystemMove(pos, CitizenBrainState.RETURN_HOME),
                 "Travel boundary prevented system return");
         h.succeed();
+
+        });
     }
 
     private static dev.stonebanner.entity.HumanNpcEntity prepare(GameTestHelper h) {
@@ -52,8 +58,9 @@ public final class CitizenSequenceGameTests {
         return npc;
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void criticalNeedsCancelMixedQueue(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         var commander = java.util.UUID.randomUUID();
         var move = CitizenOrderQueue.Entry.move(h.absolutePos(new BlockPos(7, 1, 2)));
@@ -66,10 +73,13 @@ public final class CitizenSequenceGameTests {
         npc.citizenData().needs().setFatigue(100);
         h.assertTrue(!npc.orderSequence().enqueue(move, commander), "Exhausted NPC accepted order");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void criticalNeedsPreserveFoodRoute(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         var pos = h.absolutePos(new BlockPos(7, 1, 2));
         h.assertTrue(npc.orderSequence().enqueue(CitizenOrderQueue.Entry.move(pos), java.util.UUID.randomUUID()), "Move rejected");
@@ -80,10 +90,13 @@ public final class CitizenSequenceGameTests {
         h.assertTrue(npc.commandController().hasActiveCommand()
                 && npc.commandController().movementState() == CitizenBrainState.EAT, "Queue stopped food route");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void changedOwnerCancelsMixedQueue(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         var commander = java.util.UUID.randomUUID();
         var move = CitizenOrderQueue.Entry.move(h.absolutePos(new BlockPos(7, 1, 2)));
@@ -94,16 +107,24 @@ public final class CitizenSequenceGameTests {
         h.assertTrue(!npc.orderSequence().hasOrders() && !npc.commandController().hasActiveCommand(), "Old owner retained command");
         h.assertTrue(!npc.orderSequence().enqueue(move, commander), "Former owner queued order");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void discardedAttackTargetIsNotVictory(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         attackOutcome(h, false);
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void killedAttackTargetCompletesOrder(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         attackOutcome(h, true);
+
+        });
     }
 
     private static void attackOutcome(GameTestHelper h, boolean killed) {

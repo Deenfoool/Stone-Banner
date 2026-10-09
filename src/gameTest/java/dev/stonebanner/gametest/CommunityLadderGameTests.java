@@ -64,14 +64,29 @@ public final class CommunityLadderGameTests {
                 == SettlementData.Result.CREATED, "Camp missing");
         h.assertTrue(data.addResident(owner, npc.getUUID()) == SettlementData.Result.JOINED, "Resident missing");
     }
-    @GameTest(template="empty", batch="community_ladder_own", timeoutTicks=100)
-    public static void explicitOrderFetchesAndPlacesOwnLadder(GameTestHelper h) { scenario(h, 0, false); }
-    @GameTest(template="empty", batch="community_ladder_foreign", timeoutTicks=100)
-    public static void foreignLadderSupplyIsRejected(GameTestHelper h) { scenario(h, 1, false); }
-    @GameTest(template="empty", batch="community_ladder_recheck", timeoutTicks=100)
-    public static void membershipRecheckedBeforeLadderExtraction(GameTestHelper h) { scenario(h, 2, false); }
-    @GameTest(template="empty", batch="community_ladder_legacy", timeoutTicks=100)
-    public static void legacyWorkerRetainsSharedSupplyNetwork(GameTestHelper h) { scenario(h, 3, false); }
-    @GameTest(template="empty", batch="community_ladder_personal", timeoutTicks=100)
-    public static void personalLadderDoesNotTouchForeignStore(GameTestHelper h) { scenario(h, 1, true); }
+    @GameTest(setupTicks = 5, template="empty", batch="community_ladder_own", timeoutTicks=100)
+    public static void explicitOrderFetchesAndPlacesOwnLadder(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { scenario(h, 0, false);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_ladder_foreign", timeoutTicks=100)
+    public static void foreignLadderSupplyIsRejected(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { scenario(h, 1, false);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_ladder_recheck", timeoutTicks=100)
+    public static void membershipRecheckedBeforeLadderExtraction(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { scenario(h, 2, false);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_ladder_legacy", timeoutTicks=100)
+    public static void legacyWorkerRetainsSharedSupplyNetwork(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { scenario(h, 3, false);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_ladder_personal", timeoutTicks=100)
+    public static void personalLadderDoesNotTouchForeignStore(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { scenario(h, 1, true);
+        });
+    }
 }

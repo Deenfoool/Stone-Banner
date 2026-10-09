@@ -40,8 +40,9 @@ public final class CommunityDropGameTests {
         return item;
     }
 
-    @GameTest(template="empty", batch="community_drop_mixed", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_mixed", timeoutTicks=100)
     public static void mixedPileCollectsOwnOutputWithoutTouchingForeignOutput(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, true);
         var own = drop(h, f, f.owner(), 4);
         var foreign = drop(h, f, UUID.randomUUID(), 9);
@@ -50,19 +51,25 @@ public final class CommunityDropGameTests {
         h.assertTrue(!own.isAlive() && foreign.isAlive() && foreign.getItem().getCount() == 9, "Foreign output changed");
         h.assertTrue(DroppedItemHauling.hasDroppedItems(h.getLevel(), f.target()), "Shared job validity lost");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_recheck", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_recheck", timeoutTicks=100)
     public static void membershipLossBetweenSelectionAndPickupPreservesDrop(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, true); var item = drop(h, f, f.owner(), 4);
         h.assertTrue(!DroppedItemHauling.stacksAt(h.getLevel(), f.target(), f.npc()).isEmpty(), "Own output not selectable");
         SettlementData.forLevel(h.getLevel()).removeResident(f.npc().getUUID());
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 0 && item.isAlive() && item.getItem().getCount() == 4, "Pickup ignored membership change");
         h.assertTrue(!f.npc().citizenData().inventory().hasHaulCargo(), "Unauthorized cargo created"); h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_job", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_job", timeoutTicks=100)
     public static void foreignOnlyPileIsNotAssignableAndJobSurvives(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, true); drop(h, f, UUID.randomUUID(), 4);
         var chest = new BlockPos(6, 1, 2); h.setBlock(chest, Blocks.CHEST);
         StorageData.forLevel(h.getLevel()).register(h.getLevel(), h.absolutePos(chest));
@@ -72,20 +79,26 @@ public final class CommunityDropGameTests {
         var job = board.snapshot().stream().filter(j -> j.workType() == WorkType.HAULING && j.target().equals(f.target())).findFirst().orElseThrow();
         h.assertTrue(!f.npc().workController().assign(job), "Foreign-only job accepted");
         h.assertTrue(board.snapshot().stream().anyMatch(j -> j.id() == job.id()), "Unauthorized worker deleted shared job"); h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_legacy", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_legacy", timeoutTicks=100)
     public static void legacyProductionDropRequiresMatchingEmployer(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, false); var item = drop(h, f, f.owner(), 4);
         h.assertTrue(!DroppedItemHauling.mayCollect(f.npc(), item), "Unaffiliated NPC stole tagged output");
         f.npc().citizenData().setRecruitedBy(UUID.randomUUID());
         h.assertTrue(!DroppedItemHauling.mayCollect(f.npc(), item), "Other employer accepted");
         f.npc().citizenData().setRecruitedBy(f.owner());
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 4, "Matching legacy companion rejected"); h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_vanilla", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_vanilla", timeoutTicks=100)
     public static void vanillaPickupOwnerIsRespectedButThrowerIsNotExclusive(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, false); var item = drop(h, f, null, 4);
         item.setThrower(f.npc().getUUID());
         h.assertTrue(DroppedItemHauling.mayCollect(f.npc(), item), "Thrower incorrectly treated as owner");
@@ -93,10 +106,13 @@ public final class CommunityDropGameTests {
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 0 && item.getItem().getCount() == 4, "Vanilla owner ignored");
         item.setTarget(f.npc().getUUID());
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 4, "Explicit NPC pickup owner rejected"); h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_partial", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_partial", timeoutTicks=100)
     public static void partialPickupPreservesPhysicalRemainderAndOwner(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, true);
         f.npc().citizenData().inventory().clear();
         f.npc().citizenData().inventory().add(new ItemStack(Items.COBBLESTONE, 8*64));
@@ -104,10 +120,13 @@ public final class CommunityDropGameTests {
         var item = drop(h, f, f.owner(), 4);
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 1, "Partial pickup count wrong");
         h.assertTrue(item.isAlive() && item.getItem().getCount() == 3 && item.getPersistentData().getUUID("SBProductionOwner").equals(f.owner()), "Remainder lost ownership or count"); h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty", batch="community_drop_territory", timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty", batch="community_drop_territory", timeoutTicks=100)
     public static void ordinaryDropsUseCampTerritoryWithLegacyFallback(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var f = prepare(h, false); var item = drop(h, f, null, 4);
         h.assertTrue(DroppedItemHauling.mayCollect(f.npc(), item), "Legacy ordinary drops rejected");
         var settlements = SettlementData.forLevel(h.getLevel());
@@ -116,5 +135,7 @@ public final class CommunityDropGameTests {
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 0 && item.getItem().getCount() == 4, "Outside-camp drop collected");
         settlements.removeResident(f.npc().getUUID());
         h.assertTrue(DroppedItemHauling.collectInto(h.getLevel(), f.target(), f.npc()) == 4, "Legacy fallback failed"); h.succeed();
+
+        });
     }
 }

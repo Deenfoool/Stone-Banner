@@ -19,8 +19,9 @@ public final class ExcavationChunkGameTests {
     private ExcavationChunkGameTests() {
     }
 
-    @GameTest(template = "empty", timeoutTicks = 80, batch = "excavation-chunk")
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 80, batch = "excavation-chunk")
     public static void unloadedQuarryAndTunnelFrontiersRemainPending(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var level = helper.getLevel();
         helper.assertTrue(!level.hasChunkAt(REMOTE),
                 "The remote excavation fixture must start with no loaded chunk");
@@ -45,6 +46,8 @@ public final class ExcavationChunkGameTests {
         assertUnchanged(helper, data);
         helper.startSequence().thenExecuteAfter(30, () ->
                 assertUnchanged(helper, data)).thenSucceed();
+
+        });
     }
 
     private static void assertUnchanged(GameTestHelper helper, ExcavationPlanData data) {

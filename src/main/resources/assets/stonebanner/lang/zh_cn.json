@@ -61,5 +61,6 @@
   "hud.stonebanner.context.camera": "中键：镜头",
   "menu.stonebanner.language": "语言",
   "screen.stonebanner.language.title": "选择语言",
-  "screen.stonebanner.language.current": "当前：%s"
+  "screen.stonebanner.language.current": "当前：%s",
+  "settings.stonebanner.menu": "S&B 设置"
 }

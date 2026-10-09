@@ -25,8 +25,9 @@ public final class VillageReturnGameTests {
         h.assertTrue(VillageService.hire(f.player(),f.village().id(),source.getUUID(),false)==VillageService.Result.OK,"Hire failed");
         return (HumanNpcEntity)h.getLevel().getEntity(f.village().contracts().keySet().iterator().next());
     }
-    @GameTest(template="empty",batch="village_return",timeoutTicks=250)
+    @GameTest(setupTicks=5,template="empty",batch="village_return",timeoutTicks=250)
     public static void roundTripPreservesTradesIdentityAndCurrentCargo(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var source=VillageGameTests.recruit(f);UUID original=source.getUUID();
         source.setCustomName(Component.literal("Return Trader"));
         source.setVillagerData(source.getVillagerData().setProfession(VillagerProfession.FARMER).setLevel(2));
@@ -58,9 +59,12 @@ public final class VillageReturnGameTests {
             h.assertTrue(dropped==7&&!npc.citizenData().inventory().hasHaulCargo(),"Return lost, duplicated or unmarked employer cargo");
             h.assertTrue(VillageService.count(f.player(),s->s.is(Items.EMERALD))==funds,"Dismissal refunded contract payment");
         }).thenSucceed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_return_reload",timeoutTicks=250)
+    @GameTest(setupTicks=5,template="empty",batch="village_return_reload",timeoutTicks=250)
     public static void pendingReturnResumesAfterNbtReload(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var source=VillageGameTests.recruit(f);UUID original=source.getUUID();
         var npc=hire(h,f,source);npc.setPos(h.absolutePos(new BlockPos(2,1,2)).getX()+.5,h.absolutePos(new BlockPos(2,1,2)).getY(),h.absolutePos(new BlockPos(2,1,2)).getZ()+.5);
         f.player().setPos(npc.getX(),npc.getY(),npc.getZ()-1);
@@ -70,9 +74,12 @@ public final class VillageReturnGameTests {
             var data=VillageData.forLevel(h.getLevel());h.getLevel().getDataStorage().set("stonebanner_villages",VillageData.load(data.save(new CompoundTag())));
             h.assertTrue(npc.citizenData().returningToVillage()&&!npc.commandController().hasActiveCommand(),"Transient route not reset on reload");
         }).thenWaitUntil(()->h.assertTrue(h.getLevel().getEntity(original) instanceof Villager&&npc.isRemoved(),"Saved return did not resume")).thenSucceed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_return_reject",timeoutTicks=100)
+    @GameTest(setupTicks=5,template="empty",batch="village_return_reject",timeoutTicks=100)
     public static void unauthorizedAndBlockedReturnsKeepContract(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var npc=hire(h,f,VillageGameTests.recruit(f));
         var stranger=FakePlayerFactory.get(h.getLevel(),new GameProfile(UUID.randomUUID(),"Stranger"));stranger.setPos(npc.getX(),npc.getY(),npc.getZ()-1);
         h.assertTrue(VillageReturnService.dismiss(stranger,f.village().id(),npc.getUUID())==VillageService.Result.INVALID,"Stranger dismissed contract");
@@ -81,12 +88,17 @@ public final class VillageReturnGameTests {
         for(int x=5;x<=11;x++)for(int z=5;z<=11;z++)for(int y=1;y<=5;y++)h.setBlock(new BlockPos(x,y,z),Blocks.STONE);
         h.assertTrue(VillageReturnService.dismiss(f.player(),f.village().id(),npc.getUUID())==VillageService.Result.ROUTE,"Blocked return accepted");
         h.assertTrue(!npc.citizenData().returningToVillage()&&!npc.isRemoved()&&f.village().contracts().containsKey(npc.getUUID()),"Rejected return mutated contract");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_return_legacy",timeoutTicks=100)
+    @GameTest(setupTicks=5,template="empty",batch="village_return_legacy",timeoutTicks=100)
     public static void legacyContractDoesNotInventReplacementVillager(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var npc=hire(h,f,VillageGameTests.recruit(f));var data=VillageData.forLevel(h.getLevel());
         data.closeContract(npc.getUUID());data.contract(f.village(),npc.getUUID(),f.player().getUUID());
         h.assertTrue(VillageReturnService.dismiss(f.player(),f.village().id(),npc.getUUID())==VillageService.Result.LEGACY,"Legacy villager invented");
         h.assertTrue(!npc.isRemoved()&&!npc.citizenData().returningToVillage()&&f.village().residents().size()==4,"Legacy refusal lost resident");h.succeed();
+
+        });
     }
 }

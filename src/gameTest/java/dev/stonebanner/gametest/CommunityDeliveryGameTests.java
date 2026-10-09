@@ -95,14 +95,29 @@ public final class CommunityDeliveryGameTests {
         }
         h.succeed();
     }
-    @GameTest(template="empty", batch="community_delivery_own", timeoutTicks=100)
-    public static void cargoReachesOwnStore(GameTestHelper h) { cargo(h, 0); }
-    @GameTest(template="empty", batch="community_delivery_foreign", timeoutTicks=100)
-    public static void cargoRetainedWhenOnlyForeignStoreExists(GameTestHelper h) { cargo(h, 1); }
-    @GameTest(template="empty", batch="community_delivery_recheck", timeoutTicks=100)
-    public static void membershipRecheckedAfterArrivalBeforeDeposit(GameTestHelper h) { cargo(h, 2); }
-    @GameTest(template="empty", batch="community_output_own", timeoutTicks=100)
-    public static void craftingAcceptsOwnOutputStore(GameTestHelper h) { craft(h, false); }
-    @GameTest(template="empty", batch="community_output_foreign", timeoutTicks=100)
-    public static void craftingPreservesIngredientsWithoutOwnOutputStore(GameTestHelper h) { craft(h, true); }
+    @GameTest(setupTicks = 5, template="empty", batch="community_delivery_own", timeoutTicks=100)
+    public static void cargoReachesOwnStore(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { cargo(h, 0);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_delivery_foreign", timeoutTicks=100)
+    public static void cargoRetainedWhenOnlyForeignStoreExists(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { cargo(h, 1);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_delivery_recheck", timeoutTicks=100)
+    public static void membershipRecheckedAfterArrivalBeforeDeposit(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { cargo(h, 2);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_output_own", timeoutTicks=100)
+    public static void craftingAcceptsOwnOutputStore(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { craft(h, false);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty", batch="community_output_foreign", timeoutTicks=100)
+    public static void craftingPreservesIngredientsWithoutOwnOutputStore(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> { craft(h, true);
+        });
+    }
 }

@@ -28,8 +28,9 @@ public final class ConstructionGameTests {
     private static CitizenJob job(GameTestHelper h){return CitizenJob.simple(1,WorkType.BUILDING,h.absolutePos(ORIGIN),h.getLevel().getGameTime());}
     private static int count(Container container,Item item){int count=0;for(int i=0;i<container.getContainerSize();i++)if(container.getItem(i).is(item))count+=container.getItem(i).getCount();return count;}
 
-    @GameTest(template="empty",batch="construction-cycle",timeoutTicks=9000)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-cycle",timeoutTicks=9000)
     public static void workerBuildsFullCottageFromRealStorage(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);var plan=plan(h);h.assertTrue(plan!=null,"Plan missing");
         h.setBlock(CHEST,Blocks.CHEST);StorageData.forLevel(h.getLevel()).register(h.getLevel(),h.absolutePos(CHEST));var chest=(Container)h.getLevel().getBlockEntity(h.absolutePos(CHEST));
         int slot=0;for(var material:CottageBlueprint.materials().entrySet()){
@@ -42,16 +43,19 @@ public final class ConstructionGameTests {
                 CottageBlueprint.placements().stream().filter(p->p.matches(h.getLevel(),plan.origin,plan.rotation)).count(),
                 plan.status,npc.workController().blockReason(),npc.position(),next.map(p->p.cells().get(0).at(plan.origin,plan.rotation)).orElse(null),npc.commandController().status());
         });
-        h.startSequence().thenWaitUntil(()->h.assertTrue(plan.completed,"Cottage unfinished: "+plan.status+" worker="+npc.workController().blockReason()))
+        h.startSequence().thenWaitUntil(()->h.assertTrue(plan.completed,"Cottage unfinished: "+plan.status+" worker="+npc.workController().blockReason()+" next="+ConstructionService.next(h.getLevel(),plan).map(p->p.cells().stream().map(c->c.at(plan.origin,plan.rotation)+"="+h.getLevel().getBlockState(c.at(plan.origin,plan.rotation))).toList()).orElse(java.util.List.of())))
             .thenExecute(()->{
                 for(var placement:CottageBlueprint.placements())h.assertTrue(placement.matches(h.getLevel(),plan.origin,plan.rotation),"Missing cottage placement");
                 for(var item:CottageBlueprint.materials().keySet())h.assertTrue(count(chest,item)+npc.citizenData().inventory().countPersonalItem(item)==0,"Unused or duplicated materials: "+item);
                 h.assertTrue(npc.citizenData().experience(CitizenSkill.CONSTRUCTION)>0,"Construction practice missing");
             }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-rules",timeoutTicks=100)
     public static void unloadedBlueprintAndScaffoldMustNotForceLoadOrCompletePlan(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         prepare(h);
         var level = h.getLevel();
         var data = ConstructionData.forLevel(level);
@@ -78,11 +82,14 @@ public final class ConstructionGameTests {
             data.edit(owner, id, "cancel");
         }
         h.succeed();
+
+        });
     }
 
 
-    @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-rules",timeoutTicks=100)
     public static void unloadedTemporaryScaffoldIsNotTouchedByWorker(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         var plan = plan(h);
         h.assertTrue(plan != null, "A local plan is required for scaffold defer testing");
@@ -104,18 +111,24 @@ public final class ConstructionGameTests {
             ConstructionData.forLevel(level).edit(plan.owner, plan.id, "cancel");
         }
         h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-rules",timeoutTicks=100)
     public static void missingSuppliesAndPausedPlanDoNotCreateBlocksOrConsumeBag(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);var plan=plan(h);var controller=new CitizenConstructionController(npc);
         h.assertTrue(controller.tick(job(h))==CitizenConstructionController.Result.DEFER&&controller.reason()==WorkBlockReason.MATERIALS,"Missing material not deferred");
         npc.citizenData().inventory().add(new ItemStack(Items.OAK_PLANKS));plan.paused=true;
         h.assertTrue(controller.tick(job(h))==CitizenConstructionController.Result.DEFER,"Paused plan continued");
         h.assertTrue(h.getBlockState(ORIGIN).isAir()&&npc.citizenData().inventory().countPersonalItem(Items.OAK_PLANKS)==1,"Interrupted plan created block or lost material");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="construction-furniture",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-furniture",timeoutTicks=100)
     public static void bedsAndDoorConsumeOneItemPerFurnitureAndCompletePlan(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);var plan=plan(h);
         for(var placement:CottageBlueprint.placements())if(placement.item()!=Items.WHITE_BED&&placement.item()!=Items.OAK_DOOR)
             for(var cell:placement.cells())h.getLevel().setBlock(cell.at(plan.origin,plan.rotation),cell.oriented(plan.rotation),3);
@@ -126,5 +139,7 @@ public final class ConstructionGameTests {
         position=h.absolutePos(ORIGIN.offset(2,1,1));npc.setPos(position.getX()+.5,position.getY(),position.getZ()+.5);npc.commandController().stop();
         for(int i=0;i<100;i++)controller.tick(job(h));
         h.assertTrue(plan.completed,"Plan did not complete");h.assertTrue(npc.citizenData().inventory().countPersonalItem(Items.WHITE_BED)==0&&npc.citizenData().inventory().countPersonalItem(Items.OAK_DOOR)==0,"Furniture cost incorrect");h.succeed();
+
+        });
     }
 }

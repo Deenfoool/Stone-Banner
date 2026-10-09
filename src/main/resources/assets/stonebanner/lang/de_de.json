@@ -61,5 +61,6 @@
   "hud.stonebanner.context.camera": "Mittlere Maustaste: Kamera",
   "menu.stonebanner.language": "Sprache",
   "screen.stonebanner.language.title": "Sprache wählen",
-  "screen.stonebanner.language.current": "Aktuell: %s"
+  "screen.stonebanner.language.current": "Aktuell: %s",
+  "settings.stonebanner.menu": "S&B-Einstellungen"
 }

@@ -47,18 +47,22 @@ public final class CommunityFoodGameTests {
                 "Food was stolen, duplicated or not consumed");
     }
 
-    @GameTest(template = "empty", batch = "community_food_own", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", batch = "community_food_own", timeoutTicks = 100)
     public static void residentEatsFromOwnTerritoryRegardlessOfRegistrationManager(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         join(h, npc, npc.blockPosition());
         npc.foodController().eatSecond();
         npc.foodController().tick();
         check(h, npc, true);
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", batch = "community_food_foreign", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", batch = "community_food_foreign", timeoutTicks = 100)
     public static void residentOutsideCampDoesNotConsumeForeignNearbyFood(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         join(h, npc, npc.blockPosition().offset(96, 0, 0));
         npc.foodController().eatSecond();
@@ -66,20 +70,26 @@ public final class CommunityFoodGameTests {
         check(h, npc, false);
         h.assertTrue(!npc.commandController().hasActiveCommand(), "Resident routed to foreign supplies");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", batch = "community_food_recheck", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", batch = "community_food_recheck", timeoutTicks = 100)
     public static void membershipChangedDuringApproachDoesNotConsumeOldFood(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         npc.foodController().eatSecond();
         join(h, npc, npc.blockPosition().offset(96, 0, 0));
         npc.foodController().tick();
         check(h, npc, false);
         h.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", batch = "community_food_legacy", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", batch = "community_food_legacy", timeoutTicks = 100)
     public static void citizenWithoutCampRetainsLegacySharedNetwork(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc = prepare(h);
         npc.citizenData().setParticipation(dev.stonebanner.citizen.CitizenParticipation.COMPANION);
         var data = SettlementData.forLevel(h.getLevel());
@@ -90,5 +100,7 @@ public final class CommunityFoodGameTests {
         npc.foodController().tick();
         check(h, npc, true);
         h.succeed();
+
+        });
     }
 }

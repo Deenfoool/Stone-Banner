@@ -716,5 +716,6 @@
   "settings.stonebanner.layer.orders": "Orders",
   "settings.stonebanner.layer.hero": "Hero",
   "settings.stonebanner.tool.none": "None",
-  "settings.stonebanner.status": "%s · %s · %s"
+  "settings.stonebanner.status": "%s · %s · %s",
+  "settings.stonebanner.menu": "S&B Settings"
 }

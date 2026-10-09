@@ -46,10 +46,10 @@ minecraft {
     // enableEclipsePrepareRuns = true
     // enableIdeaPrepareRuns = true
 
-    // This property allows configuring Gradle's ProcessResources task(s) to run on IDE output locations before launching the game.
-    // It is REQUIRED to be set to true for this template to function.
-    // See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
-    copyIdeResources = true
+    // Gradle runs already consume processResources output. Re-copying filtered resources
+    // during prepareRun can consume the expansion reader twice and truncate pack.mcmeta.
+    // IDE launches should run processResources before starting Minecraft.
+    copyIdeResources = false
 
     // When true, this property will add the folder name of all declared run configurations to generated IDE run configurations.
     // The folder name can be set on a run configuration using the "folderName" property.
@@ -266,6 +266,23 @@ tasks.register('generateGameTestTemplate') {
 }
 tasks.named('processGameTestResources').configure { dependsOn 'generateGameTestTemplate' }
 
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doFirst {
+        delete file('run-gametest/logs/latest.log')
+        // Never inherit normal terrain/aquifers or a user's dev world for bounded fixtures.
+        def settings = file('run-gametest/server.properties')
+        def properties = new Properties()
+        if (settings.exists()) settings.withInputStream { properties.load(it) }
+        properties.setProperty('level-name', 'stonebanner-gametest-flat')
+        properties.setProperty('level-type', 'minecraft:flat')
+        properties.setProperty('level-seed', '11250')
+        properties.setProperty('generator-settings', '{}')
+        properties.setProperty('generate-structures', 'false')
+        settings.parentFile.mkdirs()
+        settings.withOutputStream { properties.store(it, 'Isolated Stone & Banner GameTest fixture world') }
+    }
+}
+
 tasks.register('verifyGameTests') {
     group = 'verification'
     description = 'Runs server integration tests and requires an explicit successful test summary.'
@@ -288,4 +305,42 @@ tasks.register('minecoloniesBlueprintPack', Zip) {
     }
     archiveFileName = 'stonebanner-minecolonies-medievaloak.zip'
     destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+
+// A reproducible automatic checkpoint, separate from the client/manual acceptance matrix.
+tasks.register('verifyPhase112') {
+    group = 'verification'
+    description = 'Runs Phase 1.12 automatic checks and writes an evidence report (not client acceptance).'
+    dependsOn 'test', 'build', 'reobfJar', 'verifyGameTests'
+    doLast {
+        def reports = fileTree('build/test-results/test') { include 'TEST-*.xml' }.files
+        if (reports.empty) throw new GradleException('No JUnit XML reports produced')
+        def counts = [tests: 0, failures: 0, errors: 0, skipped: 0]
+        reports.each { report ->
+            def suite = new XmlSlurper().parse(report)
+            counts.keySet().each { name -> counts[name] += suite.attributes()[name]?.toInteger() ?: 0 }
+        }
+        if (counts.tests - counts.skipped <= 0 || counts.failures > 0 || counts.errors > 0 || counts.skipped > 0)
+            throw new GradleException("JUnit checkpoint incomplete: ${counts}")
+        def summary = file('run-gametest/logs/latest.log').getText('UTF-8') =~ /All ([1-9]\d*) required tests passed/
+        if (!summary.find()) throw new GradleException('Current GameTest summary missing')
+        def artifact = tasks.named('jar').get().archiveFile.get().asFile
+        if (!artifact.isFile()) throw new GradleException('Mod JAR missing')
+        def sha = java.security.MessageDigest.getInstance('SHA-256').digest(artifact.bytes).encodeHex().toString()
+        def report = layout.buildDirectory.file('reports/phase-1.12/automated.json').get().asFile
+        report.parentFile.mkdirs()
+        report.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                version: project.version.toString(),
+                checkedAt: java.time.Instant.now().toString(),
+                java: System.getProperty('java.version'),
+                gradle: gradle.gradleVersion,
+                junit: counts,
+                requiredGameTests: summary.group(1).toInteger(),
+                artifact: artifact.name,
+                sha256: sha,
+                clientAcceptance: 'pending',
+                dedicatedServerClientAcceptance: 'pending'
+        ])) + '\n'
+        logger.lifecycle("Phase 1.12 automatic evidence: ${report}")
+    }
 }

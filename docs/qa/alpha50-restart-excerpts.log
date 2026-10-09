@@ -1,0 +1,13 @@
+# Selected authoritative server log excerpts; not a complete warning audit.
+[09Oct2026 14:31:13.913] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (4.722s)! For help, type "help"
+[09Oct2026 14:31:27.941] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Published Citizen jobs: 1
+[09Oct2026 14:31:27.954] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Not Secure] [Server] P5_TARGET_RELOAD_PASS
+[09Oct2026 14:31:47.631] [Server thread/INFO] [net.minecraft.server.players.PlayerList/]: Dev[/127.0.0.1:36830] logged in with entity id 27 at (0.5, 65.0, 15.307134400530034)
+[09Oct2026 14:31:47.655] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Dev joined the game
+[09Oct2026 14:32:00.970] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Summoned new Human
+[09Oct2026 14:32:00.980] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Replaced a slot on Human with [Iron Axe]
+[09Oct2026 14:32:56.990] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Published Citizen jobs: 1
+[09Oct2026 14:32:56.992] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Not Secure] [Server] P5_TREE_COMPLETED_PASS
+[09Oct2026 14:32:57.003] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Human has the following entity data: {Items: []}
+[09Oct2026 14:33:21.046] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[09Oct2026 14:33:22.666] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved

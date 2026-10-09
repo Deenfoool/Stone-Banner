@@ -50,17 +50,21 @@ public final class CommunityStockGameTests {
         if(owner!=null)item.getPersistentData().putUUID("SBProductionOwner",owner);
         h.getLevel().addFreshEntity(item);return item;
     }
-    @GameTest(template="empty",batch="community_stock_own",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_own",timeoutTicks=100)
     public static void ownStockSatisfiesBillAndRemovalResumesIt(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,true);var chest=(Container)h.getLevel().getBlockEntity(h.absolutePos(CHEST));
         chest.setItem(0,new ItemStack(Items.STICK,4));
         h.assertTrue(stock(h,f)==4&&ProductionService.activeBill(h.getLevel(),f.bill().station)==null,"Own stock incorrect: count="+stock(h,f)+" status="+f.bill().status);
         chest.removeItem(0,1);
         h.assertTrue(stock(h,f)==3&&ProductionService.activeBill(h.getLevel(),f.bill().station)==f.bill(),"Maintain did not resume");
         h.assertTrue(f.bill().made==0,"Stock observation changed produced counter");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="community_stock_foreign_store",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_foreign_store",timeoutTicks=100)
     public static void storeOutsideCampDoesNotSatisfyBill(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,false);
         // Move the scope, not the container: all physical changes stay inside this arena.
         var settlements=SettlementData.forLevel(h.getLevel());
@@ -69,9 +73,12 @@ public final class CommunityStockGameTests {
         h.assertTrue(stock(h,f)==0&&ProductionService.activeBill(h.getLevel(),f.bill().station)==f.bill(),"Foreign stock stopped own production");
         h.assertTrue(foreign.getItem(0).getCount()==8,"Accounting mutated foreign stock");
         h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="community_stock_cargo",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_cargo",timeoutTicks=100)
     public static void cargoFollowsAuthoritativeMembershipNotPosition(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,true);f.npc().citizenData().inventory().addHaulCargo(new ItemStack(Items.STICK,4));
         h.assertTrue(stock(h,f)==4,"Own member cargo ignored");
         var foreign=h.spawn(ModEntities.HUMAN_NPC.get(),new BlockPos(6,1,6));
@@ -84,9 +91,12 @@ public final class CommunityStockGameTests {
         h.assertTrue(stock(h,f)==4,"Foreign member cargo counted");
         settlements.removeResident(f.npc().getUUID());settlements.addResident(other,f.npc().getUUID());
         h.assertTrue(stock(h,f)==0&&ProductionService.activeBill(h.getLevel(),f.bill().station)!=null,"Membership change did not invalidate stock");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="community_stock_drops",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_drops",timeoutTicks=100)
     public static void onlyTaggedOwnProductionDropsInsideCampAreCounted(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,true);var pos=h.absolutePos(new BlockPos(7,1,7));
         var own=dropped(h,pos,f.owner(),4);var foreign=dropped(h,pos,UUID.randomUUID(),9);var unmarked=dropped(h,pos,null,8);
         h.assertTrue(stock(h,f)==4,"Production drops incorrect: count="+stock(h,f)+" ownAlive="+own.isAlive()+" memberScope="+SettlementData.forLevel(h.getLevel()).ownedBy(f.owner()).orElseThrow().contains(pos));
@@ -94,9 +104,12 @@ public final class CommunityStockGameTests {
         own.setPos((camp.centerX()+2)*16+.5,pos.getY()+.5,pos.getZ()+.5);
         h.assertTrue(stock(h,f)==0,"Outside-camp production drop counted");
         own.discard();foreign.discard();unmarked.discard();h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="community_stock_worker",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_worker",timeoutTicks=100)
     public static void communityBillRequiresCommunityWorker(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,true);var job=CitizenJob.simple(1,WorkType.CRAFTING,f.bill().station,h.getLevel().getGameTime());
         h.assertTrue(ProductionService.allowed(f.npc(),job),"Own member refused");
         SettlementData.forLevel(h.getLevel()).removeResident(f.npc().getUUID());
@@ -104,9 +117,12 @@ public final class CommunityStockGameTests {
         var before=f.bill().made;f.npc().citizenData().inventory().add(new ItemStack(Items.OAK_PLANKS,2));
         h.assertTrue(new CitizenProductionController(f.npc()).tick(job)==CitizenProductionController.Result.DEFER,"Foreign worker crafted");
         h.assertTrue(f.bill().made==before&&f.npc().citizenData().inventory().countPersonalItem(Items.OAK_PLANKS)==2,"Denied worker spent ingredients");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="community_stock_legacy",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="community_stock_legacy",timeoutTicks=100)
     public static void legacyBillKeepsLoadedSharedStock(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=prepare(h,false);
         // Legacy stock intentionally includes loaded NPCs in neighbouring arenas. Verify the
         // exact contribution, not an assumed empty shared world; never clear their inventories.
@@ -117,5 +133,7 @@ public final class CommunityStockGameTests {
         f.npc().citizenData().inventory().clear();
         h.assertTrue(stock(h,f)==baseline,"Removing own cargo changed unrelated stock");
         h.assertTrue(ProductionService.allowed(f.npc(),job),"Legacy worker blocked");h.succeed();
+
+        });
     }
 }

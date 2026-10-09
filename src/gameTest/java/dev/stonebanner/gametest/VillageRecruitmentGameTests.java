@@ -20,8 +20,9 @@ public final class VillageRecruitmentGameTests {
         for(int page=0;page<2;page++)for(var r:snapshot(f,false,page).rows())if(r.id().equals(id))return r;
         throw new IllegalStateException("Missing resident");
     }
-    @GameTest(template="empty",batch="village_recruitment_preview",timeoutTicks=100)
+    @GameTest(setupTicks=5,template="empty",batch="village_recruitment_preview",timeoutTicks=100)
     public static void previewUsesSharedRequirementsWithoutMutation(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var old=VillageGameTests.recruit(f);VillageGameTests.beside(f.player(),old);
         h.assertTrue(row(f,old.getUUID()).companion()==VillageService.Result.TRUST,"Preview skipped trust");
         VillageData.forLevel(h.getLevel()).reputation(f.village(),f.player().getUUID(),100);f.player().getInventory().add(new ItemStack(Items.EMERALD,64));
@@ -31,9 +32,12 @@ public final class VillageRecruitmentGameTests {
         var elder=h.getLevel().getEntity(f.village().elder());f.player().setPos(elder.getX(),elder.getY(),elder.getZ()-1);
         h.assertTrue(row(f,f.village().elder()).companion()==VillageService.Result.ELDER,"Elder preview recruitable");
         h.assertTrue(!old.isRemoved()&&f.village().residents().size()==5&&f.village().contracts().isEmpty()&&VillageService.count(f.player(),s->s.is(Items.EMERALD))==64,"Read-only preview changed world/items");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_recruitment_actions",timeoutTicks=150)
+    @GameTest(setupTicks=5,template="empty",batch="village_recruitment_actions",timeoutTicks=150)
     public static void confirmedPriceIsBoundAndReplayCannotDuplicateNpc(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var old=VillageGameTests.recruit(f);UUID original=old.getUUID();VillageGameTests.beside(f.player(),old);
         var data=VillageData.forLevel(h.getLevel());data.reputation(f.village(),f.player().getUUID(),20);f.player().getInventory().add(new ItemStack(Items.EMERALD,64));int quote=row(f,original).companionPrice();
         data.reputation(f.village(),f.player().getUUID(),80);
@@ -54,9 +58,12 @@ public final class VillageRecruitmentGameTests {
             var returning=snapshot(f,true,0).rows().get(0);h.assertTrue(returning.status().equals("returning")&&returning.dismiss()==VillageService.Result.ALREADY,"Pending return can be dismissed again");
             h.assertTrue(VillageService.count(f.player(),s->s.is(Items.EMERALD))==64-price,"Hire charged more than once or dismissal refunded");
         }).thenSucceed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_recruitment_paging",timeoutTicks=100)
+    @GameTest(setupTicks=5,template="empty",batch="village_recruitment_paging",timeoutTicks=100)
     public static void serverPagesAreBoundedAndContractsArePrivate(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var data=VillageData.forLevel(h.getLevel());for(int i=0;i<7;i++)data.addResident(f.village(),UUID.randomUUID());
         var first=snapshot(f,false,-5);var last=snapshot(f,false,Integer.MAX_VALUE);
         h.assertTrue(first.page()==0&&first.rows().size()==4&&last.page()==2&&last.rows().size()==4&&last.total()==12,"Page not clamped/bounded");
@@ -65,9 +72,12 @@ public final class VillageRecruitmentGameTests {
         h.assertTrue(snapshot(f,true,0).total()==5&&snapshot(f,true,1).rows().size()==1,"Foreign contract leaked to owner");
         var stranger=FakePlayerFactory.get(h.getLevel(),new GameProfile(UUID.randomUUID(),"ContractReader"));
         h.assertTrue(VillageRecruitmentService.snapshot(stranger,f.village().id(),true,0,null,false).rows().isEmpty(),"Private contract data leaked");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="village_recruitment_stale",timeoutTicks=100)
+    @GameTest(setupTicks=5,template="empty",batch="village_recruitment_stale",timeoutTicks=100)
     public static void staleEligibilityDoesNotAuthorizeRemoteOrUntrustedHire(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var f=VillageGameTests.prepare(h);var old=VillageGameTests.recruit(f);VillageGameTests.beside(f.player(),old);var data=VillageData.forLevel(h.getLevel());data.reputation(f.village(),f.player().getUUID(),100);f.player().getInventory().add(new ItemStack(Items.EMERALD,64));
         var preview=row(f,old.getUUID());h.assertTrue(preview.companion()==VillageService.Result.OK,"Setup not eligible");
         var request=new VillageRecruitmentActionPacket(Action.COMPANION,f.village().id(),old.getUUID(),false,0,preview.companionPrice());
@@ -75,5 +85,7 @@ public final class VillageRecruitmentGameTests {
         VillageGameTests.beside(f.player(),old);data.reputation(f.village(),f.player().getUUID(),-100);
         h.assertTrue(VillageRecruitmentService.act(f.player(),request)==VillageService.Result.TRUST,"Stale trust authorized hire");
         h.assertTrue(!old.isRemoved()&&VillageService.count(f.player(),s->s.is(Items.EMERALD))==64&&f.village().contracts().isEmpty(),"Rejected hire mutated state");h.succeed();
+
+        });
     }
 }

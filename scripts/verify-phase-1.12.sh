@@ -29,5 +29,5 @@ if [[ ! -f "./gradlew" ]]; then
 fi
 
 echo "Phase 1.12: Java 17 preflight passed; running Gradle unit, build and server GameTests."
-bash ./gradlew --no-daemon --stacktrace clean test build verifyGameTests
+bash ./gradlew --no-daemon --stacktrace clean verifyPhase112 "$@"
 echo "Automated checks completed. Client, GUI-scale and dedicated-server smoke tests remain MANUAL."

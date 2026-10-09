@@ -19,34 +19,44 @@ public final class HeroNavigationGameTests {
             for(int y=1;y<=3;y++)h.setBlock(new BlockPos(x,y,z),Blocks.AIR);
         }
     }
-    @GameTest(template="empty",timeoutTicks=30)
+    @GameTest(setupTicks = 5, template="empty",timeoutTicks=30)
     public static void fireIsAvoidedInsteadOfUsedAsShortcut(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         floor(h);h.setBlock(new BlockPos(4,1,3),Blocks.FIRE);
         var start=h.absolutePos(new BlockPos(1,1,3));var goal=h.absolutePos(new BlockPos(7,1,3));
         var route=BlockPathfinder.findPermittedPath(h.getLevel(),start,goal,p->HeroRouteSafety.permitted(h.getLevel(),p));
         h.assertTrue(route.isPresent(),"Safe detour missing");
         h.assertTrue(route.get().stream().allMatch(p->HeroRouteSafety.permitted(h.getLevel(),p)),"Route crosses hazard");
         h.assertTrue(route.get().get(route.get().size()-1).equals(goal),"Goal silently replaced");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",timeoutTicks=30)
+    @GameTest(setupTicks = 5, template="empty",timeoutTicks=30)
     public static void deepWaterGoalNeverSnapsToNearbyLand(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         floor(h);var pos=new BlockPos(4,1,3);h.setBlock(pos,Blocks.WATER);h.setBlock(pos.above(),Blocks.WATER);
         var goal=h.absolutePos(pos);
         h.assertTrue(HeroRouteSafety.terrain(h.getLevel(),goal)==HeroRouteSafety.Reason.WATER,"Deep water not identified");
         h.assertTrue(HeroRouteSafety.terrain(h.getLevel(),goal.above())==HeroRouteSafety.Reason.WATER,"Deep water surface allowed unattended entry");
         h.assertTrue(BlockPathfinder.findPermittedPath(h.getLevel(),h.absolutePos(new BlockPos(1,1,3)),goal,
                 p->HeroRouteSafety.permitted(h.getLevel(),p)).isEmpty(),"Unsafe goal replaced by land");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",timeoutTicks=30)
+    @GameTest(setupTicks = 5, template="empty",timeoutTicks=30)
     public static void unsupportedCellAndLowCeilingAreRejected(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         floor(h);var pit=new BlockPos(4,1,3);h.setBlock(pit.below(),Blocks.AIR);
         h.assertTrue(HeroRouteSafety.terrain(h.getLevel(),h.absolutePos(pit))==HeroRouteSafety.Reason.DROP,"Unsupported goal accepted");
         var low=new BlockPos(6,1,3);h.setBlock(low.above(),Blocks.STONE);
         h.assertTrue(BlockPathfinder.findPermittedPath(h.getLevel(),h.absolutePos(new BlockPos(1,1,3)),h.absolutePos(low),
                 p->HeroRouteSafety.permitted(h.getLevel(),p)).isEmpty(),"Low ceiling goal replaced or crossed");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",timeoutTicks=30)
+    @GameTest(setupTicks = 5, template="empty",timeoutTicks=30)
     public static void magmaBelowFeetAndLavaAtGoalStayImpassable(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         floor(h);
         var magma = new BlockPos(3, 0, 3);
         var lava = new BlockPos(5, 1, 3);
@@ -65,14 +75,19 @@ public final class HeroNavigationGameTests {
         h.assertTrue(route.get().stream().allMatch(p -> HeroRouteSafety.permitted(level, p)),
                 "Hazard used as shortest route");
         h.succeed();
+
+        });
     }
 
-    @GameTest(template="empty",timeoutTicks=30)
+    @GameTest(setupTicks = 5, template="empty",timeoutTicks=30)
     public static void shallowWaterRemainsUsable(GameTestHelper h) {
+        GameTestFixtures.runWhenReady(h, () -> {
         floor(h);var water=new BlockPos(4,1,3);h.setBlock(water,Blocks.WATER);
         var goal=h.absolutePos(water);
         h.assertTrue(HeroRouteSafety.terrain(h.getLevel(),goal)==HeroRouteSafety.Reason.NONE,"Shallow water rejected");
         h.assertTrue(BlockPathfinder.findPermittedPath(h.getLevel(),h.absolutePos(new BlockPos(1,1,3)),goal,
                 p->HeroRouteSafety.permitted(h.getLevel(),p)).isPresent(),"Shallow-water route missing");h.succeed();
+
+        });
     }
 }

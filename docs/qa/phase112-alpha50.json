@@ -1,0 +1,17 @@
+{
+    "version": "0.1.0-alpha.50",
+    "checkedAt": "2026-10-09T12:16:51.079205331Z",
+    "java": "17.0.20",
+    "gradle": "8.8",
+    "junit": {
+        "tests": 414,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+    },
+    "requiredGameTests": 149,
+    "artifact": "stonebanner-0.1.0-alpha.50.jar",
+    "sha256": "90936b6d6a187cdaf3ceb311fa06483df47f854f453be7b1a71a2c70cc96e3e6",
+    "clientAcceptance": "pending",
+    "dedicatedServerClientAcceptance": "pending"
+}

@@ -15,8 +15,9 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("stonebanner")
 @PrefixGameTestTemplate(false)
 public final class CitizenQueueGameTests {
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 300)
     public static void loadedCargoReachesStorageWithoutPersonalItems(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         npc.citizenData().inventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.APPLE, 3));
         npc.citizenData().inventory().addHaulCargo(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 7));
@@ -42,10 +43,13 @@ public final class CitizenQueueGameTests {
                     .filter(stack -> stack.is(net.minecraft.world.item.Items.APPLE)).mapToInt(net.minecraft.world.item.ItemStack::getCount).sum() == 3,
                     "Personal food was consumed or lost");
         }).thenExecuteAfter(20, () -> helper.assertTrue(!npc.citizenData().inventory().hasHaulCargo(), "Delivered cargo reappeared")).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void deathDropsPersonalItemsAndCargoOnce(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         npc.citizenData().inventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.APPLE, 3));
         npc.citizenData().inventory().addHaulCargo(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 7));
@@ -62,10 +66,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(drops.stream().noneMatch(item -> item.getItem().is(net.minecraft.world.item.Items.IRON_AXE)), "Vanishing item dropped");
             helper.assertTrue(npc.citizenData().inventory().snapshot().stream().allMatch(net.minecraft.world.item.ItemStack::isEmpty), "Death retained inventory copy");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void immobileNpcRejectsMovement(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         npc.citizenData().health().setInjury(dev.stonebanner.citizen.BodyPart.LEFT_LEG, dev.stonebanner.citizen.InjuryState.FRACTURE);
         npc.citizenData().health().setInjury(dev.stonebanner.citizen.BodyPart.RIGHT_LEG, dev.stonebanner.citizen.InjuryState.FRACTURE);
@@ -75,10 +82,13 @@ public final class CitizenQueueGameTests {
         helper.assertTrue(!npc.commandController().issueSystemMove(target, dev.stonebanner.citizen.CitizenBrainState.RETURN_HOME), "Immobile NPC accepted system move");
         helper.assertTrue(!npc.commandController().hasActiveCommand(), "Rejected command retained active state");
         helper.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void deathReleasesWorkAndCommands(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         long id = assignTree(helper, npc);
         npc.hurt(npc.damageSources().genericKill(), 1000);
@@ -89,6 +99,8 @@ public final class CitizenQueueGameTests {
                 .reserve(id, java.util.UUID.randomUUID(), helper.getLevel().getGameTime()), "Death did not release reservation");
         helper.startSequence().thenExecuteAfter(10, () -> helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).is(Blocks.OAK_LOG),
                 "Dead worker changed world")).thenSucceed();
+
+        });
     }
 
     private static long assignTree(GameTestHelper helper, HumanNpcEntity npc) {
@@ -101,8 +113,9 @@ public final class CitizenQueueGameTests {
         return id;
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void disabledWorkStopsBeforeMutation(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         assignTree(helper, npc);
         npc.setWorkPriority(dev.stonebanner.citizen.WorkType.FORESTRY, dev.stonebanner.citizen.WorkPriority.DISABLED);
@@ -110,10 +123,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(!npc.workController().hasActiveJob(), "Disabled work continued");
             helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).is(Blocks.OAK_LOG), "Disabled work destroyed tree");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void reassignedWorkStopsOldWorker(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         long id = assignTree(helper, npc);
         var board = dev.stonebanner.citizen.CitizenJobBoard.forLevel(helper.getLevel());
@@ -125,10 +141,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(board.touch(id, successor, helper.getLevel().getGameTime()), "Old worker released successor lease");
             helper.assertTrue(helper.getBlockState(new BlockPos(4, 1, 2)).is(Blocks.OAK_LOG), "Old worker changed world");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void loadDoesNotRestorePhantomWork(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         assignTree(helper, npc);
         var tag = new net.minecraft.nbt.CompoundTag();
@@ -138,11 +157,14 @@ public final class CitizenQueueGameTests {
         helper.assertTrue(!npc.workController().hasActiveJob() && !npc.commandController().hasActiveCommand(), "Runtime work restored");
         helper.assertTrue(npc.brainState() == dev.stonebanner.citizen.CitizenBrainState.IDLE, "Phantom work state restored");
         helper.succeed();
+
+        });
     }
 
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void loadedInvalidProductionJobsAreStillPruned(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         prepare(helper);
         var level = helper.getLevel();
         var board = dev.stonebanner.citizen.CitizenJobBoard.forLevel(level);
@@ -163,10 +185,13 @@ public final class CitizenQueueGameTests {
             board.remove(craft);
         }
         helper.succeed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 110)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 110)
     public static void unloadedProductionJobsSurviveReconciliationWithoutForceLoading(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         var level = helper.getLevel();
         // Far away from the loaded test area, but inside the normal world border.
@@ -201,10 +226,13 @@ public final class CitizenQueueGameTests {
             board.remove(craft);
             throw exception;
         }
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 300)
     public static void reloadedWorkerReacquiresPublishedWorkExactlyOnce(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         npc.setWorkPriority(dev.stonebanner.citizen.WorkType.HAULING, dev.stonebanner.citizen.WorkPriority.DISABLED);
         long id = assignTree(helper, npc);
@@ -227,10 +255,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(board.job(id).isEmpty(), "Completed job reappeared");
             assertSingleLogDrop(helper);
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void compressedReloadClearsMixedAndMovementQueues(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         var commander = java.util.UUID.randomUUID();
         npc.citizenData().setRecruitedBy(commander);
@@ -253,6 +284,8 @@ public final class CitizenQueueGameTests {
                     && npc.commandController().queuedMoveCount() == 0, "Old movement queue survived reload");
             helper.assertTrue(npc.position().distanceToSqr(position) < .1, "Reload replayed old movement");
         }).thenSucceed();
+
+        });
     }
 
     private static net.minecraft.nbt.CompoundTag compressedRoundTrip(net.minecraft.nbt.CompoundTag tag) {
@@ -274,8 +307,9 @@ public final class CitizenQueueGameTests {
         helper.assertTrue(count == 1, "Reloaded forestry lost or duplicated its physical log: " + count);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 150)
     public static void guardInterruptsQueueAndDefends(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         npc.citizenData().setProfession(dev.stonebanner.citizen.CitizenProfession.GUARD, true);
@@ -289,10 +323,13 @@ public final class CitizenQueueGameTests {
         }).thenExecuteAfter(5, () -> helper.assertTrue(npc.brainState() == dev.stonebanner.citizen.CitizenBrainState.DEFEND,
                 "Movement overwrote defense state"))
                 .thenWaitUntil(() -> helper.assertTrue(zombie.getHealth() < zombie.getMaxHealth(), "Guard never attacked threat")).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void followRejectsChangedTargetIdentity(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         var target = helper.spawn(net.minecraft.world.entity.EntityType.COW, new BlockPos(10, 1, 2));
         target.setNoAi(true);
@@ -301,10 +338,13 @@ public final class CitizenQueueGameTests {
         target.setUUID(java.util.UUID.randomUUID());
         helper.startSequence().thenExecuteAfter(5, () -> helper.assertTrue(!npc.commandController().hasActiveCommand(),
                 "Follow silently retargeted another UUID")).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 150)
     public static void blockedActiveRouteDoesNotComplete(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         helper.assertTrue(npc.issueCommand(new ActorCommand.MoveTo(helper.absolutePos(new BlockPos(6, 1, 2)))), "Move rejected");
         for (int x = 3; x <= 9; x++) for (int z = 1; z <= 5; z++)
@@ -314,6 +354,8 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(npc.commandController().status() == dev.stonebanner.citizen.CitizenCommandController.CommandStatus.UNREACHABLE,
                     "Failed recovery was reported as successful completion");
         }).thenSucceed();
+
+        });
     }
 
     static HumanNpcEntity prepare(GameTestHelper helper) {
@@ -328,7 +370,10 @@ public final class CitizenQueueGameTests {
         var jobs = dev.stonebanner.citizen.CitizenJobBoard.forLevel(helper.getLevel());
         for (var job : jobs.snapshot()) if (arena.contains(Vec3.atCenterOf(job.target()))) jobs.remove(job.id());
         helper.getLevel().getGameRules().getRule(GameRules.RULE_DOMOBSPAWNING).set(false, helper.getLevel().getServer());
+        // The empty template contains no block entries. Reset our own arena explicitly,
+        // including fluids left by earlier batches, before rebuilding the boundary.
         for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
+            for (int y = 1; y <= 5; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
             helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
             if (x == 0 || z == 0 || x == 15 || z == 15)
                 for (int y = 1; y < 5; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
@@ -350,8 +395,9 @@ public final class CitizenQueueGameTests {
                 "NPC did not reach final waypoint: " + npc.position());
     }
 
-    @GameTest(template = "empty", timeoutTicks = 400)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 400)
     public static void executesThreeWaypoints(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         helper.startSequence().thenWaitUntil(() -> helper.assertTrue(npc.position().distanceToSqr(
@@ -359,10 +405,13 @@ public final class CitizenQueueGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(npc.position().distanceToSqr(
                 Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(6, 1, 6)))) < 1, "Second waypoint not visited"))
                 .thenWaitUntil(() -> assertFinished(helper, npc, new BlockPos(2, 1, 6))).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 120)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 120)
     public static void stopClearsQueueWithoutRestart(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         var stoppedAt = new Vec3[1];
@@ -374,10 +423,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(npc.commandController().queuedMoveCount() == 0, "Stop retained waypoints");
             helper.assertTrue(npc.position().distanceToSqr(stoppedAt[0]) < 1, "NPC moved after Stop");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 300)
     public static void newMoveReplacesQueue(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         var replacement = new BlockPos(2, 1, 9);
@@ -386,10 +438,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(npc.commandController().queuedMoveCount() == 0, "Replacement retained queue");
         }).thenWaitUntil(() -> assertFinished(helper, npc, replacement))
                 .thenExecuteAfter(30, () -> assertFinished(helper, npc, replacement)).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 200)
     public static void blockedNextWaypointCancelsRemainder(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         // Remove all possible standing cells around the second waypoint after it was queued.
@@ -403,10 +458,13 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(npc.position().distanceToSqr(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 1, 6)))) > 1,
                     "NPC skipped the blocked point and reached the third");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void criticalHungerClearsQueue(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = prepare(helper);
         start(helper, npc);
         npc.citizenData().needs().setHunger(100);
@@ -415,5 +473,7 @@ public final class CitizenQueueGameTests {
             helper.assertTrue(npc.commandController().queuedMoveCount() == 0, "Critical hunger retained queue");
             helper.assertTrue(npc.brainState() == dev.stonebanner.citizen.CitizenBrainState.EAT, "NPC not eating");
         }).thenSucceed();
+
+        });
     }
 }

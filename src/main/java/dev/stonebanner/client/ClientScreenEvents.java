@@ -64,7 +64,7 @@ public final class ClientScreenEvents {
                     BUTTON_HEIGHT
             ).build());
             event.addListener(Button.builder(
-                    Component.translatable("settings.stonebanner.title"),
+                    Component.translatable("settings.stonebanner.menu"),
                     button -> Minecraft.getInstance().setScreen(new StoneBannerSettingsScreen(titleScreen))
             ).bounds(
                     Math.max(MARGIN, titleScreen.width - BUTTON_WIDTH - MARGIN),
@@ -74,7 +74,7 @@ public final class ClientScreenEvents {
             ).build());
         } else if (current instanceof PauseScreen pauseScreen) {
             event.addListener(Button.builder(
-                    Component.translatable("settings.stonebanner.title"),
+                    Component.translatable("settings.stonebanner.menu"),
                     button -> Minecraft.getInstance().setScreen(new StoneBannerSettingsScreen(pauseScreen))
             ).bounds(
                     Math.max(MARGIN, pauseScreen.width - BUTTON_WIDTH - MARGIN),

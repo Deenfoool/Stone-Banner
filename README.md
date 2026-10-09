@@ -9,6 +9,9 @@ The **ten-goal NPC civilization target** (cooperative building, hospitals, husba
 
 The strict input acceptance checklist for Phase 1.12 is [docs/ACCEPTANCE_1_12.md](docs/ACCEPTANCE_1_12.md);
 on Linux/macOS with **JDK 17** run `bash scripts/verify-phase-1.12.sh`.
+The alpha.50 automatic checkpoint passed 414 JUnit and 149 required GameTests;
+see [QA_ALPHA_50.md](docs/QA_ALPHA_50.md) for client checks and remaining acceptance.
+IDE launches must run `processResources` first; Gradle run tasks already do so.
 Neither the integration run nor the manual client/dedicated-server tests have been claimed as passing.
 
 ## Interactive HUD preview
@@ -36,7 +39,7 @@ The [standalone browser HUD playground](docs/HUD_PLAYGROUND.md) lives in [docs/i
 
 The Phase 1.7 Hero ↔ Orders transition is implemented in source: tap `Tab` to toggle Orders, or hold it from Hero to give temporary orders and return automatically on release. `Home` returns the camera to the hero; double-pressing it resets the default angle and zoom. Detached Orders camera pans at screen edges and keeps independent yaw/zoom while the hero's previous camera view is restored on return. Controls are rebindable; `ordersHoldMs`, `homeDoubleMs` and `transitionTicks` live in the client TOML. Camera interpolation still uses collision and loaded-chunk checks. See [CONTROLS.md](CONTROLS.md). These changes have not been verified in a Forge client or Gradle build yet.
 
-Version: `0.1.0-alpha.49` (Phase 1.12 input hardening and verification suite in source; real Forge acceptance pending).
+Version: `0.1.0-alpha.50` (Phase 1.12 automated evidence checkpoint; full client and server acceptance remains open).
 
 Cottage construction is implemented in source: **B** / the Build tab opens a fixed 5×7 blueprint with rotation and a world outline preview. One NPC fetches real supplies from registered storage, builds in stages, and places a door/two beds with one item per furniture piece. Plans, ownership and pause persist; removing a plan keeps blocks and carried items. Existing sleep/camp provision detects the ordinary beds. See [CONSTRUCTION.md](CONSTRUCTION.md). Build and gameplay verification remain deferred.
 

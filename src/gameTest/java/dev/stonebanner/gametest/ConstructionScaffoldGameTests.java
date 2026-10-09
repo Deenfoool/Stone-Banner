@@ -21,8 +21,9 @@ public final class ConstructionScaffoldGameTests {
             data.edit(old.owner,old.id,"cancel");
         }return npc;
     }
-    @GameTest(template="empty",batch="construction-scaffolds",timeoutTicks=3500)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-scaffolds",timeoutTicks=3500)
     public static void jumpBuiltColumnAndBridgeAreReclaimedWithoutDuplicationOrFallInjury(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);for(var type:WorkType.values())npc.setWorkPriority(type,WorkPriority.DISABLED);
         npc.citizenData().inventory().add(new ItemStack(Items.BREAD,16));
         npc.citizenData().inventory().add(new ItemStack(Items.COBBLESTONE,64));npc.citizenData().inventory().add(new ItemStack(Items.LADDER,64));
@@ -48,9 +49,12 @@ public final class ConstructionScaffoldGameTests {
               h.assertTrue(npc.getHealth()==health,"Controlled descent caused fall damage");
               data.finishCancel(plan);h.assertTrue(data.plan(plan.id)==null,"Cancelled plan retained after cleanup");
           }).thenSucceed();
+
+        });
     }
-    @GameTest(template="empty",batch="construction-scaffolds",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-scaffolds",timeoutTicks=100)
     public static void foreignOccupantPreventsSupportRemovalAndRefund(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);for(var type:WorkType.values())npc.setWorkPriority(type,WorkPriority.DISABLED);
         var data=ConstructionData.forLevel(h.getLevel());var origin=h.absolutePos(new BlockPos(7,1,7));
         var plan=data.plan(data.add(UUID.randomUUID(),origin,Rotation.NONE));var base=h.absolutePos(new BlockPos(4,1,4));
@@ -64,9 +68,12 @@ public final class ConstructionScaffoldGameTests {
         h.assertTrue(scaffold.reason()==WorkBlockReason.OCCUPIED,"Occupant did not block cleanup");
         h.assertTrue(npc.citizenData().inventory().countPersonalItem(Items.COBBLESTONE)==0,"Blocked cleanup refunded a block");
         pig.discard();data.forget(base);data.edit(plan.owner,plan.id,"cancel");h.succeed();
+
+        });
     }
-    @GameTest(template="empty",batch="construction-scaffolds",timeoutTicks=100)
+    @GameTest(setupTicks = 5, template="empty",batch="construction-scaffolds",timeoutTicks=100)
     public static void protectedBridgePlacementRollsBackWithoutMaterialCharge(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {
         var npc=prepare(h);for(var type:WorkType.values())npc.setWorkPriority(type,WorkPriority.DISABLED);
         var data=ConstructionData.forLevel(h.getLevel());var origin=h.absolutePos(new BlockPos(5,1,5));
         var placement=new CottageBlueprint.Placement(Items.OAK_PLANKS,List.of(new CottageBlueprint.Cell(BlockPos.ZERO,Blocks.OAK_PLANKS.defaultBlockState())));
@@ -85,5 +92,7 @@ public final class ConstructionScaffoldGameTests {
             h.assertTrue(npc.citizenData().inventory().countPersonalItem(Items.COBBLESTONE)==1,"Cancelled placement charged material");
         }finally{net.minecraftforge.common.MinecraftForge.EVENT_BUS.unregister(listener);plan.temporary.clear();data.edit(plan.owner,plan.id,"cancel");}
         h.succeed();
+
+        });
     }
 }

@@ -97,16 +97,34 @@ public final class CommunitySupplyGameTests {
         assertItems(h,npc,Items.OAK_PLANKS,mode==0?1:0,mode==0?3:4);
         h.succeed();
     }
-    @GameTest(template="empty",batch="community_builder_own",timeoutTicks=100)
-    public static void builderFetchesOwnMaterials(GameTestHelper h){builder(h,0);}
-    @GameTest(template="empty",batch="community_builder_foreign",timeoutTicks=100)
-    public static void builderRejectsForeignMaterials(GameTestHelper h){builder(h,1);}
-    @GameTest(template="empty",batch="community_builder_recheck",timeoutTicks=100)
-    public static void builderRechecksMembershipBeforeExtraction(GameTestHelper h){builder(h,2);}
-    @GameTest(template="empty",batch="community_production_own",timeoutTicks=100)
-    public static void farmerAndCrafterFetchOwnSupplies(GameTestHelper h){production(h,0);}
-    @GameTest(template="empty",batch="community_production_foreign",timeoutTicks=100)
-    public static void farmerAndCrafterRejectForeignSupplies(GameTestHelper h){production(h,1);}
-    @GameTest(template="empty",batch="community_production_recheck",timeoutTicks=100)
-    public static void crafterRechecksMembershipBeforeExtraction(GameTestHelper h){production(h,2);}
+    @GameTest(setupTicks = 5, template="empty",batch="community_builder_own",timeoutTicks=100)
+    public static void builderFetchesOwnMaterials(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {builder(h,0);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty",batch="community_builder_foreign",timeoutTicks=100)
+    public static void builderRejectsForeignMaterials(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {builder(h,1);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty",batch="community_builder_recheck",timeoutTicks=100)
+    public static void builderRechecksMembershipBeforeExtraction(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {builder(h,2);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty",batch="community_production_own",timeoutTicks=100)
+    public static void farmerAndCrafterFetchOwnSupplies(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {production(h,0);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty",batch="community_production_foreign",timeoutTicks=100)
+    public static void farmerAndCrafterRejectForeignSupplies(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {production(h,1);
+        });
+    }
+    @GameTest(setupTicks = 5, template="empty",batch="community_production_recheck",timeoutTicks=100)
+    public static void crafterRechecksMembershipBeforeExtraction(GameTestHelper h){
+        GameTestFixtures.runWhenReady(h, () -> {production(h,2);
+        });
+    }
 }

@@ -18,8 +18,9 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("stonebanner")
 @PrefixGameTestTemplate(false)
 public final class CitizenFoodGameTests {
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void immobileCitizenCanEatWithinReach(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(90);
         npc.citizenData().health().setInjury(dev.stonebanner.citizen.BodyPart.LEFT_LEG, dev.stonebanner.citizen.InjuryState.FRACTURE);
@@ -31,10 +32,13 @@ public final class CitizenFoodGameTests {
             helper.assertTrue(chest.isEmpty(), "Nearby food was not extracted");
             helper.assertTrue(npc.position().distanceToSqr(start) < 1, "Immobile NPC walked to food");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 150)
     public static void foodRemovedDuringApproachIsNotCreatedAgain(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(90);
         var chest = chest(helper, new BlockPos(12, 1, 2), new ItemStack(Items.COOKED_BEEF), true);
@@ -45,10 +49,13 @@ public final class CitizenFoodGameTests {
                     helper.assertTrue(npc.citizenData().needs().hunger() >= 90, "Missing food was recreated");
                     helper.assertTrue(chest.isEmpty(), "Removed food reappeared");
                 }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 150)
     public static void explicitWorkInterruptsNonCriticalFoodTrip(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(65);
         npc.setWorkPriority(dev.stonebanner.citizen.WorkType.FORESTRY, dev.stonebanner.citizen.WorkPriority.NORMAL);
@@ -66,6 +73,8 @@ public final class CitizenFoodGameTests {
                     helper.assertTrue(npc.workController().hasActiveJob(), "Explicit work did not continue");
                     helper.assertTrue(chest.getItem(0).getCount() == 1, "Canceled trip consumed food");
                 }).thenSucceed();
+
+        });
     }
 
     private static Container chest(GameTestHelper helper, BlockPos pos, ItemStack food, boolean register) {
@@ -76,8 +85,9 @@ public final class CitizenFoodGameTests {
         return chest;
     }
 
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 300)
     public static void hungryCitizenFetchesRealFood(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(90);
         var chest = chest(helper, new BlockPos(10, 1, 2), new ItemStack(Items.COOKED_BEEF), true);
@@ -88,10 +98,13 @@ public final class CitizenFoodGameTests {
             helper.assertTrue(npc.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(new BlockPos(10, 1, 2)))) < 8,
                     "NPC consumed food remotely");
         }).thenExecuteAfter(5, () -> helper.assertTrue(!npc.foodController().isSeeking(), "Satisfied NPC retained food task")).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 300)
     public static void twoCitizensCannotDuplicateLastPortion(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var first = CitizenQueueGameTests.prepare(helper);
         var second = helper.spawn(ModEntities.HUMAN_NPC.get(), new BlockPos(2, 1, 4));
         first.citizenData().needs().setHunger(90);
@@ -105,10 +118,13 @@ public final class CitizenFoodGameTests {
             int fed = (first.citizenData().needs().hunger() < 60 ? 1 : 0) + (second.citizenData().needs().hunger() < 60 ? 1 : 0);
             helper.assertTrue(fed == 1, "Empty storage fed a second citizen");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 120)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 120)
     public static void blockedStorageDoesNotFeedRemotely(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(90);
         var pos = new BlockPos(10, 1, 2);
@@ -121,10 +137,13 @@ public final class CitizenFoodGameTests {
             helper.assertTrue(!npc.commandController().hasActiveCommand(), "Blocked storage retained route");
             helper.assertTrue(npc.brainState() == CitizenBrainState.EAT, "Waiting NPC lost need state");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 150)
     public static void manualMoveInterruptsNonCriticalFoodTrip(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(65);
         var chest = chest(helper, new BlockPos(12, 1, 2), new ItemStack(Items.COOKED_BEEF), true);
@@ -135,10 +154,13 @@ public final class CitizenFoodGameTests {
                     helper.assertTrue(npc.commandController().movementState() == CitizenBrainState.MOVE, "Food trip overwrote manual move");
                     helper.assertTrue(chest.getItem(0).getCount() == 1, "Canceled trip removed food");
                 }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 200)
     public static void fullInventoryKeepsFoodRemainderPhysical(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         for (int i = 0; i < 9; i++) npc.citizenData().inventory().add(new ItemStack(Items.COBBLESTONE, 64));
         npc.citizenData().needs().setHunger(90);
@@ -150,10 +172,13 @@ public final class CitizenFoodGameTests {
                     item -> item.getItem().is(Items.BOWL));
             helper.assertTrue(bowls.stream().mapToInt(item -> item.getItem().getCount()).sum() == 1, "Bowl lost or duplicated with full bag");
         }).thenSucceed();
+
+        });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(setupTicks = 5, template = "empty", timeoutTicks = 100)
     public static void unregisteredChestIsNotFoodStorage(GameTestHelper helper) {
+        GameTestFixtures.runWhenReady(helper, () -> {
         var npc = CitizenQueueGameTests.prepare(helper);
         npc.citizenData().needs().setHunger(90);
         var chest = chest(helper, new BlockPos(4, 1, 2), new ItemStack(Items.COOKED_BEEF), false);
@@ -161,5 +186,7 @@ public final class CitizenFoodGameTests {
             helper.assertTrue(chest.getItem(0).getCount() == 1, "NPC looted unregistered chest");
             helper.assertTrue(npc.citizenData().needs().hunger() >= 90, "NPC ate from unregistered chest");
         }).thenSucceed();
+
+        });
     }
 }
