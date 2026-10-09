@@ -136,7 +136,9 @@ public final class CitizenJobBoard extends SavedData {
         if (entry == null) {
             return;
         }
-        if (entry.reservedBy == null || entry.reservedBy.equals(workerId)) {
+        // Completion is a worker mutation, not a cancellation API. After a reload or
+        // lease release no caller owns this job: only an active claimant may consume it.
+        if (workerId != null && workerId.equals(entry.reservedBy)) {
             entries.remove(jobId);
             setDirty();
         }

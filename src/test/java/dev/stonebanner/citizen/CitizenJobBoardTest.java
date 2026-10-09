@@ -36,6 +36,45 @@ class CitizenJobBoardTest {
         assertTrue(restored.publish(WorkType.GUARD, new BlockPos(5, 65, 5), 5) > repaired);
     }
 
+
+    @Test
+    void unreservedJobCannotBeCompletedByUnknownOrFormerWorker() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.FORESTRY, new BlockPos(2, 75, 2), 0);
+        UUID first = UUID.randomUUID();
+
+        board.complete(id, first);
+        board.complete(id, null);
+        assertTrue(board.job(id).isPresent(),
+                "Unreserved work was removed by a caller without a lease");
+        assertTrue(board.reserve(id, first, 1));
+        board.release(id, first);
+        board.complete(id, first);
+        assertTrue(board.job(id).isPresent(), "Former lease holder removed unclaimed work");
+        assertTrue(board.reserve(id, first, 2));
+        board.complete(id, first);
+        assertFalse(board.job(id).isPresent(), "Current owner could not complete work");
+    }
+
+    @Test
+    void reloadedJobRequiresFreshReservationBeforeCompletion() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.MINING, new BlockPos(8, 40, 8), 10);
+        UUID beforeRestart = UUID.randomUUID();
+        UUID afterRestart = UUID.randomUUID();
+        assertTrue(board.reserve(id, beforeRestart, 20));
+        CitizenJobBoard loaded = CitizenJobBoard.load(board.save(new CompoundTag()));
+
+        loaded.complete(id, beforeRestart);
+        assertTrue(loaded.job(id).isPresent(),
+                "Former claimant deleted an unfinished job after reload");
+        assertTrue(loaded.reserve(id, afterRestart, 21));
+        loaded.complete(id, beforeRestart);
+        assertTrue(loaded.job(id).isPresent(), "Former claimant deleted work of new claimant");
+        loaded.complete(id, afterRestart);
+        assertFalse(loaded.job(id).isPresent());
+    }
+
     @Test
     void duplicateSavedIdRetainsBothDistinctJobsWithoutAliasing() {
         CitizenJobBoard original = new CitizenJobBoard();
