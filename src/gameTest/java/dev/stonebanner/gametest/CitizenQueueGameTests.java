@@ -141,6 +141,30 @@ public final class CitizenQueueGameTests {
     }
 
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void loadedInvalidProductionJobsAreStillPruned(GameTestHelper helper) {
+        prepare(helper);
+        var level = helper.getLevel();
+        var board = dev.stonebanner.citizen.CitizenJobBoard.forLevel(level);
+        // These cells are loaded by the test fixture but have neither farm field nor
+        // active crafting bill. They must not accumulate as phantom work indefinitely.
+        BlockPos soil = helper.absolutePos(new BlockPos(10, 1, 9));
+        BlockPos table = helper.absolutePos(new BlockPos(11, 1, 9));
+        helper.assertTrue(level.hasChunkAt(soil) && level.hasChunkAt(table),
+                "The invalid-work test needs loaded blocks");
+        long farm = board.publish(dev.stonebanner.citizen.WorkType.FARMING, soil, level.getGameTime());
+        long craft = board.publish(dev.stonebanner.citizen.WorkType.CRAFTING, table, level.getGameTime());
+        try {
+            dev.stonebanner.production.ProductionService.reconcile(level);
+            helper.assertTrue(board.job(farm).isEmpty() && board.job(craft).isEmpty(),
+                    "Invalid loaded work was incorrectly preserved as deferred");
+        } finally {
+            board.remove(farm);
+            board.remove(craft);
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 110)
     public static void unloadedProductionJobsSurviveReconciliationWithoutForceLoading(GameTestHelper helper) {
         var npc = prepare(helper);
