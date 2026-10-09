@@ -73,6 +73,7 @@ public final class ExcavationPlanData extends SavedData {
 
     /** Creates a top-down quarry plan using the selected persistent access strategy. */
     public int createVertical(ServerLevel level, BlockPos first, BlockPos second, ExcavationAccessMode accessMode) {
+        if (nextId <= 0L || nextId == Long.MAX_VALUE) return 0;
         return create(level, Plan.vertical(nextId++, first, second,
                 accessMode == null ? ExcavationAccessMode.AUTO : accessMode));
     }
@@ -82,6 +83,7 @@ public final class ExcavationPlanData extends SavedData {
      * the endpoint nearest the player becomes the entrance and sections open away from it.
      */
     public int createTunnel(ServerLevel level, BlockPos first, BlockPos second, BlockPos entranceHint) {
+        if (nextId <= 0L || nextId == Long.MAX_VALUE) return 0;
         return create(level, Plan.tunnel(nextId++, first, second, entranceHint));
     }
 
@@ -562,10 +564,36 @@ public final class ExcavationPlanData extends SavedData {
 
     public static ExcavationPlanData load(CompoundTag root) {
         ExcavationPlanData data = new ExcavationPlanData();
-        long highestId = 0L;
         ListTag list = root.getList(TAG_PLANS, Tag.TAG_COMPOUND);
+
+        // Hold every original positive ID before repairing duplicates: a repaired early entry
+        // must not steal an original identity belonging to a later plan.
+        long highestId = 0L;
         for (int index = 0; index < list.size(); index++) {
             CompoundTag tag = list.getCompound(index);
+            if (tag.contains(TAG_ID, Tag.TAG_LONG)) {
+                long id = tag.getLong(TAG_ID);
+                if (id > 0L && id < Long.MAX_VALUE) highestId = Math.max(highestId, id);
+            }
+        }
+        long savedNext = root.contains(TAG_NEXT_ID, Tag.TAG_LONG) ? root.getLong(TAG_NEXT_ID) : 1L;
+        data.nextId = Math.max(Math.max(1L, savedNext), highestId + 1L);
+        boolean repaired = data.nextId != savedNext;
+
+        for (int index = 0; index < list.size(); index++) {
+            CompoundTag tag = list.getCompound(index);
+            // Never accept malformed bounds: defaulting a missing coordinate to zero can
+            // silently create a huge phantom quarry, or block server ticks with world scans.
+            if (!validSavedBounds(tag)) {
+                repaired = true;
+                continue;
+            }
+            int minX = tag.getInt(TAG_MIN_X);
+            int minY = tag.getInt(TAG_MIN_Y);
+            int minZ = tag.getInt(TAG_MIN_Z);
+            int maxX = tag.getInt(TAG_MAX_X);
+            int maxY = tag.getInt(TAG_MAX_Y);
+            int maxZ = tag.getInt(TAG_MAX_Z);
             Mode mode = tag.contains(TAG_MODE, Tag.TAG_STRING)
                     ? Mode.fromSerializedName(tag.getString(TAG_MODE))
                     : Mode.VERTICAL;
@@ -578,25 +606,40 @@ public final class ExcavationPlanData extends SavedData {
             int step = tag.contains(TAG_STEP, Tag.TAG_INT)
                     ? normalizeStep(tag.getInt(TAG_STEP))
                     : -1;
-            Plan plan = new Plan(
-                    tag.getLong(TAG_ID),
-                    tag.getInt(TAG_MIN_X),
-                    tag.getInt(TAG_MIN_Y),
-                    tag.getInt(TAG_MIN_Z),
-                    tag.getInt(TAG_MAX_X),
-                    tag.getInt(TAG_MAX_Y),
-                    tag.getInt(TAG_MAX_Z),
-                    mode,
-                    accessMode,
-                    currentSlice,
-                    step
-            );
+            long id = tag.contains(TAG_ID, Tag.TAG_LONG) ? tag.getLong(TAG_ID) : 0L;
+            if (id <= 0L || id == Long.MAX_VALUE || data.plans.containsKey(id)) {
+                if (data.nextId == Long.MAX_VALUE) {
+                    repaired = true;
+                    continue;
+                }
+                id = data.nextId++;
+                repaired = true;
+            }
+            Plan plan = new Plan(id, minX, minY, minZ, maxX, maxY, maxZ,
+                    mode, accessMode, currentSlice, step);
+            if (!plan.currentSliceInsideBounds()) {
+                // A corrupt frontier must not be interpreted as already completed work.
+                repaired = true;
+                continue;
+            }
             data.plans.put(plan.id, plan);
-            highestId = Math.max(highestId, plan.id);
         }
-        long savedNext = root.contains(TAG_NEXT_ID, Tag.TAG_LONG) ? root.getLong(TAG_NEXT_ID) : 1L;
-        data.nextId = Math.max(Math.max(1L, savedNext), highestId + 1L);
+        if (repaired) data.setDirty();
         return data;
+    }
+
+    private static boolean validSavedBounds(CompoundTag tag) {
+        for (String field : new String[] {TAG_MIN_X, TAG_MIN_Y, TAG_MIN_Z,
+                TAG_MAX_X, TAG_MAX_Y, TAG_MAX_Z}) {
+            if (!tag.contains(field, Tag.TAG_INT)) return false;
+        }
+        int minX = tag.getInt(TAG_MIN_X), minY = tag.getInt(TAG_MIN_Y),
+                minZ = tag.getInt(TAG_MIN_Z);
+        int maxX = tag.getInt(TAG_MAX_X), maxY = tag.getInt(TAG_MAX_Y),
+                maxZ = tag.getInt(TAG_MAX_Z);
+        return minX <= maxX && minY <= maxY && minZ <= maxZ
+                && DesignationLimits.isAllowed(new BlockPos(minX, minY, minZ),
+                        new BlockPos(maxX, maxY, maxZ));
     }
 
     private static int normalizeStep(int value) {

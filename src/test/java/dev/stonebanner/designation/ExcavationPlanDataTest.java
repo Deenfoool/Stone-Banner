@@ -129,6 +129,52 @@ class ExcavationPlanDataTest {
     }
 
 
+
+    @Test
+    void duplicateSavedPlanIdsDoNotOverwriteSeparateMines() {
+        var first = planTag(3L, 1, 30, 1, 3, 34, 3);
+        var second = planTag(3L, 17, 30, 17, 20, 34, 20);
+        var third = planTag(8L, 40, 30, 40, 43, 34, 43);
+        var loaded = ExcavationPlanData.load(planRoot(first, second, third));
+        assertEquals(3, loaded.activePlanCount(), "A duplicate identifier erased a real plan");
+        assertTrue(loaded.containsActiveTarget(new BlockPos(2, 34, 2)));
+        assertTrue(loaded.containsActiveTarget(new BlockPos(18, 34, 18)));
+        assertTrue(loaded.containsActiveTarget(new BlockPos(41, 34, 41)));
+        var saved = loaded.save(new CompoundTag());
+        var all = saved.getList("Plans", Tag.TAG_COMPOUND);
+        var ids = new java.util.HashSet<Long>();
+        for (int i = 0; i < all.size(); i++)
+            assertTrue(ids.add(all.getCompound(i).getLong("Id")), "Repaired plans still share a persistent ID");
+        assertTrue(saved.getLong("NextId") > ids.stream().mapToLong(Long::longValue).max().orElse(0));
+        assertEquals(3, ExcavationPlanData.load(saved).activePlanCount());
+    }
+
+    @Test
+    void malformedMiningPlanCoordinatesAreRejectedWithoutWorldScanning() {
+        var valid = planTag(2L, 2, 42, 2, 4, 46, 4);
+        var missing = planTag(3L, 10, 42, 10, 12, 46, 12);
+        missing.remove("MinX");
+        var oversized = planTag(4L, 0, 1, 0, 10000, 1, 10000);
+        var inverted = planTag(5L, 40, 60, 10, 30, 60, 12);
+        var data = ExcavationPlanData.load(planRoot(valid, missing, oversized, inverted));
+        assertEquals(1, data.activePlanCount());
+        assertTrue(data.containsActiveTarget(new BlockPos(3, 46, 3)));
+        assertFalse(data.containsActiveTarget(BlockPos.ZERO));
+        assertFalse(data.containsActiveTarget(new BlockPos(50, 1, 50)));
+    }
+
+    @Test
+    void invalidRestoredFrontierDoesNotReinterpretEarlierLayers() {
+        var corrupt = planTag(4L, 0, 20, 0, 2, 22, 2);
+        corrupt.putInt("CurrentSlice", 320);
+        var valid = planTag(7L, 16, 20, 16, 18, 22, 18);
+        var restored = ExcavationPlanData.load(planRoot(corrupt, valid));
+        assertEquals(1, restored.activePlanCount());
+        assertTrue(restored.containsActiveTarget(new BlockPos(17, 22, 17)));
+        assertFalse(restored.containsActiveTarget(new BlockPos(1, 21, 1)));
+        assertTrue(restored.save(new CompoundTag()).getLong("NextId") > 7);
+    }
+
     @Test
     void excavationReconcileDoesNotFreezeAfterWorldClockRollback() {
         assertTrue(ExcavationPlanData.reconcileDue(Long.MIN_VALUE, 0));
