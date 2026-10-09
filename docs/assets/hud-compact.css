@@ -1,0 +1,82 @@
+/* Current Minecraft 1.20.1 Forge alpha.49 compact HUD geometry.
+   Positions are owned by hud-layout.js; this sheet owns only presentation. */
+#head{gap:3px;padding:2px 4px;min-height:0;}
+#settlement{flex:0 1 190px;min-width:105px;gap:4px;}
+#flag{width:25px;min-width:25px;height:27px;font-size:19px;}
+#settlement strong{font-size:10px;}
+#settlement small{font-size:9px;margin-top:1px;}
+#stats{flex:0 1 140px;min-width:67px;padding-left:3px;gap:2px;}
+#materials{flex:1;min-width:65px;padding-left:3px;gap:2px;}
+.metric{font-size:10px;line-height:1;min-width:0;}
+.metric .sb-ico{width:13px;height:13px;}
+.metric b{font-size:9px;margin-top:0;}
+#topActions{gap:2px;}
+#topActions .square{width:23px;height:25px;padding:3px;}
+#info{padding:5px;overflow:hidden;}
+#info .face{width:40px;height:40px;flex:0 0 40px;}
+#info .sb-portrait{transform:scale(.82);transform-origin:center;}
+#info .person{gap:6px;min-height:41px;}
+#info strong{font-size:11px;}
+#info small{font-size:9px;margin-top:1px;}
+#info .work{font-size:9px;margin-top:2px;}
+#info .fold{top:3px;right:3px;padding:2px 6px;}
+#info .bar{margin:4px 0;gap:3px;font-size:9px;}
+#info .bar label{width:52px;}
+#info .bar>div{height:7px;}
+#info .skillrow{margin:5px 0;gap:3px;}
+#info .skillrow>span{padding:3px 1px;font-size:9px;}
+#info .personTabs{margin-top:3px;}
+#info .personTabs button{padding:3px 0;font-size:14px;min-width:0;}
+#info .personTabs .sb-ico{width:15px;height:15px;}
+#rail{padding:0;min-height:0;}
+#speeds,#layers{gap:3px;}
+#speeds button{height:20px;padding:1px;font-size:12px;min-width:0;}
+#layers button{height:20px;padding:1px;font-size:13px;min-width:0;}
+#speeds .sb-ico,#layers .sb-ico{width:13px;height:13px;}
+#clock{font-size:9px;padding:3px 4px;line-height:1.1;}
+#clock small{font-size:8px;margin-top:2px;}
+#minimap{border:1px solid #7c7253;}
+#panelwrap{min-width:0;}
+#panelToggle{padding:0;font-size:11px;line-height:12px;min-height:0;}
+#dock{padding:3px 4px;gap:3px;min-height:0;}
+#tabs{gap:3px;min-height:0;}
+#tabs button{font-size:9px;padding:1px 2px;height:24px;}
+#tabs button span{font-size:11px;}
+#tabs button .sb-ico{height:13px;width:13px;}
+#tools{min-height:0;gap:3px;overflow:hidden;}
+#tools button{font-size:9px;padding:1px;line-height:1;}
+#tools button b{font-size:11px;line-height:1.05;}
+#tools button .sb-ico{width:14px;height:14px;}
+#hotbar{align-items:center;min-height:0;flex-shrink:0;gap:2px;}
+#hotbar button{max-width:28px;min-width:0;font-size:13px;height:28px;padding:1px;}
+#hotbar .sb-ico{height:18px;width:18px;}
+#hotbar sup{font-size:8px;}
+#alerts{right:6px;}
+#alerts>div{padding:5px 7px;font-size:10px;margin-bottom:3px;}
+#actions{white-space:nowrap;}
+#actions button{padding:4px 7px;font-size:10px;}
+#subtitle{top:43px;font-size:9px;padding:4px 8px;}
+#mode{top:44px;padding:5px 8px;font-size:9px;}
+#tips{top:86px;max-width:330px;}
+@media(max-width:850px){
+ #settlement{flex:0 1 145px;}
+ #stats{flex:1 1 105px;}
+ #materials{display:none;}
+ #info .face{width:34px;height:34px;flex-basis:34px;}
+ #info .sb-portrait{transform:scale(.7);}
+ #subtitle{display:none;}
+ #tips{max-width:260px;top:81px;font-size:10px;}
+}
+@media(max-width:490px){
+ #settlement{flex:0 1 122px;min-width:96px;}
+ #settlement strong{font-size:9px;}
+ #stats{flex:1;}
+ #stats .metric:nth-child(n+4){display:none;}
+ #topActions button[data-action="journal"]{display:none;}
+ #info .skillrow{display:none;}
+ #info .personTabs button{padding:2px 0;}
+ #mode{top:43px;}
+ #actions{left:50%;transform:translateX(-50%);}
+ #actions button{font-size:9px;padding:3px 4px;}
+ #tips{max-width:195px;}
+}
