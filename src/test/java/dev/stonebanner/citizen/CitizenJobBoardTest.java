@@ -50,6 +50,71 @@ class CitizenJobBoardTest {
         assertFalse(loaded.job(id).isPresent());
     }
 
+
+    @Test
+    void aRewoundWorldClockLetsAnotherWorkerReclaimJobWithoutQuery() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.FORESTRY, new BlockPos(4, 70, 8), 900);
+        UUID original = UUID.randomUUID();
+        UUID replacement = UUID.randomUUID();
+
+        assertTrue(board.reserve(id, original, 1_200));
+        assertTrue(board.reserve(id, replacement, 200),
+                "An old reservation must not remain valid after world time is rewound");
+        assertFalse(board.touch(id, original, 201));
+        board.release(id, original);
+        board.complete(id, original);
+        assertTrue(board.job(id).isPresent(), "Old owner must not finish the new owner's work");
+        assertTrue(board.touch(id, replacement, 202));
+        board.complete(id, replacement);
+        assertFalse(board.job(id).isPresent());
+    }
+
+    @Test
+    void availableJobsClearsReservationsFromAFutureTimeline() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.MINING, BlockPos.ZERO, 5);
+        UUID previous = UUID.randomUUID();
+        UUID worker = UUID.randomUUID();
+
+        assertTrue(board.reserve(id, previous, 5_000));
+        assertEquals(1, board.availableJobs(worker, 100).size(),
+                "The job must be visible after loading an earlier world save");
+        assertTrue(board.reserve(id, worker, 100));
+        assertFalse(board.touch(id, previous, 101));
+    }
+
+    @Test
+    void validReservationSurvivesUntilTimeoutThenExpires() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.MINING, BlockPos.ZERO, 1);
+        UUID owner = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+
+        assertTrue(board.reserve(id, owner, 10));
+        assertTrue(board.availableJobs(second, 310).isEmpty(),
+                "The reservation is valid on the inclusive 300-tick boundary");
+        assertFalse(board.reserve(id, second, 310));
+        assertEquals(1, board.availableJobs(second, 311).size());
+        assertTrue(board.reserve(id, second, 311));
+        assertFalse(board.touch(id, owner, 312));
+    }
+
+    @Test
+    void originalWorkerCanRenewItsLeaseAfterClockRollback() {
+        CitizenJobBoard board = new CitizenJobBoard();
+        long id = board.publish(WorkType.FORESTRY, BlockPos.ZERO, 1);
+        UUID original = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+
+        assertTrue(board.reserve(id, original, 9_000));
+        assertTrue(board.touch(id, original, 20),
+                "A worker already executing this job may renew the lease after the rewind");
+        assertTrue(board.availableJobs(other, 21).isEmpty());
+        assertFalse(board.reserve(id, other, 320));
+        assertTrue(board.reserve(id, other, 321));
+    }
+
     @Test
     void heartbeatCannotStealReassignedReservation() {
         CitizenJobBoard board = new CitizenJobBoard();

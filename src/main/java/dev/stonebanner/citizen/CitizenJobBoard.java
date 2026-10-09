@@ -97,8 +97,10 @@ public final class CitizenJobBoard extends SavedData {
         if (entry == null || workerId == null) {
             return false;
         }
+        // A restored world snapshot can move game time backwards. In that case the old
+        // lease belongs to a future timeline and must not lock the job indefinitely.
         if (entry.reservedBy != null && !entry.reservedBy.equals(workerId)
-                && gameTime - entry.reservedTick <= STALE_RESERVATION_TICKS) {
+                && !reservationExpired(entry, gameTime)) {
             return false;
         }
         entry.reservedBy = workerId;
@@ -230,11 +232,18 @@ public final class CitizenJobBoard extends SavedData {
 
     private void clearStaleReservations(long gameTime) {
         for (Entry entry : entries.values()) {
-            if (entry.reservedBy != null && gameTime - entry.reservedTick > STALE_RESERVATION_TICKS) {
+            if (reservationExpired(entry, gameTime)) {
                 entry.reservedBy = null;
                 entry.reservedTick = 0L;
             }
         }
+    }
+
+    /** Expired after 15 seconds, or immediately if a restored save rewinds game time. */
+    private static boolean reservationExpired(Entry entry, long gameTime) {
+        return entry.reservedBy != null
+                && (gameTime < entry.reservedTick
+                    || gameTime - entry.reservedTick > STALE_RESERVATION_TICKS);
     }
 
     private static final class Entry {
