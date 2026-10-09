@@ -110,6 +110,13 @@ public final class CitizenConstructionController {
         var level=(ServerLevel)npc.level();working=false;reason=WorkBlockReason.NONE;scaffold.beginTick();
         var plan=ConstructionData.forLevel(level).at(job.target());
         if(!ConstructionService.allowed(npc,job))return Result.DEFER;
+        // A previously started scaffold route may extend beyond the blueprint bounds.
+        // Defer cleanup and placement alike rather than reading or modifying unloaded blocks.
+        if (!ConstructionService.worksiteLoaded(level, plan)) {
+            plan.status = "unloaded";
+            reason = WorkBlockReason.NO_PATH;
+            return Result.DEFER;
+        }
         var blueprint=BlueprintCatalog.forPlan(level,plan);
         if(plan.cancelled||plan.cleanup||blueprint==null&&!plan.temporary.isEmpty()){
             var result=scaffolds(level,plan,blueprint,null,true);

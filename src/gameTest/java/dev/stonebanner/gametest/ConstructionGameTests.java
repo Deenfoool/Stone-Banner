@@ -80,6 +80,32 @@ public final class ConstructionGameTests {
         h.succeed();
     }
 
+
+    @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
+    public static void unloadedTemporaryScaffoldIsNotTouchedByWorker(GameTestHelper h) {
+        var npc = prepare(h);
+        var plan = plan(h);
+        h.assertTrue(plan != null, "A local plan is required for scaffold defer testing");
+        var level = h.getLevel();
+        BlockPos remoteScaffold = new BlockPos(2_750_000, 80, 2_750_000);
+        h.assertTrue(!level.hasChunkAt(remoteScaffold), "Remote scaffold fixture is loaded");
+        plan.temporary.put(remoteScaffold, Blocks.COBBLESTONE.defaultBlockState());
+        plan.cleanup = true;
+        try {
+            var result = new CitizenConstructionController(npc).tick(job(h));
+            h.assertTrue(result == CitizenConstructionController.Result.DEFER,
+                    "Worker executed scaffold cleanup in an unloaded remote chunk");
+            h.assertTrue(plan.temporary.containsKey(remoteScaffold),
+                    "Worker forgot a deferred physical scaffold");
+            h.assertTrue(!level.hasChunkAt(remoteScaffold),
+                    "Scaffold cleanup force-loaded the remote chunk");
+        } finally {
+            plan.temporary.clear();
+            ConstructionData.forLevel(level).edit(plan.owner, plan.id, "cancel");
+        }
+        h.succeed();
+    }
+
     @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
     public static void missingSuppliesAndPausedPlanDoNotCreateBlocksOrConsumeBag(GameTestHelper h){
         var npc=prepare(h);var plan=plan(h);var controller=new CitizenConstructionController(npc);
