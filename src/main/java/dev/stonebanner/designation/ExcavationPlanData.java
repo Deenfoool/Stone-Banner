@@ -594,18 +594,39 @@ public final class ExcavationPlanData extends SavedData {
             int maxX = tag.getInt(TAG_MAX_X);
             int maxY = tag.getInt(TAG_MAX_Y);
             int maxZ = tag.getInt(TAG_MAX_Z);
+            // Missing tags are accepted only for the original vertical quarry format.
+            // Unknown modes must never turn a tunnel into a different kind of excavation.
+            if (tag.contains(TAG_MODE) && !tag.contains(TAG_MODE, Tag.TAG_STRING)
+                    || tag.contains(TAG_ACCESS_MODE) && !tag.contains(TAG_ACCESS_MODE, Tag.TAG_STRING)
+                    || tag.contains(TAG_STEP) && !tag.contains(TAG_STEP, Tag.TAG_INT)) {
+                repaired = true;
+                continue;
+            }
             Mode mode = tag.contains(TAG_MODE, Tag.TAG_STRING)
                     ? Mode.fromSerializedName(tag.getString(TAG_MODE))
                     : Mode.VERTICAL;
             ExcavationAccessMode accessMode = tag.contains(TAG_ACCESS_MODE, Tag.TAG_STRING)
-                    ? ExcavationAccessMode.fromSerializedName(tag.getString(TAG_ACCESS_MODE))
+                    ? parseSavedAccessMode(tag.getString(TAG_ACCESS_MODE))
                     : ExcavationAccessMode.AUTO;
-            int currentSlice = tag.contains(TAG_CURRENT_SLICE, Tag.TAG_INT)
+            if (mode == null || accessMode == null) {
+                repaired = true;
+                continue;
+            }
+            boolean currentTagged = tag.contains(TAG_CURRENT_SLICE, Tag.TAG_INT);
+            if (!currentTagged && !tag.contains(TAG_CURRENT_Y_LEGACY, Tag.TAG_INT)) {
+                repaired = true;
+                continue;
+            }
+            int currentSlice = currentTagged
                     ? tag.getInt(TAG_CURRENT_SLICE)
                     : tag.getInt(TAG_CURRENT_Y_LEGACY);
-            int step = tag.contains(TAG_STEP, Tag.TAG_INT)
-                    ? normalizeStep(tag.getInt(TAG_STEP))
-                    : -1;
+            // A zero/unknown travel direction cannot be safely guessed for a tunnel.
+            // Vertical shafts must always descend, regardless of corruption in the tag.
+            int step = tag.contains(TAG_STEP, Tag.TAG_INT) ? tag.getInt(TAG_STEP) : -1;
+            if ((step != -1 && step != 1) || mode == Mode.VERTICAL && step != -1) {
+                repaired = true;
+                continue;
+            }
             long id = tag.contains(TAG_ID, Tag.TAG_LONG) ? tag.getLong(TAG_ID) : 0L;
             if (id <= 0L || id == Long.MAX_VALUE || data.plans.containsKey(id)) {
                 if (data.nextId == Long.MAX_VALUE) {
@@ -646,6 +667,14 @@ public final class ExcavationPlanData extends SavedData {
         return value < 0 ? -1 : 1;
     }
 
+    @javax.annotation.Nullable
+    private static ExcavationAccessMode parseSavedAccessMode(String value) {
+        for (ExcavationAccessMode mode : ExcavationAccessMode.values()) {
+            if (mode.serializedName().equalsIgnoreCase(value)) return mode;
+        }
+        return null;
+    }
+
     private enum Mode {
         VERTICAL,
         TUNNEL_X,
@@ -655,13 +684,14 @@ public final class ExcavationPlanData extends SavedData {
             return name().toLowerCase(Locale.ROOT);
         }
 
+        @javax.annotation.Nullable
         private static Mode fromSerializedName(String value) {
             for (Mode mode : values()) {
                 if (mode.serializedName().equalsIgnoreCase(value)) {
                     return mode;
                 }
             }
-            return VERTICAL;
+            return null;
         }
     }
 

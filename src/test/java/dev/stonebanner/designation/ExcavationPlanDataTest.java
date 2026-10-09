@@ -225,6 +225,59 @@ class ExcavationPlanDataTest {
         assertFalse(ExcavationPlanData.sliceChunksLoaded(tunnel, (x, z) -> x != -1));
     }
 
+
+    @Test
+    void unknownExcavationModeDoesNotBecomeVerticalMining() {
+        CompoundTag alien = planTag(6L, 1, 20, 1, 3, 24, 3);
+        alien.putString("Mode", "tunnel_diagonal_v2");
+        CompoundTag valid = planTag(9L, 18, 20, 18, 20, 24, 20);
+        var loaded = ExcavationPlanData.load(planRoot(alien, valid));
+        assertEquals(1, loaded.activePlanCount());
+        assertFalse(loaded.containsActiveTarget(new BlockPos(2, 24, 2)),
+                "Unknown tunnel semantics were silently reinterpreted as a quarry");
+        assertTrue(loaded.containsActiveTarget(new BlockPos(19, 24, 19)));
+        assertTrue(loaded.save(new CompoundTag()).getLong("NextId") > 9);
+    }
+
+    @Test
+    void unknownAccessStrategyCannotSilentlyChangePhysicalRamps() {
+        CompoundTag unsafe = planTag(4L, 1, 20, 1, 3, 24, 3);
+        unsafe.putString("AccessMode", "future_bridge_v2");
+        var loaded = ExcavationPlanData.load(planRoot(unsafe));
+        assertEquals(0, loaded.activePlanCount(),
+                "Unknown access rules must not turn into AUTO and remove supports");
+    }
+
+    @Test
+    void corruptedSliceDirectionDoesNotAdvanceAQuarryOrTunnel() {
+        CompoundTag verticalWrong = planTag(3L, 1, 20, 1, 3, 24, 3);
+        verticalWrong.putInt("Step", 1);
+        CompoundTag zeroTunnel = planTag(4L, 18, 20, 18, 22, 24, 20);
+        zeroTunnel.putString("Mode", "tunnel_x");
+        zeroTunnel.putInt("Step", 0);
+        zeroTunnel.putInt("CurrentSlice", 18);
+        CompoundTag valid = planTag(5L, 35, 20, 35, 37, 24, 37);
+        var loaded = ExcavationPlanData.load(planRoot(verticalWrong, zeroTunnel, valid));
+        assertEquals(1, loaded.activePlanCount());
+        assertFalse(loaded.containsActiveTarget(new BlockPos(2, 24, 2)));
+        assertFalse(loaded.containsActiveTarget(new BlockPos(19, 24, 19)));
+        assertTrue(loaded.containsActiveTarget(new BlockPos(36, 24, 36)));
+    }
+
+    @Test
+    void legacyQuarryWithCurrentYStillRestoresAsDescending() {
+        CompoundTag old = planTag(7L, 2, 15, 2, 4, 21, 4);
+        old.remove("Mode");
+        old.remove("Step");
+        old.remove("CurrentSlice");
+        old.putInt("CurrentY", 19);
+        var saved = ExcavationPlanData.load(planRoot(old)).save(new CompoundTag());
+        var restored = saved.getList("Plans", Tag.TAG_COMPOUND).getCompound(0);
+        assertEquals("vertical", restored.getString("Mode"));
+        assertEquals(-1, restored.getInt("Step"));
+        assertEquals(19, restored.getInt("CurrentSlice"));
+    }
+
     private static CompoundTag planRoot(CompoundTag... planTags) {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", planTags.length + 1L);
