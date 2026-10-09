@@ -120,6 +120,14 @@ public final class CitizenWorkController {
             return;
         }
 
+        // An unloaded target is not proof that a published job is invalid. Never
+        // trigger chunk loading or erase work merely because the worker is still
+        // around while the worksite is outside the loaded area.
+        if (!serverLevel.hasChunkAt(currentJob.target())) {
+            interrupt(true);
+            acquireCooldown = ACQUIRE_INTERVAL_TICKS;
+            return;
+        }
         if (!owner.citizenData().canTravelTo(currentJob.target())) {
             interrupt(true);
             return;
@@ -188,6 +196,10 @@ public final class CitizenWorkController {
         CitizenJobBoard board = CitizenJobBoard.forLevel(level);
         List<CitizenJob> candidates = new ArrayList<>();
         for (CitizenJob job : board.availableJobs(owner.getUUID(), level.getGameTime())) {
+            // These jobs belong to persistent world data, not necessarily to a loaded chunk.
+            // Inspecting the block state here would otherwise load terrain on behalf of
+            // an idle citizen, or incorrectly delete work not yet visible to this server.
+            if (!level.hasChunkAt(job.target())) continue;
             if (!job.canBeDoneBy(owner.citizenData())) continue;
             if (!owner.citizenData().canTravelTo(job.target())) {
                 continue;
@@ -250,7 +262,8 @@ public final class CitizenWorkController {
     public boolean assign(CitizenJob job) {
         if (owner.citizenData().returningToVillage()) return false;
         if (!owner.isAlive() || !owner.citizenData().health().canMoveIndependently()) return false;
-        if(!(owner.level() instanceof ServerLevel level)||!job.canBeDoneBy(owner.citizenData())
+        if(!(owner.level() instanceof ServerLevel level)||!level.hasChunkAt(job.target())
+                ||!job.canBeDoneBy(owner.citizenData())
                 ||CitizenDecisionPolicy.isCriticalPreemption(owner.citizenData())
                 ||!owner.citizenData().canTravelTo(job.target())||!isJobStillValid(level,job)||!isJobActionable(level,job))return false;
         if (currentJob != null && currentJob.id() == job.id()) {

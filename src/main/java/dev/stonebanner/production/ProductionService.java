@@ -84,7 +84,14 @@ public final class ProductionService {
     }
     public static void reconcile(ServerLevel level){
         var data=ProductionData.forLevel(level);var board=CitizenJobBoard.forLevel(level);
-        for(var job:board.snapshot())if((job.workType()==WorkType.FARMING||job.workType()==WorkType.CRAFTING)&&!valid(level,job))board.remove(job.id());
+        for (var job : board.snapshot()) {
+            if (job.workType() != WorkType.FARMING && job.workType() != WorkType.CRAFTING) continue;
+            // Keep previously published jobs until their worksite can actually be
+            // inspected. In particular pendingFarm() returning false for an unloaded
+            // chunk must not be treated as a completed/cancelled farm designation.
+            if (!level.hasChunkAt(job.target())) continue;
+            if (!valid(level, job)) board.remove(job.id());
+        }
         int budget=4096;var fields=data.fields().stream().filter(f->!f.paused).toList();
         int processed=0;
         while(processed<fields.size()&&budget>0){
@@ -96,7 +103,11 @@ public final class ProductionService {
         }
         if(!fields.isEmpty())data.fieldCursor=(data.fieldCursor+processed)%fields.size();
         Set<BlockPos> stations=new HashSet<>();for(var bill:data.bills())stations.add(bill.station);
-        for(var station:stations)if(activeBill(level,station)!=null)board.publish(WorkType.CRAFTING,station,level.getGameTime());
+        for (var station : stations) {
+            if (!level.hasChunkAt(station)) continue;
+            if (activeBill(level, station) != null)
+                board.publish(WorkType.CRAFTING, station, level.getGameTime());
+        }
     }
     static boolean weeds(net.minecraft.world.level.block.state.BlockState state){return state.is(Blocks.GRASS)||state.is(Blocks.TALL_GRASS)||state.is(Blocks.FERN)||state.is(Blocks.LARGE_FERN)||state.is(Blocks.DEAD_BUSH);}
 }

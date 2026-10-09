@@ -140,6 +140,45 @@ public final class CitizenQueueGameTests {
         helper.succeed();
     }
 
+
+    @GameTest(template = "empty", timeoutTicks = 110)
+    public static void unloadedProductionJobsSurviveReconciliationWithoutForceLoading(GameTestHelper helper) {
+        var npc = prepare(helper);
+        var level = helper.getLevel();
+        // Far away from the loaded test area, but inside the normal world border.
+        BlockPos farFarm = new BlockPos(2_000_000, 68, 2_000_000);
+        BlockPos farCraft = new BlockPos(2_000_032, 68, 2_000_032);
+        helper.assertTrue(!level.hasChunkAt(farFarm) && !level.hasChunkAt(farCraft),
+                "The test requires genuinely unloaded targets");
+        var board = dev.stonebanner.citizen.CitizenJobBoard.forLevel(level);
+        long farm = board.publish(dev.stonebanner.citizen.WorkType.FARMING, farFarm, level.getGameTime());
+        long craft = board.publish(dev.stonebanner.citizen.WorkType.CRAFTING, farCraft, level.getGameTime());
+        try {
+            // A production tick used to interpret an unloaded farm as no work and delete
+            // the persistent job, even though the farmland could still exist on disk.
+            dev.stonebanner.production.ProductionService.reconcile(level);
+            helper.assertTrue(board.job(farm).isPresent() && board.job(craft).isPresent(),
+                    "Reconciliation deleted persistent work in unloaded chunks");
+            helper.assertTrue(!level.hasChunkAt(farFarm) && !level.hasChunkAt(farCraft),
+                    "Production validation force-loaded a remote chunk");
+            helper.startSequence().thenExecuteAfter(25, () -> {
+                try {
+                    helper.assertTrue(board.job(farm).isPresent() && board.job(craft).isPresent(),
+                            "Idle citizen or later production tick destroyed distant jobs");
+                    helper.assertTrue(!level.hasChunkAt(farFarm) && !level.hasChunkAt(farCraft),
+                            "Work planner loaded distant chunks");
+                } finally {
+                    board.remove(farm);
+                    board.remove(craft);
+                }
+            }).thenSucceed();
+        } catch (RuntimeException | Error exception) {
+            board.remove(farm);
+            board.remove(craft);
+            throw exception;
+        }
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void reloadedWorkerReacquiresPublishedWorkExactlyOnce(GameTestHelper helper) {
         var npc = prepare(helper);
