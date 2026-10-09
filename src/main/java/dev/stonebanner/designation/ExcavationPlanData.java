@@ -73,7 +73,9 @@ public final class ExcavationPlanData extends SavedData {
 
     /** Creates a top-down quarry plan using the selected persistent access strategy. */
     public int createVertical(ServerLevel level, BlockPos first, BlockPos second, ExcavationAccessMode accessMode) {
-        if (nextId <= 0L || nextId == Long.MAX_VALUE) return 0;
+        // Public server-side entry points must enforce designation limits even if the
+        // incoming command/packet has already checked the selected region.
+        if (level == null || !validCreateRequest(nextId, first, second)) return 0;
         return create(level, Plan.vertical(nextId++, first, second,
                 accessMode == null ? ExcavationAccessMode.AUTO : accessMode));
     }
@@ -83,8 +85,13 @@ public final class ExcavationPlanData extends SavedData {
      * the endpoint nearest the player becomes the entrance and sections open away from it.
      */
     public int createTunnel(ServerLevel level, BlockPos first, BlockPos second, BlockPos entranceHint) {
-        if (nextId <= 0L || nextId == Long.MAX_VALUE) return 0;
+        if (level == null || !validCreateRequest(nextId, first, second)) return 0;
         return create(level, Plan.tunnel(nextId++, first, second, entranceHint));
+    }
+
+    static boolean validCreateRequest(long proposedId, BlockPos first, BlockPos second) {
+        return proposedId > 0L && proposedId < Long.MAX_VALUE
+                && DesignationLimits.isAllowed(first, second);
     }
 
     private int create(ServerLevel level, Plan plan) {

@@ -278,6 +278,23 @@ class ExcavationPlanDataTest {
         assertEquals(19, restored.getInt("CurrentSlice"));
     }
 
+
+    @Test
+    void directExcavationCreationChecksBoundsBeforeScanningTheWorld() {
+        assertTrue(ExcavationPlanData.validCreateRequest(1L,
+                new BlockPos(-16, 30, -16), new BlockPos(16, 33, 16)));
+        assertFalse(ExcavationPlanData.validCreateRequest(1L,
+                BlockPos.ZERO, new BlockPos(64, 0, 0)), "65-block-long shaft is prohibited");
+        assertFalse(ExcavationPlanData.validCreateRequest(1L,
+                BlockPos.ZERO, new BlockPos(63, 3, 63)), "16384-block quarry is prohibited");
+        assertFalse(ExcavationPlanData.validCreateRequest(0L, BlockPos.ZERO, BlockPos.ZERO));
+        assertFalse(ExcavationPlanData.validCreateRequest(Long.MAX_VALUE, BlockPos.ZERO, BlockPos.ZERO));
+        assertFalse(ExcavationPlanData.validCreateRequest(1L, null, BlockPos.ZERO));
+        assertFalse(ExcavationPlanData.validCreateRequest(1L, BlockPos.ZERO, null));
+        assertTrue(ExcavationPlanData.validCreateRequest(1L,
+                BlockPos.ZERO, new BlockPos(63, 0, 63)), "Exactly 4096 blocks must be allowed");
+    }
+
     private static CompoundTag planRoot(CompoundTag... planTags) {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", planTags.length + 1L);
