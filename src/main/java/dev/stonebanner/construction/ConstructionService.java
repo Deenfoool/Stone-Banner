@@ -42,10 +42,39 @@ public final class ConstructionService {
     }
     public static Optional<CottageBlueprint.Placement> next(ServerLevel level,ConstructionData.Plan plan){
         if(plan==null||plan.paused||plan.completed||plan.cancelled)return Optional.empty();
+        // A missing chunk is neither a matching placement nor a finished structure.
+        if (!worksiteLoaded(level, plan)) return Optional.empty();
         var blueprint=BlueprintCatalog.forPlan(level,plan);if(blueprint==null)return Optional.empty();
         for(var placement:blueprint.placements())if(!placement.matches(level,plan.origin,plan.rotation))return Optional.of(placement);
         if(plan.temporary.isEmpty())ConstructionData.forLevel(level).complete(plan);else{plan.cleanup=true;plan.status="scaffold_cleanup";ConstructionData.forLevel(level).setDirty();}return Optional.empty();
     }
+
+    /**
+     * No construction plan is allowed to inspect blocks in an unloaded area. Blueprints
+     * may cover several chunk columns, and their temporary scaffold routes can extend
+     * outside the footprint. Only inspect loaded terrain; do not request chunk tickets.
+     */
+    public static boolean worksiteLoaded(ServerLevel level, ConstructionData.Plan plan) {
+        if (plan == null) return false;
+        var bounds = plan.bounds();
+        int minChunkX = ((int) Math.floor(bounds.minX)) >> 4;
+        int maxChunkX = (((int) Math.ceil(bounds.maxX)) - 1) >> 4;
+        int minChunkZ = ((int) Math.floor(bounds.minZ)) >> 4;
+        int maxChunkZ = (((int) Math.ceil(bounds.maxZ)) - 1) >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                if (!level.hasChunkAt(new BlockPos(chunkX << 4, plan.origin.getY(), chunkZ << 4)))
+                    return false;
+            }
+        }
+        for (BlockPos temporary : plan.temporary.keySet())
+            if (!level.hasChunkAt(temporary)) return false;
+        if (plan.route != null)
+            for (BlockPos routeBlock : plan.route.blocks().keySet())
+                if (!level.hasChunkAt(routeBlock)) return false;
+        return true;
+    }
+
     public static boolean valid(ServerLevel level,CitizenJob job){
         var p=ConstructionData.forLevel(level).at(job.target());return p!=null&&!p.paused&&!p.completed&&(p.cancelled||!p.temporary.isEmpty()||BlueprintCatalog.forPlan(level,p)!=null);
     }
@@ -83,10 +112,15 @@ public final class ConstructionService {
     }
     public static void reconcile(ServerLevel level){
         var data=ConstructionData.forLevel(level);var board=CitizenJobBoard.forLevel(level);
-        for(var job:board.snapshot())if(job.workType()==WorkType.BUILDING
-                &&dev.stonebanner.designation.ExcavationLadderTaskData.forLevel(level).task(job.target()).isEmpty()&&!valid(level,job))board.remove(job.id());
-        for(var plan:data.plans())if(!plan.paused&&!plan.completed){
-            if(next(level,plan).isPresent()||!plan.temporary.isEmpty()||plan.cancelled)board.publish(WorkType.BUILDING,plan.origin,CitizenSkill.CONSTRUCTION,0,level.getGameTime());
+        for (var job : board.snapshot()) {
+            if (job.workType() != WorkType.BUILDING || !level.hasChunkAt(job.target())) continue;
+            if (dev.stonebanner.designation.ExcavationLadderTaskData.forLevel(level).task(job.target()).isEmpty()
+                    && !valid(level, job)) board.remove(job.id());
+        }
+        for (var plan : data.plans()) {
+            if (plan.paused || plan.completed || !worksiteLoaded(level, plan)) continue;
+            if (next(level, plan).isPresent() || !plan.temporary.isEmpty() || plan.cancelled)
+                board.publish(WorkType.BUILDING, plan.origin, CitizenSkill.CONSTRUCTION, 0, level.getGameTime());
         }
     }
 }

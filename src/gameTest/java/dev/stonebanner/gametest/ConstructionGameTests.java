@@ -49,6 +49,37 @@ public final class ConstructionGameTests {
                 h.assertTrue(npc.citizenData().experience(CitizenSkill.CONSTRUCTION)>0,"Construction practice missing");
             }).thenSucceed();
     }
+
+    @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
+    public static void unloadedBlueprintAndScaffoldMustNotForceLoadOrCompletePlan(GameTestHelper h) {
+        prepare(h);
+        var level = h.getLevel();
+        var data = ConstructionData.forLevel(level);
+        BlockPos far = new BlockPos(2_500_000, 70, 2_500_000);
+        h.assertTrue(!level.hasChunkAt(far), "The remote test plot must begin unloaded");
+        UUID owner = UUID.randomUUID();
+        long id = data.add(owner, far, Rotation.NONE, BuildingBlueprint.cottage());
+        h.assertTrue(id > 0L, "Remote blueprint registration failed");
+        try {
+            var plan = data.plan(id);
+            h.assertTrue(plan != null && !plan.completed, "Plan was missing before reconciliation");
+            h.assertTrue(!ConstructionService.worksiteLoaded(level, plan), "Unloaded plan reported loaded");
+            h.assertTrue(ConstructionService.next(level, plan).isEmpty(),
+                    "Unloaded blueprint returned a physical placement");
+            ConstructionService.reconcile(level);
+            h.assertTrue(!plan.completed, "Unloaded blueprint was incorrectly declared complete");
+            h.assertTrue(!level.hasChunkAt(far),
+                    "Construction validation forced a remote Minecraft chunk to load");
+            var board = CitizenJobBoard.forLevel(level);
+            h.assertTrue(board.snapshot().stream()
+                    .noneMatch(job -> job.workType() == WorkType.BUILDING && job.target().equals(far)),
+                    "Unloaded blueprint published an immediately unexecutable job");
+        } finally {
+            data.edit(owner, id, "cancel");
+        }
+        h.succeed();
+    }
+
     @GameTest(template="empty",batch="construction-rules",timeoutTicks=100)
     public static void missingSuppliesAndPausedPlanDoNotCreateBlocksOrConsumeBag(GameTestHelper h){
         var npc=prepare(h);var plan=plan(h);var controller=new CitizenConstructionController(npc);
