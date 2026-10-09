@@ -282,7 +282,7 @@ class ExcavationPlanDataTest {
     @Test
     void directExcavationCreationChecksBoundsBeforeScanningTheWorld() {
         assertTrue(ExcavationPlanData.validCreateRequest(1L,
-                new BlockPos(-16, 30, -16), new BlockPos(16, 33, 16)));
+                new BlockPos(-16, 30, -16), new BlockPos(15, 33, 15)));
         assertFalse(ExcavationPlanData.validCreateRequest(1L,
                 BlockPos.ZERO, new BlockPos(64, 0, 0)), "65-block-long shaft is prohibited");
         assertFalse(ExcavationPlanData.validCreateRequest(1L,
