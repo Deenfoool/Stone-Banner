@@ -32,6 +32,7 @@ button.tiny,button.tab,button.tool,button.slot,button.square{background:linear-g
 @media(max-width:610px){#head{height:46px}#settlement{flex-basis:145px}#settlement strong{font-size:10px}#settlement small{font-size:9px}#stats{flex:1}.metric{font-size:11px}#topActions button:first-child{display:none}#subtitle{top:58px;font-size:8px}#mode{top:86px}#tips{top:126px;max-width:170px;font-size:9px}#info{bottom:145px;width:166px}#info .face{width:32px;height:32px;flex-basis:32px;font-size:20px}#info .skillrow{display:none}#info .name small{font-size:9px}#rail{bottom:145px;width:144px;height:191px}#speeds button{height:22px}#layers button{height:22px}#clock{height:38px}#minimap{height:67px}#dock{height:132px}#tabs button{font-size:9px}#tabs button span{display:none}#tools button{font-size:10px}#actions{bottom:139px}#alerts{display:none}}
 </style>
 <link rel="stylesheet" href="./assets/hud-art.css">
+<link rel="stylesheet" href="./assets/hud-compact.css">
 </head>
 <body>
 <div id="root">
@@ -48,6 +49,7 @@ button.tiny,button.tab,button.tool,button.slot,button.square{background:linear-g
 <div id="overlay" hidden><section id="window" class="frame" role="dialog" aria-modal="true" aria-label="Панель Stone & Banner"><div id="windowHead"><b id="windowTitle"></b><button id="close" title="Закрыть">×</button></div><div id="windowBody"></div></section></div>
 </div>
 <script src="./assets/hud-art.js"></script>
+<script src="./assets/hud-layout.js"></script>
 <script>
 "use strict";
 (function(){
@@ -92,13 +94,14 @@ function renderUI(){
  if(s.resources.wood<32)alerts.push("⚒ Недостаточно древесины");
  $("alerts").innerHTML=alerts.slice(0,3).map(t=>"<div>"+t+"</div>").join("");
  const box=$("info");
+ const hideDetails=s.fold||!StoneBannerLayout.canExpandCitizen(view.w,view.h);
  if(s.mode==="hero"){box.innerHTML='<div class="no-selection"><strong>⚔ Режим героя</strong><small>Тактическая карточка скрыта, выделение NPC сохранено.</small></div>';box.style.display="block";}
  else if(group.length===0){box.innerHTML='<div class="no-selection"><strong>Нет выделения</strong><small>ЛКМ по жителю, Shift+ЛКМ для группы. Зажмите ЛКМ и выделите рамкой.</small></div>';}
  else if(group.length>1){box.innerHTML='<div class="group"><strong>⚑ Отряд · '+group.length+' NPC</strong><div style="margin:9px 0">Заняты: '+group.filter(u=>u.target).length+' · Приказов в очереди: '+group.reduce((n,u)=>n+u.queue.length,0)+'</div><small>'+group.map(u=>u.name).join(", ")+'</small><p><button class="tiny" data-action="stop">■ Стоп</button></p></div>';}
  else {
  const u=group[0];
- box.innerHTML='<div class="person"><div class="face">'+u.icon+'</div><div class="name"><strong>'+u.name+'</strong><small>'+u.role+'</small><div class="work">'+u.work+'</div></div><button class="tiny fold" data-action="fold">'+(s.fold?"+":"−")+'</button></div>'+
- (s.fold?"":'<div>'+rectBar("❤ Здоровье",u.hp,false)+rectBar("🍞 Голод",u.hunger,true)+rectBar("☾ Усталость",u.fatigue,true)+'</div><div class="skillrow"><span>⚔ '+u.level[0]+'</span><span>▦ '+u.level[1]+'</span><span>⛏ '+u.level[2]+'</span></div><div class="personTabs">'+[["overview","📖"],["health","✚"],["skills","✦"],["work","☷"],["inventory","📦"]].map(a=>'<button data-detail="'+a[0]+'" title="'+a[0]+'">'+a[1]+'</button>').join("")+'</div>');
+ box.innerHTML='<div class="person"><div class="face">'+u.icon+'</div><div class="name"><strong>'+u.name+'</strong><small>'+u.role+'</small><div class="work">'+u.work+'</div></div><button class="tiny fold" data-action="fold" '+(!StoneBannerLayout.canExpandCitizen(view.w,view.h)?'disabled title="Недостаточно места для карточки"':'')+'>'+(hideDetails?"+":"−")+'</button></div>'+
+ (hideDetails?"":'<div>'+rectBar("❤ Здоровье",u.hp,false)+rectBar("🍞 Голод",u.hunger,true)+rectBar("☾ Усталость",u.fatigue,true)+'</div><div class="skillrow"><span>⚔ '+u.level[0]+'</span><span>▦ '+u.level[1]+'</span><span>⛏ '+u.level[2]+'</span></div><div class="personTabs">'+[["overview","📖"],["health","✚"],["skills","✦"],["work","☷"],["inventory","📦"]].map(a=>'<button data-detail="'+a[0]+'" title="'+a[0]+'">'+a[1]+'</button>').join("")+'</div>');
  }
  $("panelwrap").classList.toggle("closed",s.collapsed);
  $("panelToggle").textContent=s.collapsed?"⌃":"⌄";
@@ -111,10 +114,11 @@ function renderUI(){
  else ts=[["crafting","⚒","Заказы мастерской"],["stock","▣","Склады"]];
  $("tools").innerHTML=ts.map(a=>'<button class="tool '+(s.tool===a[0]?"active":"")+'" data-tool="'+a[0]+'"><b>'+a[1]+'</b>'+a[2]+'</button>').join("");
  $("hotbar").innerHTML=icons.map((v,i)=>'<button class="slot '+(s.hot===i?"active":"")+'" data-hot="'+i+'">'+v+'<sup>'+(i+1)+'</sup></button>').join("");
+ StoneBannerLayout.apply(document,view.w,view.h,{expanded:!s.collapsed,selected:s.mode==="orders"?group.length:0,folded:s.fold});
 }
 function toolLabel(a){let all=[].concat(...Object.values(categories),[["cottage",0,"Коттедж"],["scaffold",0,"Площадка"],["farm",0,"Поле"],["stock",0,"Склад"]]);return (all.find(x=>x[0]===a)||[a,0,a])[2];}
 function formatTime(){let minutes=Math.floor(s.clock%1440);return String(Math.floor(minutes/60)).padStart(2,"0")+":"+String(minutes%60).padStart(2,"0");}
-function resize(){let d=Math.min(2,devicePixelRatio||1);view={w:innerWidth,h:innerHeight,dpr:d};field.width=Math.round(view.w*d);field.height=Math.round(view.h*d);ctx.setTransform(d,0,0,d,0,0);}
+function resize(){let d=Math.min(2,devicePixelRatio||1);view={w:innerWidth,h:innerHeight,dpr:d};field.width=Math.round(view.w*d);field.height=Math.round(view.h*d);ctx.setTransform(d,0,0,d,0,0);StoneBannerLayout.apply(document,view.w,view.h,{expanded:!s.collapsed,selected:s.mode==="orders"?selectedUnits().length:0,folded:s.fold});}
 function sz(){return 38*s.cam.zoom;}function project(x,y){return {x:view.w/2+(x-s.cam.x)*sz(),y:view.h/2+(y-s.cam.y)*sz()};}function unproject(px,py){return {x:s.cam.x+(px-view.w/2)/sz(),y:s.cam.y+(py-view.h/2)/sz()};}
 function noise(x,y){let v=Math.sin(x*127.1+y*311.7)*43758.5453;return v-Math.floor(v);}
 function tileColor(x,y){if(x<0||y<0||x>=40||y>=30)return "#233e33";if(y>=25&&(x+Math.sin(x/3)*1.4)>7)return "#416f89";if(x>26&&y<8)return "#8d8b67";let z=noise(x,y);return z<.12?"#486c3d":z>.85?"#62854c":"#557747";}

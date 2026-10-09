@@ -11,12 +11,12 @@ for(const [key,value] of Object.entries(L.C)){
 }
 const R=(x,y,width,height)=>({x,y,width,height});
 assert.deepEqual(L.topBar(1280),R(6,6,1268,34));
-assert.deepEqual(L.bottomDock(1280,720,true),R(360,608,560,106));
-assert.deepEqual(L.bottomDock(1280,720,false),R(360,680,560,34));
+assert.deepEqual(L.bottomDock(1280,720,true),R(393,608,560,106));
+assert.deepEqual(L.bottomDock(1280,720,false),R(393,680,560,34));
 assert.deepEqual(L.citizenCard(1280,720,true),R(6,528,210,186));
 assert.deepEqual(L.rightRail(1280,720),R(1130,558,144,156));
 assert.deepEqual(L.miniMap(1280,720),R(1135,642,134,67));
-assert.deepEqual(L.bottomToggle(1280,720,true),R(616,595,48,15));
+assert.deepEqual(L.bottomToggle(1280,720,true),R(649,595,48,15));
 assert.deepEqual(L.alerts(1280,3),R(1054,48,220,60));
 assert.equal(L.sideBySide(690),true);
 assert.equal(L.sideBySide(689),false);
