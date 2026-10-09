@@ -80,3 +80,7 @@
  #actions button{font-size:9px;padding:3px 4px;}
  #tips{max-width:195px;}
 }
+
+/* Demo-only floating actions must not obscure the Java corner panels in tiny viewports.
+   The top-bar mode button remains available for touch and narrow windows. */
+@media(max-width:520px){#actions{display:none;}#tips{display:none;}#topActions button[data-action="mode"]{display:inline-grid;place-items:center;}}

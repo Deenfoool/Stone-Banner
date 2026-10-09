@@ -49,6 +49,10 @@ function run(w,h){
  assert.equal(element("panelwrap").style.transform,"none");
  assert.ok(element("minimap").style.width.endsWith("px"));
  frame(1016);
+ click("[data-action]",{action:"mode"});
+ assert.ok(element("mode").textContent.includes("HERO"),"Header Hero mode");
+ click("[data-action]",{action:"mode"});
+ assert.ok(element("mode").textContent.includes("ORDERS"),"Header Orders mode");
  key("Tab");
  assert.ok(element("mode").textContent.includes("HERO"),"Tab Hero mode");
  key("v");
