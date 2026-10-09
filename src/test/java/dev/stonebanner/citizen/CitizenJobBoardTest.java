@@ -12,6 +12,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CitizenJobBoardTest {
 
+
+    @Test
+    void repairedDuplicateDoesNotStealALaterValidIdentity() {
+        CitizenJobBoard original = new CitizenJobBoard();
+        long first = original.publish(WorkType.FORESTRY, new BlockPos(2, 65, 2), 1);
+        long broken = original.publish(WorkType.MINING, new BlockPos(3, 45, 3), 2);
+        long last = original.publish(WorkType.FARMING, new BlockPos(4, 65, 4), 3);
+        CompoundTag saved = original.save(new CompoundTag());
+        saved.putLong("NextId", 1L);
+        saved.getList("Jobs", net.minecraft.nbt.Tag.TAG_COMPOUND)
+                .getCompound(1).putLong("Id", first);
+        CitizenJobBoard restored = CitizenJobBoard.load(saved);
+
+        assertEquals(3, restored.size());
+        assertEquals(WorkType.FORESTRY, restored.job(first).orElseThrow().workType());
+        assertEquals(WorkType.FARMING, restored.job(last).orElseThrow().workType(),
+                "Earlier ID repair stole the identity of a later valid job");
+        long repaired = restored.snapshot().stream()
+                .filter(job -> job.workType() == WorkType.MINING).findFirst().orElseThrow().id();
+        assertTrue(repaired > last, "Repaired identity must be greater than all originally present IDs");
+        assertTrue(repaired != broken);
+        assertTrue(restored.publish(WorkType.GUARD, new BlockPos(5, 65, 5), 5) > repaired);
+    }
+
     @Test
     void duplicateSavedIdRetainsBothDistinctJobsWithoutAliasing() {
         CitizenJobBoard original = new CitizenJobBoard();
@@ -27,7 +51,7 @@ class CitizenJobBoardTest {
         assertEquals(WorkType.FORESTRY, restored.job(forestry).orElseThrow().workType());
         long recoveredMining = restored.snapshot().stream()
                 .filter(job -> job.workType() == WorkType.MINING).findFirst().orElseThrow().id();
-        assertTrue(recoveredMining > mining);
+        assertTrue(recoveredMining > forestry, "Recovered job must not shadow its first saved owner");
         assertTrue(recoveredMining != forestry);
         assertTrue(restored.reserve(forestry, UUID.randomUUID(), 3));
         assertTrue(restored.reserve(recoveredMining, UUID.randomUUID(), 3));
