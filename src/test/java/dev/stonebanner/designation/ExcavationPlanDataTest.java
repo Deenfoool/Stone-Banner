@@ -128,6 +128,57 @@ class ExcavationPlanDataTest {
         assertEquals(-1, savedPlan.getInt("Step"));
     }
 
+
+    @Test
+    void excavationReconcileDoesNotFreezeAfterWorldClockRollback() {
+        assertTrue(ExcavationPlanData.reconcileDue(Long.MIN_VALUE, 0));
+        assertFalse(ExcavationPlanData.reconcileDue(1000, 1019));
+        assertTrue(ExcavationPlanData.reconcileDue(1000, 1020));
+        assertTrue(ExcavationPlanData.reconcileDue(1000, 5),
+                "Rewinding world time must immediately permit another reconciliation");
+    }
+
+    @Test
+    void verticalSliceRequiresEveryChunkIncludingNegativeCoordinates() {
+        var view = new ExcavationPlanData.PlanView(-18, 30, 2, 18, 34, 17, 0, 0, 34, -1);
+        var seen = new java.util.HashSet<String>();
+        assertTrue(ExcavationPlanData.sliceChunksLoaded(view, (x, z) -> {
+            seen.add(x + "," + z);
+            return true;
+        }));
+        assertEquals(8, seen.size(), "Quarry spans 4 x 2 chunk columns");
+        assertTrue(seen.contains("-2,0") && seen.contains("1,1"),
+                "Floor division across negative/positive chunk boundaries failed");
+        assertFalse(ExcavationPlanData.sliceChunksLoaded(view, (x, z) -> x != -1 || z != 1),
+                "One unloaded column must defer the entire mining layer");
+    }
+
+    @Test
+    void tunnelXOnlyRequiresCurrentCrossSectionNotWholeFutureShaft() {
+        var tunnel = new ExcavationPlanData.PlanView(1, 30, -2, 80, 33, 18, 1, 0, 33, 1);
+        var seen = new java.util.HashSet<String>();
+        assertTrue(ExcavationPlanData.sliceChunksLoaded(tunnel, (x, z) -> {
+            seen.add(x + "," + z);
+            return true;
+        }));
+        assertEquals(java.util.Set.of("2,-1", "2,0", "2,1"), seen,
+                "An X-tunnel checks only its current X chunk and Z cross-section");
+        assertFalse(ExcavationPlanData.sliceChunksLoaded(tunnel, (x, z) -> z != 1),
+                "An unloaded part of a tunnel cross-section blocks front advancement");
+    }
+
+    @Test
+    void tunnelZOnlyRequiresCurrentCrossSection() {
+        var tunnel = new ExcavationPlanData.PlanView(-17, 30, 1, 0, 34, 120, 2, 0, 48, 1);
+        var seen = new java.util.HashSet<String>();
+        assertTrue(ExcavationPlanData.sliceChunksLoaded(tunnel, (x, z) -> {
+            seen.add(x + "," + z);
+            return true;
+        }));
+        assertEquals(java.util.Set.of("-2,3", "-1,3", "0,3"), seen);
+        assertFalse(ExcavationPlanData.sliceChunksLoaded(tunnel, (x, z) -> x != -1));
+    }
+
     private static CompoundTag planRoot(CompoundTag... planTags) {
         CompoundTag root = new CompoundTag();
         root.putLong("NextId", planTags.length + 1L);

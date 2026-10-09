@@ -105,8 +105,7 @@ public final class ExcavationPlanData extends SavedData {
     public void reconcileIfDue(ServerLevel level) {
         reconcileDirty(level);
         long gameTime = level.getGameTime();
-        if (lastReconcileTick != Long.MIN_VALUE
-                && gameTime - lastReconcileTick < RECONCILE_INTERVAL_TICKS) {
+        if (!reconcileDue(lastReconcileTick, gameTime)) {
             return;
         }
         lastReconcileTick = gameTime;
@@ -328,12 +327,52 @@ public final class ExcavationPlanData extends SavedData {
         return List.copyOf(snapshot);
     }
 
+
+    /** A time rollback must not leave excavation plans frozen until the old clock catches up. */
+    static boolean reconcileDue(long lastTick, long now) {
+        return lastTick == Long.MIN_VALUE || now < lastTick
+                || now - lastTick >= RECONCILE_INTERVAL_TICKS;
+    }
+
+    /**
+     * Checks every X/Z chunk column touched by the active layer, not just blocks we
+     * can currently inspect. An unloaded section must NEVER count as an empty slice.
+     * This remains a pure predicate so boundary cases can be unit-tested without a world.
+     */
+    static boolean sliceChunksLoaded(PlanView plan,
+            java.util.function.BiPredicate<Integer, Integer> chunkLoaded) {
+        Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(chunkLoaded, "chunkLoaded");
+        int minChunkX = (plan.modeCode() == Mode.TUNNEL_X.ordinal()
+                ? plan.currentSlice() : plan.minX()) >> 4;
+        int maxChunkX = (plan.modeCode() == Mode.TUNNEL_X.ordinal()
+                ? plan.currentSlice() : plan.maxX()) >> 4;
+        int minChunkZ = (plan.modeCode() == Mode.TUNNEL_Z.ordinal()
+                ? plan.currentSlice() : plan.minZ()) >> 4;
+        int maxChunkZ = (plan.modeCode() == Mode.TUNNEL_Z.ordinal()
+                ? plan.currentSlice() : plan.maxZ()) >> 4;
+        for (int x = minChunkX; x <= maxChunkX; x++) {
+            for (int z = minChunkZ; z <= maxChunkZ; z++) {
+                if (!chunkLoaded.test(x, z)) return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean currentSliceLoaded(ServerLevel level, Plan plan) {
+        return sliceChunksLoaded(view(plan), (chunkX, chunkZ) ->
+                level.hasChunkAt(new BlockPos(chunkX << 4, plan.minY, chunkZ << 4)));
+    }
+
     private void reconcile(ServerLevel level, Plan plan) {
         if (!plan.currentSliceInsideBounds()) {
             plans.remove(plan.id);
             setDirty();
             return;
         }
+
+        // Never advance, prune jobs or infer a cleared layer from partially loaded terrain.
+        if (!currentSliceLoaded(level, plan)) return;
 
         if (sliceHasHazard(level, plan)) {
             removeCurrentSliceJobs(level, plan);
@@ -356,6 +395,8 @@ public final class ExcavationPlanData extends SavedData {
 
     private void exposeCurrentOrNextSlice(ServerLevel level, Plan plan) {
         while (plan.currentSliceInsideBounds()) {
+            // This also protects initial publish and the next frontier after advancing.
+            if (!currentSliceLoaded(level, plan)) return;
             if (sliceHasHazard(level, plan)) {
                 removeCurrentSliceJobs(level, plan);
                 return;
