@@ -1,0 +1,25 @@
+# Selected stage log excerpts; full warning audit is not claimed.
+
+# prepare
+[07:50:01] [Server thread/INFO] [minecraft/DedicatedServer]: Done (1.921s)! For help, type "help"
+[07:50:03] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS prepare
+[07:50:04] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 30s
+PASS prepare worker=5e35bb2e-09aa-4c66-a83d-37c5e372ab69 job=1 paused=WORKING logs=0
+
+# resume
+[07:50:32] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.160s)! For help, type "help"
+[07:50:37] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS resume
+[07:50:39] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 34s
+PASS resume worker=5e35bb2e-09aa-4c66-a83d-37c5e372ab69 job=1 paused=WORKING logs=1
+
+# completed
+[07:51:09] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.698s)! For help, type "help"
+[07:51:11] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS completed
+[07:51:12] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 33s
+PASS completed worker=5e35bb2e-09aa-4c66-a83d-37c5e372ab69 job=1 paused=WORKING logs=1

@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-10-10T05:51:40.480941+00:00",
+  "sourceVersion": "0.1.0-alpha.50",
+  "java": "17.0.20",
+  "gradle": "8.8",
+  "minecraft": "1.20.1",
+  "forge": "47.4.23",
+  "world": "stonebanner-persistence-probe",
+  "seed": 11251,
+  "processes": 3,
+  "scriptExitCode": 0,
+  "stages": [
+    {
+      "stage": "prepare",
+      "status": "passed",
+      "worker": "5e35bb2e-09aa-4c66-a83d-37c5e372ab69",
+      "job": "1",
+      "paused": "WORKING",
+      "logs": "0",
+      "logSha256": "bcd27e7f3cca6d8a07e0e2fb41a651a48e60210509ec49a3d64d28319c8dfc97"
+    },
+    {
+      "stage": "resume",
+      "status": "passed",
+      "worker": "5e35bb2e-09aa-4c66-a83d-37c5e372ab69",
+      "job": "1",
+      "paused": "WORKING",
+      "logs": "1",
+      "logSha256": "df3dac34661a5093f0d430c5a5b0828b367f572996868979af76bbbcfd2d30dc"
+    },
+    {
+      "stage": "completed",
+      "status": "passed",
+      "worker": "5e35bb2e-09aa-4c66-a83d-37c5e372ab69",
+      "job": "1",
+      "paused": "WORKING",
+      "logs": "1",
+      "logSha256": "289982d2948ab47e369c9885f5986f383e4bed72f3e19f9feec6bd8203061c11"
+    }
+  ],
+  "parallelRunRejected": true,
+  "existingWorldRejected": true,
+  "fullPhase112Acceptance": "pending",
+  "validation": {
+    "command": "test build reobfJar",
+    "exitCode": 0,
+    "junit": {
+      "tests": 414,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "artifact": "stonebanner-0.1.0-alpha.50.jar",
+    "sha256": "ac9d2b99f83eae5994aa1832e6698d14837cac1713ada52ad2272e6908089793",
+    "acceptanceClassesInJar": 0,
+    "gameTestClassesInJar": 0,
+    "packMetadataValid": true
+  }
+}

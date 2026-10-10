@@ -17,6 +17,10 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 // Integration tests live outside the distributable mod and normal client/server runs.
 sourceSets {
+    acceptanceTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
     gameTest {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.runtimeClasspath
@@ -103,6 +107,11 @@ minecraft {
         server {
             // Opt-in acceptance world, separate from client saves and ordinary dev-server data.
             if (project.hasProperty('stonebanner.qaServer')) workingDirectory project.file('run-acceptance-server')
+            if (project.hasProperty('stonebanner.qaPersistence')) {
+                workingDirectory project.file('run-acceptance-persistence')
+                property 'stonebanner.persistenceStage', project.findProperty('stonebanner.persistenceStage') ?: 'disabled'
+                mods { "${mod_id}" { source sourceSets.acceptanceTest } }
+            }
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
         }
