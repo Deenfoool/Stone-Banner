@@ -30,3 +30,5 @@ logs
 forge*changelog.txt
 
 /run-acceptance-persistence/
+
+/run-acceptance-construction/

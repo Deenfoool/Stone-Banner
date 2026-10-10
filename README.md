@@ -12,7 +12,7 @@ on Linux/macOS with **JDK 17** run `bash scripts/verify-phase-1.12.sh`.
 The alpha.50 automatic checkpoint passed 414 JUnit and 149 required GameTests;
 see [QA_ALPHA_50.md](docs/QA_ALPHA_50.md) for client checks and remaining acceptance.
 IDE launches must run `processResources` first; Gradle run tasks already do so.
-The dedicated-server active-work restart probe is documented in [QA_PERSISTENCE_2026_10_10.md](docs/QA_PERSISTENCE_2026_10_10.md); on Linux run `bash scripts/verify-persistence-restart.sh` in a fresh isolated QA directory after accepting the EULA. Full manual client, migration and load acceptance remains open.
+The dedicated-server active-work restart probe is documented in [QA_PERSISTENCE_2026_10_10.md](docs/QA_PERSISTENCE_2026_10_10.md); on Linux run `bash scripts/verify-persistence-restart.sh` in a fresh isolated QA directory after accepting the EULA. The partial-cottage construction restart probe is documented in [QA_CONSTRUCTION_RESTART_2026_10_10.md](docs/QA_CONSTRUCTION_RESTART_2026_10_10.md) and runs via `bash scripts/verify-construction-restart.sh`. Full manual client, migration and load acceptance remains open.
 
 ## Interactive HUD preview
 

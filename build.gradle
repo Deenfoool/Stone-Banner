@@ -108,7 +108,10 @@ minecraft {
             // Opt-in acceptance world, separate from client saves and ordinary dev-server data.
             if (project.hasProperty('stonebanner.qaServer')) workingDirectory project.file('run-acceptance-server')
             if (project.hasProperty('stonebanner.qaPersistence')) {
-                workingDirectory project.file('run-acceptance-persistence')
+                def scenario = project.findProperty('stonebanner.persistenceScenario') ?: 'forestry'
+                if (!(scenario in ['forestry', 'construction'])) throw new GradleException('Unknown persistence scenario')
+                workingDirectory project.file(scenario == 'construction' ? 'run-acceptance-construction' : 'run-acceptance-persistence')
+                property 'stonebanner.persistenceScenario', scenario
                 property 'stonebanner.persistenceStage', project.findProperty('stonebanner.persistenceStage') ?: 'disabled'
                 mods { "${mod_id}" { source sourceSets.acceptanceTest } }
             }

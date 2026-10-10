@@ -29,7 +29,8 @@ public final class PersistenceRestartProbe {
     private static final Path STATE = Path.of("persistence-probe.properties");
     private static final BlockPos TARGET = new BlockPos(8, 65, 2);
     private static final AABB ARENA = new AABB(-1, 64, -1, 16, 72, 16);
-    private static final String STAGE = System.getProperty("stonebanner.persistenceStage", "disabled");
+    private static final String STAGE = System.getProperty("stonebanner.persistenceScenario", "forestry").equals("forestry")
+            ? System.getProperty("stonebanner.persistenceStage", "disabled") : "disabled";
     private static final Properties state = new Properties();
     private static MinecraftServer server;
     private static int ticks;

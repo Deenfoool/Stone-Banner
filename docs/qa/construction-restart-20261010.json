@@ -1,0 +1,103 @@
+{
+  "checkedAt": "2026-10-10T07:04:27.887762+00:00",
+  "sourceVersion": "0.1.0-alpha.50",
+  "java": "17.0.20",
+  "gradle": "8.8",
+  "minecraft": "1.20.1",
+  "forge": "47.4.23",
+  "clientAssetsSkipped": true,
+  "scriptExitCodes": {
+    "construction": 0,
+    "forestry": 0
+  },
+  "scenarios": {
+    "construction": {
+      "processes": 3,
+      "seed": 11252,
+      "stages": [
+        {
+          "stage": "prepare",
+          "status": "passed",
+          "worker": "87468203-c9ff-4863-9345-329a1f1fa7f0",
+          "plan": "1",
+          "placed": "1",
+          "available": "2",
+          "completed": "false",
+          "logSha256": "3162dee9682a14bff8297757f0f7f9b6de66eb7bcf169f31681b7bc5226f038d"
+        },
+        {
+          "stage": "resume",
+          "status": "passed",
+          "worker": "87468203-c9ff-4863-9345-329a1f1fa7f0",
+          "plan": "1",
+          "placed": "3",
+          "available": "0",
+          "completed": "true",
+          "logSha256": "4c409523feafd6103c254785cfcb06d1c049563850a9a9d0acd659d207d08dbe"
+        },
+        {
+          "stage": "completed",
+          "status": "passed",
+          "worker": "87468203-c9ff-4863-9345-329a1f1fa7f0",
+          "plan": "1",
+          "placed": "3",
+          "available": "0",
+          "completed": "true",
+          "logSha256": "b0df3bb0c166131bddb2c28b152d4a9f66e29f1fc9b30b2b2c7c033430778f96"
+        }
+      ]
+    },
+    "forestry": {
+      "processes": 3,
+      "seed": 11251,
+      "stages": [
+        {
+          "stage": "prepare",
+          "status": "passed",
+          "worker": "403b6a53-293f-4ff2-bcd3-8c7ce10c0110",
+          "job": "1",
+          "paused": "WORKING",
+          "logs": "0",
+          "logSha256": "f301b966a1e0ddb839be25c30d06b273878699b6cbce722bc6262b5d8ce0a423"
+        },
+        {
+          "stage": "resume",
+          "status": "passed",
+          "worker": "403b6a53-293f-4ff2-bcd3-8c7ce10c0110",
+          "job": "1",
+          "paused": "WORKING",
+          "logs": "1",
+          "logSha256": "ca60e6d278c6cf6b49f8b4b2933efaf78749f708153e59f5dd9bc6d0dd59d565"
+        },
+        {
+          "stage": "completed",
+          "status": "passed",
+          "worker": "403b6a53-293f-4ff2-bcd3-8c7ce10c0110",
+          "job": "1",
+          "paused": "WORKING",
+          "logs": "1",
+          "logSha256": "393583f4f762816cdeb8d0727db872276fa6f5c75f978924b184213af1f53bf6"
+        }
+      ]
+    }
+  },
+  "parallelConstructionRejected": true,
+  "unknownScenarioRejected": true,
+  "existingConstructionWorldRejected": true,
+  "fullPhase112Acceptance": "pending",
+  "validation": {
+    "command": "test build reobfJar",
+    "exitCode": 0,
+    "junit": {
+      "tests": 414,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "artifact": "stonebanner-0.1.0-alpha.50.jar",
+    "sha256": "95df0ea8c428dabc3629fae25a1b88aca7af6d58ddff2fd8220c59ac4f41e4a8",
+    "acceptanceClassesInJar": 0,
+    "gameTestClassesInJar": 0,
+    "packMetadataValid": true
+  }
+}

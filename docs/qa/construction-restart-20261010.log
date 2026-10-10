@@ -1,0 +1,49 @@
+# Selected logs; complete warning audit is not claimed.
+
+# construction prepare
+[09:00:32] [Server thread/INFO] [minecraft/DedicatedServer]: Done (1.916s)! For help, type "help"
+[09:00:37] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS prepare
+[09:00:39] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 45s
+PASS prepare worker=87468203-c9ff-4863-9345-329a1f1fa7f0 plan=1 placed=1 available=2 completed=false
+
+# construction resume
+[09:01:10] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.431s)! For help, type "help"
+[09:01:23] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS resume
+[09:01:24] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 44s
+PASS resume worker=87468203-c9ff-4863-9345-329a1f1fa7f0 plan=1 placed=3 available=0 completed=true
+
+# construction completed
+[09:01:54] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.347s)! For help, type "help"
+[09:02:00] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS completed
+[09:02:01] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 36s
+PASS completed worker=87468203-c9ff-4863-9345-329a1f1fa7f0 plan=1 placed=3 available=0 completed=true
+
+# forestry prepare
+[09:02:47] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.021s)! For help, type "help"
+[09:02:49] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS prepare
+[09:02:50] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 32s
+PASS prepare worker=403b6a53-293f-4ff2-bcd3-8c7ce10c0110 job=1 paused=WORKING logs=0
+
+# forestry resume
+[09:03:21] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.263s)! For help, type "help"
+[09:03:26] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS resume
+[09:03:27] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 36s
+PASS resume worker=403b6a53-293f-4ff2-bcd3-8c7ce10c0110 job=1 paused=WORKING logs=1
+
+# forestry completed
+[09:03:57] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.279s)! For help, type "help"
+[09:03:59] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+STONEBANNER_PERSISTENCE_PASS completed
+[09:04:00] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+BUILD SUCCESSFUL in 32s
+PASS completed worker=403b6a53-293f-4ff2-bcd3-8c7ce10c0110 job=1 paused=WORKING logs=1
